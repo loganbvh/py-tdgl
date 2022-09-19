@@ -167,12 +167,10 @@ def solve(
     mu = np.zeros(len(mesh.x))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=np.float64)
     lengths = mesh.edge_mesh.edge_lengths
-    mu_boundary[input_edges_index] = source_drain_current
-    mu_boundary[output_edges_index] = (
-        -source_drain_current
-        * np.sum(lengths[input_edges_index])
-        / np.sum(lengths[output_edges_index])
-    )
+    input_length = lengths[input_edges_index].sum()
+    output_length = lengths[output_edges_index].sum()
+    mu_boundary[input_edges_index] = source_drain_current / input_length
+    mu_boundary[output_edges_index] = -source_drain_current / output_length
 
     # Create the alpha parameter which weakens the complex field if it
     # is less than unity.
