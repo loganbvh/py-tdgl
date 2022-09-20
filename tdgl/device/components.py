@@ -568,7 +568,7 @@ class Polygon:
         points = points[np.sort(ix)]
         tck, _ = interpolate.splprep(points.T, k=degree, s=smooth)
         x, y = interpolate.splev(np.linspace(0, 1, num_points - 1), tck)
-        points = close_curve(np.stack([x, y], axis=1))
+        points = close_curve(np.array([x, y]).T)
         return Polygon(
             name=self.name,
             layer=self.layer,

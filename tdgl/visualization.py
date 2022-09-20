@@ -277,7 +277,7 @@ def plot_currents(
         ax_divider = make_axes_locatable(ax)
         cax = ax_divider.append_axes("bottom", size="40%", pad="30%")
         coords, paths, cross_sections = cross_section(
-            np.stack([xgrid.ravel(), ygrid.ravel()], axis=1),
+            np.array([xgrid.ravel(), ygrid.ravel()]).T,
             J.ravel(),
             cross_section_coords,
         )
@@ -427,7 +427,7 @@ def plot_field_at_positions(
             ax_divider = make_axes_locatable(ax)
             cax = ax_divider.append_axes("bottom", size="40%", pad="30%")
             coords, paths, cross_sections = cross_section(
-                np.stack([xgrid.ravel(), ygrid.ravel()], axis=1),
+                np.array([xgrid.ravel(), ygrid.ravel()]).T,
                 field.ravel(),
                 cross_section_coords=cross_section_coords,
             )
@@ -454,7 +454,7 @@ def plot_order_parameter(
     solution: Solution,
     mag_cmap: str = "viridis",
     phase_cmap: str = "twilight_shifted",
-    shading: str = "flat",
+    shading: str = "gouraud",
     **kwargs,
 ) -> Tuple[plt.Figure, np.ndarray]:
     """Plots the magnitude squared and the phase of the complex order parameter,
@@ -521,7 +521,7 @@ def plot_vorticity(
     symmetric_color_scale: bool = True,
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,
-    shading: str = "flat",
+    shading: str = "gouraud",
     **kwargs,
 ):
     """Plots the vorticity in the film:
@@ -549,7 +549,10 @@ def plot_vorticity(
     points = device.points
     triangles = device.triangles
     length_units = device.ureg(device.length_units).units
-    units = device.ureg(units) or solution.vorticity.units
+    if units is None:
+        units = solution.vorticity.units
+    else:
+        units = device.ureg(units)
     v = solution.vorticity.to(units).m
     clim = setup_color_limits(
         {"v": v},

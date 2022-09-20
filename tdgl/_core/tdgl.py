@@ -2,7 +2,6 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from .mesh.mesh import Mesh
-from .util import sum_contributions
 
 
 def get_supercurrent(
@@ -37,10 +36,11 @@ def get_observable_on_site(
     # TODO: Check whether vector = False works correctly.
 
     # Normalize the edge direction
+    directions = mesh.edge_mesh.directions
     normalized_directions = (
-        mesh.edge_mesh.directions
-        / np.linalg.norm(mesh.edge_mesh.directions, axis=1)[:, np.newaxis]
+        directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
     )
+
     # Flux
     if vector:
         flux_x = observable_on_edge * normalized_directions[:, 0]
@@ -48,21 +48,15 @@ def get_observable_on_site(
     else:
         flux_x = flux_y = observable_on_edge
     # Sum x and y components for every edge connecting to the vertex
-    vertices = np.concatenate(
-        [mesh.edge_mesh.edges[:, 0], mesh.edge_mesh.edges[:, 1], mesh.boundary_indices]
-    )
-    x_values = np.concatenate([flux_x, flux_x, np.zeros_like(mesh.boundary_indices)])
-    y_values = np.concatenate([flux_y, flux_y, np.zeros_like(mesh.boundary_indices)])
+    vertices = np.concatenate([mesh.edge_mesh.edges[:, 0], mesh.edge_mesh.edges[:, 1]])
+    x_values = np.concatenate([flux_x, flux_x])
+    y_values = np.concatenate([flux_y, flux_y])
 
-    vertex_group, x_group_values, counts = sum_contributions(vertices, x_values)
-    idx = np.argsort(vertex_group)
-    x_group_values = (x_group_values / counts)[idx]
+    counts = np.bincount(vertices)
+    x_group_values = np.bincount(vertices, weights=x_values) / counts
+    y_group_values = np.bincount(vertices, weights=y_values) / counts
 
-    vertex_group, y_group_values, counts = sum_contributions(vertices, y_values)
-    idx = np.argsort(vertex_group)
-    y_group_values = (y_group_values / counts)[idx]
-
-    vector_val = np.array([x_group_values / 2, y_group_values / 2]).transpose()
+    vector_val = np.array([x_group_values, y_group_values]).T / 2
     if vector:
         return vector_val
     return vector_val[:, 0]

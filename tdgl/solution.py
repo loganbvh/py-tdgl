@@ -170,7 +170,9 @@ class Solution:
         djx_dy = grad_jx * normalized_directions[:, 1]
         vorticity_on_edges = djy_dx - djx_dy
         vorticity = get_observable_on_site(vorticity_on_edges, mesh, vector=False)
-        scale = device.J0 / (device.coherence_length * device.ureg(device.length_units))
+        scale = (
+            device.J0 / (device.coherence_length * device.ureg(device.length_units))
+        ).to(f"{self.current_units} / {self.device.length_units}**2")
         self.vorticity = vorticity * scale
 
     @property
@@ -259,7 +261,7 @@ class Solution:
         Jy = interpolate.griddata(
             points, J[:, 1].magnitude, (xgrid, ygrid), method=method, **kwargs
         ).ravel()
-        xy = np.stack([xgrid.ravel(), ygrid.ravel()], axis=1)
+        xy = np.array([xgrid.ravel(), ygrid.ravel()]).T
         hole_mask = np.logical_or.reduce(
             [hole.contains_points(xy) for hole in self.device.holes.values()]
         )
@@ -284,12 +286,9 @@ class Solution:
         method: str = "linear",
         units: Optional[str] = None,
         with_units: bool = False,
-        **kwargs,
     ):
         """Computes the current density ``J = [dg/dy, -dg/dx]``
         at unstructured coordinates via interpolation.
-
-        Keyword arguments are passed to scipy.interpolate.griddata().
 
         Args:
             positions: Shape ``(m, 2)`` array of x, y coordinates at which to evaluate
@@ -331,10 +330,8 @@ class Solution:
             units = f"{self.current_units} / {self.device.length_units}"
         positions = np.atleast_2d(positions)
         xy = self.device.points
-        Jx, Jy = J.to(units).magnitude.T
-        Jx_interp = interpolator(xy, Jx, **interp_kwargs)
-        Jy_interp = interpolator(xy, Jy, **interp_kwargs)
-        J = np.stack([Jx_interp(positions), Jy_interp(positions)], axis=1)
+        J_interp = interpolator(xy, J.to(units).magnitude, **interp_kwargs)
+        J = J_interp(positions)
         J[~np.isfinite(J)] = 0
         if with_units:
             J = J * self.device.ureg(units)
@@ -383,7 +380,6 @@ class Solution:
     def polygon_fluxoid(
         self,
         polygon_points: Union[np.ndarray, Polygon],
-        grid_shape: Union[int, Tuple[int, int]] = (200, 200),
         interp_method: str = "linear",
         units: Optional[str] = "Phi_0",
         with_units: bool = True,
@@ -438,7 +434,6 @@ class Solution:
         J_poly = self.interp_current_density(
             points,
             dataset="supercurrent",
-            grid_shape=grid_shape,
             method=interp_method,
             units=J_units,
             with_units=True,

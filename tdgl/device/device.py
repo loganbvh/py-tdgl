@@ -1,9 +1,8 @@
 import os
 import json
 import logging
-from collections import defaultdict
 from contextlib import contextmanager
-from typing import Optional, Union, List, Tuple, Dict, Any
+from typing import Optional, Sequence, Union, List, Tuple, Dict, Any
 import warnings
 
 import h5py
@@ -56,6 +55,7 @@ class Device:
         drain_terminal: Optional[Polygon] = None,
         holes: Optional[Union[List[Polygon], Dict[str, Polygon]]] = None,
         abstract_regions: Optional[Union[List[Polygon], Dict[str, Polygon]]] = None,
+        voltage_points: Sequence[float] = None,
         length_units: str = "um",
         solve_dtype: Union[str, np.dtype] = "float64",
     ):
@@ -63,6 +63,14 @@ class Device:
 
         self.source_terminal = source_terminal
         self.drain_terminal = drain_terminal
+        if voltage_points is not None:
+            voltage_points = np.asarray(voltage_points).squeeze()
+            if voltage_points.shape != (2, 2):
+                raise ValueError(
+                    f"Voltage points must have shape (2, 2), "
+                    f"got {voltage_points.shape}."
+                )
+        self.voltage_points = voltage_points
 
         self.layer = layer
         self._films_list = []
@@ -157,12 +165,21 @@ class Device:
             input_edge = self.source_terminal.contains_points(points, index=True)
             output_edge = self.drain_terminal.contains_points(points, index=True)
         # Make dimensionless mesh with the new coherence length.
+        if self.voltage_points is None:
+            voltage_points = None
+        else:
+            voltage_points = [
+                np.argmin(np.linalg.norm(points - xy, axis=1))
+                for xy in self.voltage_points
+            ]
+            voltage_points = np.array(voltage_points)
         self.mesh = Mesh.from_triangulation(
             points[:, 0] / self.coherence_length,
             points[:, 1] / self.coherence_length,
             triangles,
             input_edge=input_edge,
             output_edge=output_edge,
+            voltage_points=voltage_points,
         )
 
     @property
@@ -173,20 +190,22 @@ class Device:
     def J0(self) -> pint.Quantity:
         """Sheet current density scale (dimensions of current / length)."""
         length_units = ureg(self.length_units)
-        lambda_ = self.layer.london_lambda * length_units
         xi = self.coherence_length * length_units
         # e = ureg("elementary_charge")
         # Phi_0 = ureg("Phi_0")
         mu_0 = ureg("mu_0")
-        d = self.layer.thickness * length_units
+        Lambda = self.layer.Lambda * length_units
         return (
-            xi
-            * self.Bc2
-            / (mu_0 * lambda_**2 / d)
-            # ureg("hbar") / (2 * mu_0 * e * xi * lambda_**2 / d)
-            # Phi_0 / (2 * np.pi * mu_0 * xi * lambda_**2 / d)
-            # np.pi * Phi_0 / (2 * np.pi * mu_0 * xi * lambda_**2 / d)
-        ).to_base_units()
+            4
+            * (
+                xi
+                * self.Bc2
+                / (mu_0 * Lambda)
+                # ureg("hbar") / (2 * mu_0 * e * xi * lambda_**2 / d)
+                # Phi_0 / (2 * np.pi * mu_0 * xi * lambda_**2 / d)
+                # np.pi * Phi_0 / (2 * np.pi * mu_0 * xi * lambda_**2 / d)
+            ).to_base_units()
+        )
 
     @property
     def Bc2(self) -> pint.Quantity:
@@ -211,7 +230,7 @@ class Device:
     def points(self) -> Optional[np.ndarray]:
         if self.mesh is None:
             return None
-        return self.coherence_length * np.stack([self.mesh.x, self.mesh.y], axis=1)
+        return self.coherence_length * np.array([self.mesh.x, self.mesh.y]).T
 
     @property
     def triangles(self) -> Optional[np.ndarray]:
@@ -557,60 +576,23 @@ class Device:
             input_edge = self.source_terminal.contains_points(points, index=True)
             output_edge = self.drain_terminal.contains_points(points, index=True)
 
+        if self.voltage_points is None:
+            voltage_points = None
+        else:
+            voltage_points = [
+                np.argmin(np.linalg.norm(points - xy, axis=1))
+                for xy in self.voltage_points
+            ]
+            voltage_points = np.array(voltage_points)
+
         self.mesh = Mesh.from_triangulation(
             points[:, 0] / self.coherence_length,
             points[:, 1] / self.coherence_length,
             triangles,
             input_edge=input_edge,
             output_edge=output_edge,
+            voltage_points=voltage_points,
         )
-        # self.points = points
-        # self.triangles = triangles
-
-        # self.weights = None
-        # self.Del2 = None
-        # self.Q = None
-        # self.gradx = None
-        # self.grady = None
-        # if compute_matrices:
-        #     self.compute_matrices(weight_method=weight_method)
-
-    # def compute_matrices(self, weight_method: str = "half_cotangent") -> None:
-    #     """Calculcates mesh weights, Laplace oeprator, and kernel functions.
-    #     Args:
-    #         weight_method: Meshing scheme: either "uniform", "half_cotangent",
-    #             or "inv_euclidian".
-    #     """
-
-    #     from ..solve import C_vector, q_matrix, Q_matrix
-
-    #     points = self.points
-    #     triangles = self.triangles
-
-    #     if points is None or triangles is None:
-    #         raise ValueError(
-    #             "Device mesh does not exist. Run Device.make_mesh() "
-    #             "to generate the mesh."
-    #         )
-
-    #     logger.info("Calculating weight matrix.")
-    #     self.weights = fem.mass_matrix(points, triangles)
-
-    #     logger.info("Calculating Laplace operator.")
-    #     self.Del2 = fem.laplace_operator(
-    #         points,
-    #         triangles,
-    #         masses=self.weights,
-    #         weight_method=weight_method,
-    #         sparse=True,
-    #     )
-    #     logger.info("Calculating kernel matrix.")
-    #     solve_dtype = self.solve_dtype
-    #     q = q_matrix(points, dtype=solve_dtype)
-    #     C = C_vector(points, dtype=solve_dtype)
-    #     self.Q = Q_matrix(q, C, self.weights, dtype=solve_dtype)
-    #     logger.info("Calculating gradient matrix.")
-    #     self.gradx, self.grady = fem.gradient_vertices(points, triangles)
 
     def boundary_vertices(self) -> np.ndarray:
         """An array of boundary vertex indices, ordered counterclockwise.
@@ -639,11 +621,10 @@ class Device:
     def plot(
         self,
         ax: Optional[plt.Axes] = None,
-        subplots: bool = False,
         legend: bool = True,
         figsize: Optional[Tuple[float, float]] = None,
         mesh: bool = False,
-        mesh_kwargs: Optional[Dict[str, Any]] = None,
+        mesh_kwargs: Dict[str, Any] = dict(color="k", lw=0.5),
         **kwargs,
     ) -> Tuple[plt.Figure, plt.Axes]:
         """Plot all of the device's polygons.
@@ -661,60 +642,31 @@ class Device:
         Returns:
             Matplotlib Figure and Axes
         """
-        if len(self.layers_list) > 1 and subplots and ax is not None:
-            raise ValueError(
-                "Axes may not be provided if subplots is True and the device has "
-                "multiple layers."
-            )
         if ax is None:
-            if subplots:
-                from ..visualization import auto_grid
-
-                fig, axes = auto_grid(
-                    len(self.layers_list),
-                    max_cols=2,
-                    figsize=figsize,
-                    constrained_layout=True,
-                )
-            else:
-                fig, axes = plt.subplots(figsize=figsize, constrained_layout=True)
-                axes = np.array([axes for _ in self.layers_list])
+            fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
         else:
-            subplots = False
             fig = ax.get_figure()
-            axes = np.array([ax for _ in self.layers_list])
-        polygons_by_layer = defaultdict(list)
-        for polygon in self.polygons.values():
-            polygons_by_layer[polygon.layer].append(polygon)
+        points = self.points
         if mesh:
             if self.triangles is None:
                 raise RuntimeError(
                     "Mesh does not exist. Run device.make_mesh() to generate the mesh."
                 )
-            points = self.points
             x = points[:, 0]
             y = points[:, 1]
             tri = self.triangles
-            mesh_kwargs = mesh_kwargs or {}
-            if subplots:
-                for ax in axes.flat:
-                    ax.triplot(x, y, tri, **mesh_kwargs)
-            else:
-                axes[0].triplot(x, y, tri, **mesh_kwargs)
-        for ax, (layer, polygons) in zip(axes.flat, polygons_by_layer.items()):
-            for polygon in polygons:
-                ax = polygon.plot(ax=ax, **kwargs)
-            if subplots:
-                ax.set_title(layer)
-            if legend:
-                ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
-            units = self.ureg(self.length_units).units
-            ax.set_xlabel(f"$x$ $[{units:~L}]$")
-            ax.set_ylabel(f"$y$ $[{units:~L}]$")
-            ax.set_aspect("equal")
-        if not subplots:
-            axes = axes[0]
-        return fig, axes
+            ax.triplot(x, y, tri, **mesh_kwargs)
+        for polygon in self.polygons.values():
+            ax = polygon.plot(ax=ax, **kwargs)
+        if self.mesh.voltage_points is not None:
+            ax.plot(*points[self.mesh.voltage_points].T, "ko", label="Voltage points")
+        if legend:
+            ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
+        units = self.ureg(self.length_units).units
+        ax.set_xlabel(f"$x$ $[{units:~L}]$")
+        ax.set_ylabel(f"$y$ $[{units:~L}]$")
+        ax.set_aspect("equal")
+        return fig, ax
 
     def patches(self) -> Dict[str, PathPatch]:
         """Returns a dict of ``{film_name: PathPatch}``
@@ -723,7 +675,7 @@ class Device:
         abstract_regions = self.abstract_regions
         holes = self.holes
         patches = dict()
-        for name, polygon in self.polygons.items():
+        for polygon in self.polygons.values():
             if polygon.name in holes:
                 continue
             coords = polygon.points.tolist()
@@ -745,7 +697,7 @@ class Device:
     def draw(
         self,
         ax: Optional[plt.Axes] = None,
-        legend: bool = False,
+        legend: bool = True,
         figsize: Optional[Tuple[float, float]] = None,
         alpha: float = 0.5,
         exclude: Optional[Union[str, List[str]]] = None,
@@ -786,13 +738,18 @@ class Device:
         ax.set_ylim(y0 - dy / 2, y0 + dy / 2)
         ax.set_xlabel(f"$x$ $[{units:~L}]$")
         ax.set_ylabel(f"$y$ $[{units:~L}]$")
-        for name, patch in patches.items():
+        for i, (name, patch) in enumerate(patches.items()):
             if name in exclude:
                 continue
             patch.set_alpha(alpha)
+            patch.set_color(f"C{i % 10}")
             ax.add_artist(patch)
             labels.append(name)
             handles.append(patch)
+        if self.mesh.voltage_points is not None:
+            (line,) = ax.plot(*self.points[self.mesh.voltage_points].T, "ko")
+            handles.append(line)
+            labels.append("Voltage points")
         if legend:
             ax.legend(handles, labels, bbox_to_anchor=(1, 1), loc="upper left")
         return fig, ax

@@ -209,7 +209,7 @@ def biot_savart_2d(
     Jx_dz = np.einsum("ij, ij, j -> i", pref, dz, Jx)
     Bx = Jy_dz
     By = -Jx_dz
-    return np.stack([Bx, By, Bz], axis=1) * ureg("tesla")
+    return np.array([Bx, By, Bz]).T * ureg("tesla")
 
 
 def current_loop_vector_potential(
@@ -256,7 +256,7 @@ def current_loop_vector_potential(
     # so here we generate the azimuthal unit vector.
     # Azimuthal angle + pi / 2 to get azimuthal direction.
     phis = np.arctan2(positions[:, 1], positions[:, 0]) + np.pi / 2
-    direc = np.stack([np.cos(phis), np.sin(phis), np.zeros_like(phis)], axis=1)
+    direc = np.array([np.cos(phis), np.sin(phis), np.zeros_like(phis)]).T
     return mag[:, np.newaxis] * direc * ureg("T * m")
 
 
@@ -285,7 +285,7 @@ def current_loop_field(
     loop_center = np.atleast_2d(loop_center)
     # Create loop positions
     thetas = np.linspace(0, 2 * np.pi, num_segments)
-    circ = np.stack([np.cos(thetas), np.sin(thetas), np.zeros_like(thetas)], axis=1)
+    circ = np.array([np.cos(thetas), np.sin(thetas), np.zeros_like(thetas)]).T
     loop = loop_radius * circ + loop_center
     dloop = np.diff(loop, axis=0)
     loop = loop[:-1]

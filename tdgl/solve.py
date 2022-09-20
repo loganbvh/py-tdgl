@@ -54,13 +54,13 @@ def solve(
     mesh = device.mesh
     sites = device.points
     triangles = device.triangles
+    voltage_points = mesh.voltage_points
     length_units = ureg(device.length_units)
-    # points = device.points
     xi = device.coherence_length
     # The vector potential is evaluated on the mesh edges.
     x = mesh.edge_mesh.x * xi
     y = mesh.edge_mesh.y * xi
-    # J0 = device.J0
+    J0 = device.J0
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
     if not isinstance(applied_vector_potential, Parameter):
@@ -79,12 +79,6 @@ def solve(
     assert "dimensionless" in str(vector_potential.units)
     vector_potential = vector_potential.magnitude
 
-    # magnetic_field = 0.2
-    # vector_potential = np.array([
-    #     - magnetic_field * mesh.edge_mesh.y / 2,
-    #     magnetic_field * mesh.edge_mesh.x / 2
-    # ]).transpose()
-
     u = complex_time_scale
 
     data_handler = DataHandler(mesh, output_file=output, logger=logger)
@@ -92,18 +86,15 @@ def solve(
     # Create the matrix builder for fields with Neumann boundary conditions
     # and no link variables.
     builder = MatrixBuilder(mesh)
-
     # Build matrices for scalar potential.
     mu_laplacian = builder.build(MatrixType.LAPLACIAN, sparse_format=SparseFormat.CSC)
     mu_laplacian_lu = splu(mu_laplacian)
     mu_boundary_laplacian = builder.build(MatrixType.NEUMANN_BOUNDARY_LAPLACIAN)
     mu_gradient = builder.build(MatrixType.GRADIENT)
-
     # Build divergence for the supercurrent.
     divergence = builder.build(MatrixType.DIVERGENCE)
 
-    edge_positions = np.stack([x, y], axis=1)[mesh.edge_mesh.boundary_edge_indices]
-
+    edge_positions = np.array([x, y]).transpose()[mesh.edge_mesh.boundary_edge_indices]
     if device.source_terminal is None:
         input_edges_index = np.array([], dtype=np.int64)
         output_edges_index = np.array([], dtype=np.int64)
@@ -122,7 +113,6 @@ def solve(
     metal_boundary_index = np.sort(
         np.concatenate([input_sites_index, output_sites_index])
     ).astype(np.int64)
-    # metal_boundary_index = device.mesh.boundary_indices
 
     interior_indices = np.setdiff1d(
         np.arange(mesh.x.shape[0], dtype=int), metal_boundary_index
@@ -156,47 +146,38 @@ def solve(
     builder.with_dirichlet_boundary(fixed_sites=fixed_sites).with_link_exponents(
         link_exponents=vector_potential
     )
-
     # Build complex field matrices.
     psi_laplacian = builder.build(MatrixType.LAPLACIAN)
     psi_gradient = builder.build(MatrixType.GRADIENT)
-
     # Initialize the complex field and the scalar potential.
     psi = np.ones_like(mesh.x, dtype=np.complex128)
     psi[fixed_sites] = 0
     mu = np.zeros(len(mesh.x))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=np.float64)
     lengths = mesh.edge_mesh.edge_lengths
-    input_length = lengths[input_edges_index].sum()
-    output_length = lengths[output_edges_index].sum()
-    mu_boundary[input_edges_index] = source_drain_current / input_length
-    mu_boundary[output_edges_index] = -source_drain_current / output_length
-
+    if device.source_terminal is not None:
+        input_length = lengths[input_edges_index].sum()
+        output_length = lengths[output_edges_index].sum()
+        mu_boundary[input_edges_index] = source_drain_current / input_length
+        mu_boundary[output_edges_index] = -source_drain_current / output_length
     # Create the alpha parameter which weakens the complex field if it
     # is less than unity.
     alpha = np.ones_like(mesh.x, dtype=np.float64)
-
-    # # Load the voltage points.
-    # voltage_points = data_handler.get_voltage_points()
-
-    # Precompute values.
     sq_gamma = gamma**2
 
     if include_screening:
-        edge_points = np.stack([mesh.edge_mesh.x, mesh.edge_mesh.y], axis=1)
+        edge_points = np.array([mesh.edge_mesh.x, mesh.edge_mesh.y]).T
         edge_directions = mesh.edge_mesh.directions
         edge_directions = (
             edge_directions / np.linalg.norm(edge_directions, axis=1)[:, np.newaxis]
         )
 
-        site_points = np.stack([mesh.x, mesh.y], axis=1)
+        site_points = np.array([mesh.x, mesh.y]).T
         weights = mass_matrix(site_points, triangles)
 
         inv_rho = 1 / spatial.distance.cdist(edge_points, site_points)
         inv_rho = inv_rho[:, :, np.newaxis]
-        A_scale = (ureg("mu_0") * device.J0 / device.Bc2).to_base_units().m / (
-            4 * np.pi
-        )
+        A_scale = (ureg("mu_0") / (4 * np.pi) * J0 / Bc2).to_base_units().magnitude
 
     # Define the update function.
     def update(
@@ -249,29 +230,24 @@ def solve(
         new_sq_psi = (2 * w2) / (
             two_c_1 + np.sqrt(two_c_1**2 - 4 * np.abs(z) ** 2 * w2)
         )
-
         # Compute the new psi.
         psi_val = w - z * new_sq_psi
 
         old_current = supercurrent_val + normal_current_val
-
         # Get the supercurrent
         supercurrent_val = get_supercurrent(psi_val, psi_gradient, mesh.edge_mesh.edges)
         supercurrent_divergence = divergence @ supercurrent_val
-
         # Solve for mu
         lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
         mu_val = mu_laplacian_lu.solve(lhs)
-
         normal_current_val = -mu_gradient @ mu_val
-
-        # # Update the voltage
-        # state["flow"] += (
-        #     mu_val[voltage_points[0]] - mu_val[voltage_points[1]]
-        # ) * state["dt"]
-        # running_state.append(
-        #     "voltage", mu_val[voltage_points[0]] - mu_val[voltage_points[1]]
-        # )
+        # Update the voltage
+        if device.voltage_points is None:
+            d_mu = 0
+        else:
+            d_mu = mu_val[voltage_points[0]] - mu_val[voltage_points[1]]
+        state["flow"] += d_mu * state["dt"]
+        running_state.append("voltage", d_mu)
 
         if include_screening:
             # Update the vector potential and link variables
@@ -295,7 +271,6 @@ def solve(
             max_current > 0
             and np.max(np.abs(new_current - old_current)) / max_current < rtol
         )
-
         return (
             converged,
             psi_val,
@@ -320,6 +295,7 @@ def solve(
             "mu": seed_data.mu,
             "supercurrent": seed_data.supercurrent,
             "normal_current": seed_data.normal_current,
+            # TODO: Update this
             "a_induced": np.zeros((len(mesh.edge_mesh.edges), 2)),
         }
 
@@ -332,13 +308,12 @@ def solve(
         fixed_names=("a",),
         state={
             "current": source_drain_current,
-            # 'flow': 0,
-            # 'magnetic field': magnetic_field,
+            "flow": 0,
             "u": u,
             "gamma": gamma,
         },
         running_names=(
-            # "voltage",
+            "voltage",
             "current",
         ),
         min_steps=min_steps,

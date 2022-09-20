@@ -14,7 +14,7 @@ def sum_contributions(
         values: The values for each item. Must be a one dimensional vector.
 
     Returns:
-        A tuple of groups, group values and counts.
+        A tuple of groups, group values, and counts.
     """
 
     # Get the unique groups and the corresponding indices
@@ -23,6 +23,6 @@ def sum_contributions(
     )
 
     # Sum each unique group
-    group_values = np.bincount(idx, values)
+    group_values = np.bincount(idx, weights=values)
 
     return unique_groups, group_values, counts

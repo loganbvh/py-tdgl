@@ -65,13 +65,13 @@ def generate_mesh(
         if boundary is not None:
             boundary = list(map(tuple, boundary))
             indices = [i for i in indices if tuple(coords[i]) in boundary]
-        facets = np.stack([indices, np.roll(indices, -1)], axis=1)
+        facets = np.array([indices, np.roll(indices, -1)]).T
     # Create facets for the holes.
     for hole in hole_coords:
         hole_indices = np.arange(
             indices[-1] + 1, indices[-1] + 1 + len(hole), dtype=int
         )
-        hole_facets = np.stack([hole_indices, np.roll(hole_indices, -1)], axis=1)
+        hole_facets = np.array([hole_indices, np.roll(hole_indices, -1)]).T
         indices = np.concatenate([indices, hole_indices], axis=0)
         facets = np.concatenate([facets, hole_facets], axis=0)
 
