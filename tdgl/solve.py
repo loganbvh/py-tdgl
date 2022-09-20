@@ -179,7 +179,6 @@ def solve(
         inv_rho = inv_rho[:, :, np.newaxis]
         A_scale = (ureg("mu_0") / (4 * np.pi) * J0 / Bc2).to_base_units().magnitude
 
-    # Define the update function.
     def update(
         state,
         running_state,
@@ -189,7 +188,6 @@ def solve(
         normal_current_val,
         induced_vector_potential_val,
     ):
-        # Extract data from the state
         dt_val = state["dt"]
         # i = state["step"]
 
@@ -209,20 +207,15 @@ def solve(
         # invariant discretization presented in chapter 5 in
         # http://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-312132
 
-        # Compute the absolute square psi
         abs_sq_psi = np.abs(psi_val) ** 2
         phase = np.exp(-1j * mu_val * dt_val)
-        # Compute z
         z = phase * sq_gamma / 2 * psi_val
-
-        # Compute w
         w = z * abs_sq_psi + phase * (
             psi_val
             + (dt_val / u)
             * np.sqrt(1 + sq_gamma * abs_sq_psi)
             * ((alpha - abs_sq_psi) * psi_val + psi_laplacian @ psi_val)
         )
-        # Compute c
         c = w.real * z.real + w.imag * z.imag
         # Find the modulus squared for the next time step
         two_c_1 = 2 * c + 1
@@ -230,7 +223,6 @@ def solve(
         new_sq_psi = (2 * w2) / (
             two_c_1 + np.sqrt(two_c_1**2 - 4 * np.abs(z) ** 2 * w2)
         )
-        # Compute the new psi.
         psi_val = w - z * new_sq_psi
 
         old_current = supercurrent_val + normal_current_val
@@ -251,7 +243,6 @@ def solve(
 
         if include_screening:
             # Update the vector potential and link variables
-            # import pdb; pdb.set_trace()
             # 3D current density
             J_site = get_observable_on_site(supercurrent_val, mesh)
             # i: edges
