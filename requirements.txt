@@ -1,0 +1,12 @@
+dill
+h5py
+matplotlib
+meshpy
+numpy
+optimesh
+pint
+pytest
+pytest-cov
+scipy
+shapely
+tqdm
