@@ -1,13 +1,13 @@
 from typing import Union, Sequence
 
-from scipy.sparse import csr_matrix, coo_matrix
+import scipy.sparse as sp
 import numpy as np
 
 from .enums import SparseFormat, MatrixType
 from .mesh.mesh import Mesh
 
 
-def build_divergence(mesh: Mesh) -> csr_matrix:
+def build_divergence(mesh: Mesh) -> sp.csr_matrix:
     """Build the divergence matrix that takes the divergence of a function living
     on the edge onto the sites.
 
@@ -23,18 +23,17 @@ def build_divergence(mesh: Mesh) -> csr_matrix:
     # Compute the weights for each edge
     weights = edge_mesh.dual_edge_lengths
     # Rows and cols to update
-    rows = np.concatenate([edge_mesh.edges[:, 0], edge_mesh.edges[:, 1]])
+    edges0 = edge_mesh.edges[:, 0]
+    edges1 = edge_mesh.edges[:, 1]
+    rows = np.concatenate([edges0, edges1])
     cols = np.concatenate([edge_indices, edge_indices])
     # The values
     values = np.concatenate(
-        [
-            weights / mesh.areas[edge_mesh.edges[:, 0]],
-            -weights / mesh.areas[edge_mesh.edges[:, 1]],
-        ]
+        [weights / mesh.areas[edges0], -weights / mesh.areas[edges1]]
     )
-    return coo_matrix(
+    return sp.csr_matrix(
         (values, (rows, cols)), shape=(len(mesh.x), len(edge_mesh.edges))
-    ).tocsr()
+    )
 
 
 def build_gradient(mesh: Mesh, link_exponents: Union[np.ndarray, None] = None):
@@ -65,9 +64,9 @@ def build_gradient(mesh: Mesh, link_exponents: Union[np.ndarray, None] = None):
     cols = np.concatenate([edge_mesh.edges[:, 1], edge_mesh.edges[:, 0]])
     # The values
     values = np.concatenate([link_variable_weights * weights, -weights])
-    return coo_matrix(
+    return sp.csr_matrix(
         (values, (rows, cols)), shape=(len(edge_mesh.edges), len(mesh.x))
-    ).tocsr()
+    )
 
 
 def build_laplacian(
@@ -76,7 +75,7 @@ def build_laplacian(
     fixed_sites: Union[np.ndarray, None] = None,
     fixed_sites_eigenvalues: float = 1,
     sparse_format: SparseFormat = SparseFormat.CSR,
-) -> csr_matrix:
+) -> sp.spmatrix:
     """Build a Laplacian matrix on a given mesh.
 
     The default boundary condition is homogenous Neumann conditions. To get
@@ -103,36 +102,24 @@ def build_laplacian(
         if link_exponents is not None
         else np.ones(len(weights))
     )
+    edges0 = edge_mesh.edges[:, 0]
+    edges1 = edge_mesh.edges[:, 1]
     # Rows and cols to update
-    rows = np.concatenate(
-        [
-            edge_mesh.edges[:, 0],
-            edge_mesh.edges[:, 1],
-            edge_mesh.edges[:, 0],
-            edge_mesh.edges[:, 1],
-        ]
-    )
-    cols = np.concatenate(
-        [
-            edge_mesh.edges[:, 1],
-            edge_mesh.edges[:, 0],
-            edge_mesh.edges[:, 0],
-            edge_mesh.edges[:, 1],
-        ]
-    )
+    rows = np.concatenate([edges0, edges1, edges0, edges1])
+    cols = np.concatenate([edges1, edges0, edges0, edges1])
     # The values
+    areas0 = mesh.areas[edges0]
+    areas1 = mesh.areas[edges1]
     values = np.concatenate(
         [
-            weights * link_variable_weights / mesh.areas[edge_mesh.edges[:, 0]],
-            weights
-            * link_variable_weights.conjugate()
-            / mesh.areas[edge_mesh.edges[:, 1]],
-            -weights / mesh.areas[edge_mesh.edges[:, 0]],
-            -weights / mesh.areas[edge_mesh.edges[:, 1]],
+            weights * link_variable_weights / areas0,
+            weights * link_variable_weights.conjugate() / areas1,
+            -weights / areas0,
+            -weights / areas1,
         ]
     )
     # Build the Laplacian
-    laplacian = coo_matrix((values, (rows, cols)), shape=(len(mesh.x), len(mesh.x)))
+    laplacian = sp.csr_matrix((values, (rows, cols)), shape=(len(mesh.x), len(mesh.x)))
     # Change the rows corresponding to fixed sites to identity
     if fixed_sites is not None:
         # Convert laplacian to list of lists
@@ -147,7 +134,7 @@ def build_laplacian(
 
 def build_neumann_boundary_laplacian(
     mesh: Mesh, fixed_sites: Union[np.ndarray, None] = None
-) -> csr_matrix:
+) -> sp.csr_matrix:
     """Build extra matrix for the Laplacian to set non-homogenous Neumann
     boundary conditions.
 
@@ -176,7 +163,7 @@ def build_neumann_boundary_laplacian(
         ]
     )
     # Build the matrix
-    neumann_laplacian = coo_matrix(
+    neumann_laplacian = sp.csr_matrix(
         (values, (rows, cols)), shape=(len(mesh.x), len(boundary_index))
     )
     # Change the rows corresponding to fixed sites to identity
@@ -235,7 +222,7 @@ class MatrixBuilder:
 
     def build(
         self, matrix_type: MatrixType, sparse_format: SparseFormat = SparseFormat.CSR
-    ) -> csr_matrix:
+    ) -> sp.spmatrix:
         """Build a matrix.
 
         Args:
@@ -263,7 +250,7 @@ class MatrixBuilder:
         if matrix_type is MatrixType.GRADIENT:
             return build_gradient(self.mesh, self.link_exponents)
 
-        raise ValueError("Unknown matrix type.")
+        raise ValueError(f"Unknown matrix type: {matrix_type!r}.")
 
     def clone(self) -> "MatrixBuilder":
         """Make a copy of the matrix builder.

@@ -9,7 +9,6 @@ from scipy import spatial
 from .solution import Solution
 from .parameter import Parameter
 from .device.device import Device
-from .fem import mass_matrix
 from ._core.runner import Runner
 from ._core.io.data_handler import DataHandler
 from ._core.matrices import MatrixBuilder
@@ -53,7 +52,6 @@ def solve(
     ureg = device.ureg
     mesh = device.mesh
     sites = device.points
-    triangles = device.triangles
     voltage_points = mesh.voltage_points
     length_units = ureg(device.length_units)
     xi = device.coherence_length
@@ -84,7 +82,7 @@ def solve(
     data_handler = DataHandler(
         mesh,
         output_file=output,
-        save_mesh=False,
+        save_mesh=True,
         logger=logger,
     )
 
@@ -178,10 +176,12 @@ def solve(
         )
 
         site_points = np.array([mesh.x, mesh.y]).T
-        weights = mass_matrix(site_points, triangles)
+        weights = mesh.areas
 
         inv_rho = 1 / spatial.distance.cdist(edge_points, site_points)
+        # (edges, sites, spatial dimensions)
         inv_rho = inv_rho[:, :, np.newaxis]
+        inv_rho = inv_rho * weights[np.newaxis, :, np.newaxis]
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
 
     def update(
@@ -250,15 +250,8 @@ def solve(
             # Update the vector potential and link variables
             # 3D current density
             J_site = get_observable_on_site(supercurrent_val, mesh)
-            # i: edges
-            # j: sites
-            # k: spatial dimensions
-            A_induced = np.einsum(
-                "jk, ijk, j -> ik",
-                J_site,
-                inv_rho,
-                weights,
-            )
+            # i: edges, j: sites, k: spatial dimensions
+            A_induced = np.einsum("jk, ijk -> ik", J_site, inv_rho, optimize=True)
             induced_vector_potential_val = A_induced * A_scale
 
         new_current = supercurrent_val + normal_current_val

@@ -21,7 +21,6 @@ from scipy.spatial import distance
 # from .about import version_dict
 from .device.device import Device
 from .device.components import Polygon
-from .fem import mass_matrix
 from .parameter import Parameter
 from .em import biot_savart_2d, convert_field
 from ._core.tdgl import get_observable_on_site
@@ -444,6 +443,7 @@ class Solution:
         Lambda = device.layer.Lambda
         psi_poly = self.interp_order_parameter(points, method=interp_method)
         ns = np.abs(psi_poly) ** 2
+        # ns = np.ones(dl.shape[0])
         Lambda = Lambda / ns * ureg(device.length_units)
         int_J = np.trapz((Lambda[:, np.newaxis] * J_poly * dl).sum(axis=1))
         supercurrent_part = (ureg("mu_0") * int_J).to(units)
@@ -532,7 +532,6 @@ class Solution:
         dtype = device.solve_dtype
         ureg = device.ureg
         points = device.points.astype(dtype, copy=False)
-        triangles = device.triangles
         units = units or self.field_units
         # In case something like a list [x, y] or [x, y, z] is given
         positions = np.atleast_2d(positions)
@@ -550,7 +549,7 @@ class Solution:
         zs = zs.squeeze()
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
-        weights = mass_matrix(points, triangles)
+        weights = device.mesh.areas * device.coherence_length**2
         # Compute the fields at the specified positions from the currents in each layer
         layer = self.device.layer
         if np.all((zs - layer.z0) == 0):
@@ -633,8 +632,7 @@ class Solution:
         dtype = device.solve_dtype
         ureg = device.ureg
         points = device.points.astype(dtype, copy=False)
-        triangles = device.triangles
-        areas = mass_matrix(points, triangles)
+        areas = device.mesh.areas * device.coherence_length**2
         units = units or f"{self.field_units} * {device.length_units}"
 
         # In case something like a list [x, y] or [x, y, z] is given
@@ -696,6 +694,8 @@ class Solution:
             save_mesh: Whether to save the Device's mesh.
         """
         with h5py.File(self.path, "r+") as f:
+            if "mesh" in f:
+                del f["mesh"]
             group = f.create_group("solution")
             group.attrs["time_created"] = self.time_created.isoformat()
             group.attrs["current_units"] = self.current_units
