@@ -2,7 +2,7 @@ from typing import Dict, Tuple
 
 import numpy as np
 from scipy.spatial import ConvexHull
-from scipy.spatial import QhullError
+from scipy.spatial.qhull import QhullError
 
 
 def get_dual_edge_lengths(
