@@ -397,7 +397,9 @@ class Polygon:
                 f"Unknown operation: {operation}. "
                 f"Valid operations are {valid_operations}."
             )
-        if isinstance(other, valid_types):
+        if isinstance(other, Polygon):
+            other_poly = other.polygon
+        elif isinstance(other, valid_types):
             other_poly = geo.polygon.Polygon(other)
         if not isinstance(other_poly, geo.polygon.Polygon):
             raise TypeError(

@@ -1,5 +1,7 @@
 from typing import Tuple, Union, Dict, Optional, Sequence, List
 import inspect
+from contextlib import contextmanager
+import warnings
 
 import numpy as np
 from scipy import interpolate
@@ -8,6 +10,21 @@ import matplotlib as mpl
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 
 from .solution import Solution
+
+
+@contextmanager
+def non_gui_backend():
+    """A contextmanager that temporarily uses a non-GUI backend for matplotlib."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", category=UserWarning, message="Matplotlib is currently using agg"
+        )
+        try:
+            old_backend = mpl.get_backend()
+            mpl.use("Agg")
+            yield
+        finally:
+            mpl.use(old_backend)
 
 
 def auto_range_iqr(

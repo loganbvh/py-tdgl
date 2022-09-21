@@ -352,8 +352,10 @@ class Device:
             device = self.copy()
         for polygon in device.polygons:
             polygon.translate(dx, dy, inplace=True)
-        if device.points is not None:
-            device.points += np.array([[dx, dy]])
+        if device.mesh is not None:
+            points = device.points
+            points += np.array([[dx, dy]])
+            device.mesh = device._create_dimensionless_mesh(points, device.triangles)
         if dz:
             device.layer.z0 += dz
         return device
@@ -515,7 +517,7 @@ class Device:
             ax.triplot(x, y, tri, **mesh_kwargs)
         for polygon in self.polygons:
             ax = polygon.plot(ax=ax, **kwargs)
-        if self.mesh.voltage_points is not None:
+        if self.mesh is not None and self.mesh.voltage_points is not None:
             ax.plot(*points[self.mesh.voltage_points].T, "ko", label="Voltage points")
         if legend:
             ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
@@ -603,7 +605,7 @@ class Device:
             ax.add_artist(patch)
             labels.append(name)
             handles.append(patch)
-        if self.mesh.voltage_points is not None:
+        if self.mesh is not None and self.mesh.voltage_points is not None:
             (line,) = ax.plot(*self.points[self.mesh.voltage_points].T, "ko")
             handles.append(line)
             labels.append("Voltage points")
