@@ -49,7 +49,7 @@ class IcVsB:
             try:
                 current, voltage = get_mean_voltage(f)
             except OSError:
-                logging.error("Could not parse {}".format(f))
+                logging.error(f"Could not parse {f}")
                 continue
 
             # Find the first current with voltage larger than the threshold
@@ -62,7 +62,7 @@ class IcVsB:
 
         if self.data_file is not None:
             self.logger.info(
-                "Saving Ic vs B data to {} in numpy npz format.".format(self.data_file)
+                f"Saving Ic vs B data to {self.data_file} in numpy npz format."
             )
             np.savez(
                 self.data_file,

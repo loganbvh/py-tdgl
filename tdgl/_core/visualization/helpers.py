@@ -137,16 +137,16 @@ def get_plot_data(
 def get_state_string(h5file: h5py.File, frame: int, max_frame: int) -> str:
     state = load_state_data(h5file, frame)
 
-    state_string = "Frame {} of {}".format(frame, max_frame)
+    state_string = f"Frame {frame} of {max_frame}"
     i = 1
     for key, value in state.items():
         state_string += ", "
         if i % 3 == 0:
             state_string += "\n"
         if type(value) is np.float64:
-            state_string += "{}: {:.2e}".format(key, value)
+            state_string += f"{key}: {value:.2e}"
         else:
-            state_string += "{}: {}".format(key, value)
+            state_string += f"{key}: {value}"
 
         i += 1
 

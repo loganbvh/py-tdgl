@@ -50,7 +50,7 @@ class IcDist:
             try:
                 current, voltage = get_mean_voltage(f)
             except OSError:
-                logging.error("Could not parse {}".format(f))
+                logging.error(f"Could not parse {f}")
                 continue
 
             # Find the first current with voltage larger than the threshold
@@ -60,7 +60,7 @@ class IcDist:
 
         if self.data_file is not None:
             self.logger.info(
-                "Saving Ic dist data to {} in numpy npz format.".format(self.data_file)
+                f"Saving Ic dist data to {self.data_file} in numpy npz format."
             )
             np.savez(self.data_file, critical_current=critical_current)
 

@@ -97,7 +97,7 @@ class InteractivePlot:
                     self.observable = Observable.VORTICITY
 
                 elif event.key == "w" and self.enable_save:
-                    file_name = "data-{}.npz".format(datetime.datetime.now())
+                    file_name = f"data-{datetime.datetime.now()}.npz"
                     value, direction, limits = get_plot_data(
                         h5file, mesh, self.observable, self.frame
                     )
@@ -109,7 +109,7 @@ class InteractivePlot:
                         y=mesh.y,
                         elements=mesh.elements,
                     )
-                    self.logger.info("Saved data to file {}.".format(file_name))
+                    self.logger.info(f"Saved data to file {file_name}.")
 
                 redraw()
 
@@ -119,7 +119,7 @@ class InteractivePlot:
                 )
                 state = get_state_string(h5file, self.frame, max_frame)
 
-                ax.set_title("{}\n{}".format(self.observable.value, state))
+                ax.set_title(f"{self.observable.value}\n{state}")
                 triplot.set_array(value)
                 triplot.set_clim(*limits)
                 quiver.set_UVC(direction[:, 0], direction[:, 1])

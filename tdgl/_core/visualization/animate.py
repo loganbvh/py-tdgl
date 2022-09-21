@@ -42,7 +42,7 @@ class Animate:
 
     def build(self):
 
-        self.logger.info("Creating animation for {}.".format(self.observable.value))
+        self.logger.info(f"Creating animation for {self.observable.value}.")
 
         # Set codec to h264_nvenc to enable NVIDIA GPU acceleration support
         codec = "h264_nvenc" if self.gpu else "h264"
@@ -78,7 +78,7 @@ class Animate:
                 )
                 state = get_state_string(h5file, frame, max_frame)
 
-                ax.set_title("{}\n{}".format(self.observable.value, state))
+                ax.set_title(f"{self.observable.value}\n{state}")
                 triplot.set_array(value)
                 triplot.set_clim(*limits)
 

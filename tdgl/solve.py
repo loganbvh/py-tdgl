@@ -60,7 +60,7 @@ def solve(
     # The vector potential is evaluated on the mesh edges.
     x = mesh.edge_mesh.x * xi
     y = mesh.edge_mesh.y * xi
-    J0 = device.J0
+    K0 = device.K0
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
     if not isinstance(applied_vector_potential, Parameter):
@@ -81,7 +81,12 @@ def solve(
 
     u = complex_time_scale
 
-    data_handler = DataHandler(mesh, output_file=output, logger=logger)
+    data_handler = DataHandler(
+        mesh,
+        output_file=output,
+        save_mesh=False,
+        logger=logger,
+    )
 
     # Create the matrix builder for fields with Neumann boundary conditions
     # and no link variables.
@@ -177,7 +182,7 @@ def solve(
 
         inv_rho = 1 / spatial.distance.cdist(edge_points, site_points)
         inv_rho = inv_rho[:, :, np.newaxis]
-        A_scale = (ureg("mu_0") / (4 * np.pi) * J0 / Bc2).to_base_units().magnitude
+        A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
 
     def update(
         state,
@@ -319,10 +324,10 @@ def solve(
     data_handler.close()
 
     end_time = datetime.now()
-    logger.info("Simulation ended on {}".format(end_time))
-    logger.info("Simulation took {}".format(end_time - start_time))
+    logger.info(f"Simulation ended on {end_time}")
+    logger.info(f"Simulation took {end_time - start_time}")
 
-    return Solution(
+    solution = Solution(
         device=device,
         filename=data_handler.output_path,
         applied_vector_potential=applied_vector_potential,
@@ -331,3 +336,4 @@ def solve(
         field_units=field_units,
         current_units=current_units,
     )
+    return solution

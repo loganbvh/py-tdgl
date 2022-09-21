@@ -58,7 +58,7 @@ class IvPlot:
                     path_head, path_tail = path.split(f)
                     path_tail_name, path_tail_ext = path.splitext(path_tail)
                     np.savez(
-                        path.join(self.save, "{}.npz".format(path_tail_name)),
+                        path.join(self.save, f"{path_tail_name}.npz"),
                         current=current,
                         voltage=voltage,
                     )
@@ -73,7 +73,7 @@ class IvPlot:
                     plt.savefig(
                         path.join(
                             self.output_file,
-                            "{}.{}".format(path_tail_name, self.output_format),
+                            f"{path_tail_name}.{self.output_format}",
                         )
                     )
 

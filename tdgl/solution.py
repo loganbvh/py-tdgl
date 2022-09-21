@@ -1,7 +1,5 @@
 import os
-import json
 import logging
-import zipfile
 from datetime import datetime
 from typing import (
     Optional,
@@ -26,7 +24,6 @@ from .device.components import Polygon
 from .fem import mass_matrix
 from .parameter import Parameter
 from .em import biot_savart_2d, convert_field
-from ._core.mesh.mesh import Mesh
 from ._core.tdgl import get_observable_on_site
 from ._core.matrices import build_gradient
 from ._core.visualization.helpers import (
@@ -100,9 +97,10 @@ class Solution:
         solver: str = "tdgl.solve",
     ):
         self.device = device.copy()
+        self.device.mesh = device.mesh
         self.path = filename
         self.applied_vector_potential = applied_vector_potential
-        self.source_drain_current = source_drain_current
+        self.source_drain_current = float(source_drain_current)
 
         self.supercurrent_density = None
         self.normal_current_density = None
@@ -119,16 +117,7 @@ class Solution:
         self.tdgl_data = None
         self.state = None
         self._solve_step = None
-        with h5py.File(self.path, "r") as f:
-            self.device.mesh = Mesh.load_from_hdf5(f["mesh"])
         self.load_tdgl_data()
-
-        # self.current_densities = current_densities
-        # self.fields = fields
-        # self.applied_field = applied_field
-        # self.screening_fields = screening_fields
-        # self.circulating_currents = circulating_currents or {}
-        # self.terminal_currents = terminal_currents or {}
 
         # self._version_info = version_dict()
 
@@ -152,9 +141,9 @@ class Solution:
         normal_current, nc_direc, _ = get_edge_observable_data(
             self.tdgl_data.normal_current, mesh
         )
-        J0 = self.device.J0.to(f"{self.current_units} / {self.device.length_units}")
-        self.supercurrent_density = J0 * supercurrent[:, np.newaxis] * sc_direc
-        self.normal_current_density = J0 * normal_current[:, np.newaxis] * nc_direc
+        K0 = self.device.K0.to(f"{self.current_units} / {self.device.length_units}")
+        self.supercurrent_density = K0 * supercurrent[:, np.newaxis] * sc_direc
+        self.normal_current_density = K0 * normal_current[:, np.newaxis] * nc_direc
 
         j_sc_site = get_observable_on_site(self.tdgl_data.supercurrent, mesh)
         j_nm_site = get_observable_on_site(self.tdgl_data.normal_current, mesh)
@@ -171,7 +160,7 @@ class Solution:
         vorticity_on_edges = djy_dx - djx_dy
         vorticity = get_observable_on_site(vorticity_on_edges, mesh, vector=False)
         scale = (
-            device.J0 / (device.coherence_length * device.ureg(device.length_units))
+            device.K0 / (device.coherence_length * device.ureg(device.length_units))
         ).to(f"{self.current_units} / {self.device.length_units}**2")
         self.vorticity = vorticity * scale
 
@@ -263,7 +252,7 @@ class Solution:
         ).ravel()
         xy = np.array([xgrid.ravel(), ygrid.ravel()]).T
         hole_mask = np.logical_or.reduce(
-            [hole.contains_points(xy) for hole in self.device.holes.values()]
+            [hole.contains_points(xy) for hole in self.device.holes]
         )
         Jx[hole_mask] = 0
         Jy[hole_mask] = 0
@@ -422,13 +411,10 @@ class Solution:
             units = f"{self.field_units} * {self.device.length_units} ** 2"
         polygon = Polygon(points=polygon_points)
         points = polygon.points
-        if not any(
-            film.contains_points(points).all() for film in device.films.values()
-        ):
+        if not device.film.contains_points(points).all():
             raise ValueError(
-                "The polygon must lie completely within a superconducting film."
+                "The polygon must lie completely within the superconducting film."
             )
-
         # Evaluate the supercurrent density at the polygon coordinates.
         J_units = f"{self.current_units} / {device.length_units}"
         J_poly = self.interp_current_density(
@@ -441,7 +427,6 @@ class Solution:
         zs = device.layer.z0 * np.ones(points.shape[0])
         dl = np.diff(points, axis=0, prepend=points[:1]) * ureg(device.length_units)
         A_units = f"{self.field_units} * {device.length_units}"
-        # A_poly = self.applied_vector_potential(points[:, 0], points[:, 1], zs)[:, :2]
         A_poly = self.vector_potential_at_position(
             points,
             zs=zs,
@@ -459,7 +444,6 @@ class Solution:
         Lambda = device.layer.Lambda
         psi_poly = self.interp_order_parameter(points, method=interp_method)
         ns = np.abs(psi_poly) ** 2
-        # ns = 1
         Lambda = Lambda / ns * ureg(device.length_units)
         int_J = np.trapz((Lambda[:, np.newaxis] * J_poly * dl).sum(axis=1))
         supercurrent_part = (ureg("mu_0") * int_J).to(units)
@@ -469,51 +453,44 @@ class Solution:
         fluxoid = Fluxoid(flux_part, supercurrent_part)
         return fluxoid
 
-    # def hole_fluxoid(
-    #     self,
-    #     hole_name: str,
-    #     points: Optional[np.ndarray] = None,
-    #     grid_shape: Union[int, Tuple[int, int]] = (200, 200),
-    #     interp_method: str = "linear",
-    #     units: Optional[str] = "Phi_0",
-    #     with_units: bool = True,
-    # ) -> Fluxoid:
-    #     """Calculcates the fluxoid for a polygon enclosing the specified hole.
+    def hole_fluxoid(
+        self,
+        hole_name: str,
+        points: Optional[np.ndarray] = None,
+        interp_method: str = "linear",
+        units: Optional[str] = "Phi_0",
+        with_units: bool = True,
+    ) -> Fluxoid:
+        """Calculcates the fluxoid for a polygon enclosing the specified hole.
 
-    #     Args:
-    #         hole_name: The name of the hole for which to calculate the fluxoid.
-    #         points: The vertices of the polygon enclosing the hole. If None is given,
-    #             a polygon is generated using
-    #             :func:`supercreen.fluxoid.make_fluxoid_polygons`.
-    #         grid_shape: Shape of the desired rectangular grid to use for interpolation.
-    #             If a single integer N is given, then the grid will be square,
-    #             shape = (N, N).
-    #         interp_method: Interpolation method to use.
-    #         units: The desired units for the current density.
-    #             Defaults to :math:`\\Phi_0`.
-    #         with_units: Whether to return values as pint.Quantities with units attached.
+        Args:
+            hole_name: The name of the hole for which to calculate the fluxoid.
+            points: The vertices of the polygon enclosing the hole. If None is given,
+                a polygon is generated using
+                :func:`tdgl.fluxoid.make_fluxoid_polygons`.
+            interp_method: Interpolation method to use.
+            units: The desired units for the current density.
+                Defaults to :math:`\\Phi_0`.
+            with_units: Whether to return values as pint.Quantities with units attached.
 
-    #     Returns:
-    #         The hole's Fluxoid.
-    #     """
-    #     if points is None:
-    #         from .fluxoid import make_fluxoid_polygons
+        Returns:
+            The hole's Fluxoid.
+        """
+        if points is None:
+            from .fluxoid import make_fluxoid_polygons
 
-    #         points = make_fluxoid_polygons(self.device, holes=hole_name)[hole_name]
-    #     hole = self.device.holes[hole_name]
-    #     if not in_polygon(points, hole.points).all():
-    #         raise ValueError(
-    #             f"Hole {hole_name} is not completely enclosed by the given polygon."
-    #         )
-    #     fluxoids = self.polygon_fluxoid(
-    #         points,
-    #         hole.layer,
-    #         grid_shape=grid_shape,
-    #         interp_method=interp_method,
-    #         units=units,
-    #         with_units=with_units,
-    #     )
-    #     return fluxoids[hole.layer]
+            points = make_fluxoid_polygons(self.device, holes=hole_name)[hole_name]
+        hole = self.device.holes[hole_name]
+        if not Polygon(points=points).contains_points(hole.points).all():
+            raise ValueError(
+                f"Hole {hole_name} is not completely enclosed by the given polygon."
+            )
+        return self.polygon_fluxoid(
+            points,
+            interp_method=interp_method,
+            units=units,
+            with_units=with_units,
+        )
 
     def field_at_position(
         self,
@@ -577,9 +554,8 @@ class Solution:
         # Compute the fields at the specified positions from the currents in each layer
         layer = self.device.layer
         if np.all((zs - layer.z0) == 0):
-            for film in device.films.values():
-                if film.layer == layer.name and film.contains_points(positions).any():
-                    raise ValueError("Cannot interpolate fields within a layer.")
+            if device.film.contains_points(positions).any():
+                raise ValueError("Cannot interpolate fields within a film.")
         fields = []
         for name in ("supercurrent_density", "normal_current_density"):
             J = (
@@ -713,138 +689,60 @@ class Solution:
             return sum(vector_potentials.values())
         return vector_potentials
 
-    def to_file(
-        self,
-        directory: str,
-        save_mesh: bool = True,
-        compressed: bool = True,
-        to_zip: bool = False,
-    ) -> None:
-        """Saves a Solution to disk.
+    def to_hdf5(self, save_mesh: bool = True) -> None:
+        """Save the Solution to the existing output HDF5 file.
 
         Args:
-            directory: The name of the directory in which to save the solution
-                (must either be empty or not yet exist).
-            save_mesh: Whether to save the device mesh.
-            compressed: Whether to use numpy.savez_compressed rather than numpy.savez.
-            to_zip: Whether to save the Solution to a zip file.
+            save_mesh: Whether to save the Device's mesh.
         """
-        if to_zip:
-            from .io import zip_solution
-
-            zip_solution(self, directory)
-            return
-
-        if os.path.isdir(directory) and len(os.listdir(directory)):
-            raise IOError(f"Directory '{directory}' already exists and is not empty.")
-        os.makedirs(directory, exist_ok=True)
-
-        # Save device
-        device_path = "device"
-        self.device.to_file(os.path.join(directory, device_path), save_mesh=save_mesh)
-
-        # Save arrays
-        array_paths = []
-        save_npz = np.savez_compressed if compressed else np.savez
-        for layer in self.device.layers:
-            path = f"{layer}_arrays.npz"
-            save_npz(
-                os.path.join(directory, path),
-                streams=self.streams[layer],
-                current_densities=self.current_densities[layer],
-                fields=self.fields[layer],
-                screening_fields=self.screening_fields[layer],
+        with h5py.File(self.path, "r+") as f:
+            group = f.create_group("solution")
+            group.attrs["time_created"] = self.time_created.isoformat()
+            group.attrs["current_units"] = self.current_units
+            group.attrs["field_units"] = self.field_units
+            # See: https://docs.h5py.org/en/2.8.0/strings.html
+            group.attrs["applied_vector_potential"] = np.void(
+                dill.dumps(self.applied_vector_potential)
             )
-            array_paths.append(path)
-
-        # Save applied field function
-        applied_field_path = "applied_field.dill"
-        with open(os.path.join(directory, applied_field_path), "wb") as f:
-            dill.dump(self.applied_field, f)
-
-        # Handle circulating current formatting
-        circ_currents = {}
-        for name, val in self.circulating_currents.items():
-            if isinstance(val, pint.Quantity):
-                val = str(val)
-            circ_currents[name] = val
-
-        metadata = {
-            "device": device_path,
-            "arrays": array_paths,
-            "applied_field": applied_field_path,
-            "circulating_currents": circ_currents,
-            "vortices": self.vortices,
-            "field_units": self.field_units,
-            "current_units": self.current_units,
-            "solver": self.solver,
-            "time_created": self.time_created.isoformat(),
-            "version_info": self.version_info,
-        }
-
-        with open(os.path.join(directory, "metadata.json"), "w") as f:
-            json.dump(metadata, f, indent=4)
+            group.attrs["source_drain_current"] = self.source_drain_current
+            group.attrs["total_seconds"] = self.total_seconds
+            self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
 
     @classmethod
-    def from_file(cls, directory: str, compute_matrices: bool = False) -> "Solution":
+    def from_hdf5(cls, path: os.PathLike) -> "Solution":
         """Loads a Solution from file.
 
         Args:
-            directory: The directory from which to load the solution.
-            compute_matrices: Whether to compute the field-independent
-                matrices for the device if the mesh already exists.
+            path: Path to the HDF5 file containing a serialized Solution.
 
         Returns:
             The loaded Solution instance
         """
-        if directory.endswith(".zip") or zipfile.is_zipfile(directory):
-            from .io import unzip_solution
+        with h5py.File(path, "r") as f:
+            grp = f["solution"]
+            time_created = datetime.fromisoformat(grp.attrs["time_created"])
+            current_units = grp.attrs["current_units"]
+            field_units = grp.attrs["field_units"]
+            # See: https://docs.h5py.org/en/2.8.0/strings.html
+            vector_potential = dill.loads(
+                grp.attrs["applied_vector_potential"].tostring()
+            )
+            current = grp.attrs["source_drain_current"]
+            total_seconds = grp.attrs["total_seconds"]
+            device = Device.from_hdf5(grp["device"])
 
-            solution = unzip_solution(directory)
-            if compute_matrices:
-                solution.device.compute_matrices()
-            return solution
-
-        with open(os.path.join(directory, "metadata.json"), "r") as f:
-            info = json.load(f)
-
-        # Load device
-        device_path = os.path.join(directory, info.pop("device"))
-        device = Device.from_file(device_path, compute_matrices=compute_matrices)
-
-        # Load arrays
-        streams = {}
-        current_densities = {}
-        fields = {}
-        screening_fields = {}
-        array_paths = info.pop("arrays")
-        for path in array_paths:
-            layer = path.replace("_arrays.npz", "")
-            with np.load(os.path.join(directory, path)) as arrays:
-                streams[layer] = arrays["streams"]
-                current_densities[layer] = arrays["current_densities"]
-                fields[layer] = arrays["fields"]
-                screening_fields[layer] = arrays["screening_fields"]
-
-        # Load applied field function
-        with open(os.path.join(directory, info.pop("applied_field")), "rb") as f:
-            applied_field = dill.load(f)
-
-        time_created = datetime.fromisoformat(info.pop("time_created"))
-        version_info = info.pop("version_info", None)
-
-        solution = cls(
+        solution = Solution(
             device=device,
-            streams=streams,
-            current_densities=current_densities,
-            fields=fields,
-            screening_fields=screening_fields,
-            applied_field=applied_field,
-            **info,
+            filename=path,
+            applied_vector_potential=vector_potential,
+            source_drain_current=current,
+            current_units=current_units,
+            field_units=field_units,
+            total_seconds=total_seconds,
         )
+
         # Set "read-only" attributes
         solution._time_created = time_created
-        solution._version_info = version_info
 
         return solution
 
@@ -873,27 +771,14 @@ class Solution:
             (self.device == other.device)
             and (self.field_units == other.field_units)
             and (self.current_units == other.current_units)
-            and (self.circulating_currents == other.circulating_currents)
-            and (
-                getattr(self, "terminal_currents", None)
-                == getattr(other, "terminal_currents", None)
-            )
-            and (self.applied_field == other.applied_field)
-            and (self.vortices == other.vortices)
+            and (self.source_drain_current == other.source_drain_current)
+            and (self.path == other.path)
+            and (self.solve_step == other.solve_step)
+            and (self.applied_vector_potential == other.applied_vector_potential)
         ):
             return False
         if require_same_timestamp and (self.time_created != other.time_created):
             return False
-        # Then check the arrays, which will take longer
-        for name, array in self.streams.items():
-            if not np.allclose(array, other.streams[name]):
-                return False
-        for name, array in self.current_densities.items():
-            if not np.allclose(array, other.current_densities[name]):
-                return False
-        for name, array in self.fields.items():
-            if not np.allclose(array, other.fields[name]):
-                return False
         return True
 
     def __eq__(self, other) -> bool:

@@ -128,9 +128,7 @@ class Runner:
                     if then is not None
                     else 0
                 )
-                self.logger.info(
-                    "{} {}/{} {:.2f} it/s".format(stage_name, i, end + 1, it)
-                )
+                self.logger.info(f"{stage_name} {i}/{end + 1} {it:.2f} it/s")
             # Save data
             if i % self.save_every == 0:
                 # Save data if it is enabled.

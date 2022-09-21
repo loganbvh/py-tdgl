@@ -1,7 +1,7 @@
-from copy import deepcopy
 import logging
 from typing import Optional, Union, Tuple, Iterable
 
+import h5py
 import numpy as np
 from matplotlib import path
 import matplotlib.pyplot as plt
@@ -21,7 +21,6 @@ class Layer:
     """A single layer of a superconducting device.
 
     Args:
-        name: Name of the layer.
         london_lambda: The London penetration depth of the layer.
         coherence_length: The superconducting coherence length of the
             film(s) in the layer.
@@ -31,14 +30,12 @@ class Layer:
 
     def __init__(
         self,
-        name: str,
         *,
         london_lambda: float,
         coherence_length: float,
         thickness: float,
         z0: float = 0,
     ):
-        self.name = name
         self.london_lambda = london_lambda
         self._coherence_length = coherence_length
         self.thickness = thickness
@@ -52,8 +49,54 @@ class Layer:
     def Lambda(self) -> float:
         return self.london_lambda**2 / self.thickness
 
-    def copy(self):
-        return deepcopy(self)
+    def copy(self) -> "Layer":
+        return Layer(
+            london_lambda=self.london_lambda,
+            coherence_length=self.coherence_length,
+            thickness=self.thickness,
+            z0=self.z0,
+        )
+
+    def to_hdf5(self, h5_group: h5py.Group) -> None:
+        """Save the ``Layer`` to an ``h5py.Group``."""
+        h5_group.attrs["london_lambda"] = self.london_lambda
+        h5_group.attrs["coherence_length"] = self.coherence_length
+        h5_group.attrs["thickness"] = self.thickness
+        h5_group.attrs["z0"] = self.z0
+
+    @classmethod
+    def from_hdf5(cls, h5_group: h5py.Group) -> "Layer":
+        """Load a ``Layer`` from an ``h5py.Group``."""
+        return cls(
+            london_lambda=h5_group.attrs["london_lambda"],
+            coherence_length=h5_group.attrs["coherence_length"],
+            thickness=h5_group.attrs["thickness"],
+            z0=h5_group.attrs["z0"],
+        )
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+
+        if not isinstance(other, Layer):
+            return False
+
+        return (
+            self.london_lambda == other.london_lambda
+            and self.coherence_length == other.coherence_length
+            and self.thickness == other.thickness
+            and self.z0 == other.z0
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"london_lambda={self.london_lambda:.3f}, "
+            f"coherence_length={self.coherence_length:.3f}, "
+            f"thickness={self.thickness:.3f}, "
+            f"z0={self.z0:.3f}"
+            f")"
+        )
 
 
 class Polygon:
@@ -61,19 +104,15 @@ class Polygon:
 
     Args:
         name: Name of the polygon.
-        layer: Name of the layer in which the polygon is located.
         points: The polygon vertices. This can be a shape ``(n, 2)`` array of x, y
             coordinates or a shapely ``LineString``, ``LinearRing``, or ``Polygon``.
         mesh: Whether to include this polygon when computing a mesh.
     """
 
-    __slots__ = ("name", "layer", "_points", "mesh")
-
     def __init__(
         self,
         name: Optional[str] = None,
         *,
-        layer: Optional[str] = None,
         points: Union[
             np.ndarray,
             geo.linestring.LineString,
@@ -83,7 +122,6 @@ class Polygon:
         mesh: bool = True,
     ):
         self.name = name
-        self.layer = layer
         self.points = points
         self.mesh = mesh
 
@@ -120,14 +158,9 @@ class Polygon:
 
     @property
     def is_valid(self) -> bool:
-        """True if the ``Polygon`` has a ``name`` and ``layer`` its geometry is valid."""
+        """True if the ``Polygon`` has a ``name`` and its geometry is valid."""
         polygon = self.polygon
-        return (
-            self.name is not None
-            and self.layer is not None
-            and polygon.is_valid
-            and not polygon.interiors
-        )
+        return self.name is not None and polygon.is_valid and not polygon.interiors
 
     @property
     def area(self) -> float:
@@ -364,18 +397,7 @@ class Polygon:
                 f"Unknown operation: {operation}. "
                 f"Valid operations are {valid_operations}."
             )
-        if isinstance(other, Polygon):
-            other_poly = other.polygon
-            if (
-                self.layer is not None
-                and other.layer is not None
-                and self.layer != other.layer
-            ):
-                logger.warning(
-                    f"Taking the {operation} of {self} and {other} even though "
-                    f"they are assigned to different layers."
-                )
-        elif isinstance(other, valid_types):
+        if isinstance(other, valid_types):
             other_poly = geo.polygon.Polygon(other)
         if not isinstance(other_poly, geo.polygon.Polygon):
             raise TypeError(
@@ -422,7 +444,6 @@ class Polygon:
         first, *rest = others
         return Polygon(
             name=name or self.name,
-            layer=self.layer,
             points=self._join_via(first, "union"),
             mesh=self.mesh,
         ).union(*rest, name=name)
@@ -453,7 +474,6 @@ class Polygon:
         first, *rest = others
         return Polygon(
             name=name or self.name,
-            layer=self.layer,
             points=self._join_via(first, "intersection"),
             mesh=self.mesh,
         ).intersection(*rest, name=name)
@@ -490,7 +510,6 @@ class Polygon:
         first, *rest = others
         return Polygon(
             name=name or self.name,
-            layer=self.layer,
             points=self._join_via(first, operation),
             mesh=self.mesh,
         ).difference(*rest, symmetric=symmetric, name=name)
@@ -533,7 +552,6 @@ class Polygon:
 
         polygon = Polygon(
             name=f"{self.name} ({distance:+.3f})",
-            layer=self.layer,
             points=poly,
             mesh=self.mesh,
         )
@@ -571,7 +589,6 @@ class Polygon:
         points = close_curve(np.array([x, y]).T)
         return Polygon(
             name=self.name,
-            layer=self.layer,
             points=points,
             mesh=self.mesh,
         )
@@ -609,7 +626,6 @@ class Polygon:
         ],
         *,
         name: Optional[str] = None,
-        layer: Optional[str] = None,
         mesh: bool = True,
     ) -> "Polygon":
         """Creates a new :class:`Polygon` from the union of a sequence of polygons.
@@ -617,14 +633,13 @@ class Polygon:
         Args:
             items: A sequence of polygon-like objects to join.
             name: Name of the polygon.
-            layer: Name of the layer in which the polygon is located.
             mesh: Whether to include this polygon when computing a mesh.
 
         Returns:
             A new :class:`Polygon`.
         """
         first, *rest = items
-        polygon = cls(name=name, layer=layer, points=first, mesh=mesh)
+        polygon = cls(name=name, points=first, mesh=mesh)
         return polygon.union(*rest)
 
     @classmethod
@@ -641,7 +656,6 @@ class Polygon:
         ],
         *,
         name: Optional[str] = None,
-        layer: Optional[str] = None,
         mesh: bool = True,
     ) -> "Polygon":
         """Creates a new :class:`Polygon` from the intersection
@@ -650,14 +664,13 @@ class Polygon:
         Args:
             items: A sequence of polygon-like objects to join.
             name: Name of the polygon.
-            layer: Name of the layer in which the polygon is located.
             mesh: Whether to include this polygon when computing a mesh.
 
         Returns:
             A new :class:`Polygon`.
         """
         first, *rest = items
-        polygon = cls(name=name, layer=layer, points=first, mesh=mesh)
+        polygon = cls(name=name, points=first, mesh=mesh)
         return polygon.intersection(*rest)
 
     @classmethod
@@ -674,7 +687,6 @@ class Polygon:
         ],
         *,
         name: Optional[str] = None,
-        layer: Optional[str] = None,
         mesh: bool = True,
         symmetric: bool = False,
     ) -> "Polygon":
@@ -684,7 +696,6 @@ class Polygon:
         Args:
             items: A sequence of polygon-like objects to join.
             name: Name of the polygon.
-            layer: Name of the layer in which the polygon is located.
             mesh: Whether to include this polygon when computing a mesh.
             symmetric: If True, creates a new :class:`Polygon` from the
                 "symmetric difference" (aka XOR) of the inputs.
@@ -693,14 +704,28 @@ class Polygon:
             A new :class:`Polygon`.
         """
         first, *rest = items
-        polygon = cls(name=name, layer=layer, points=first, mesh=mesh)
+        polygon = cls(name=name, points=first, mesh=mesh)
         return polygon.difference(*rest, symmetric=symmetric)
+
+    def to_hdf5(self, h5_group: h5py.Group) -> None:
+        """Save the ``Polygon`` to an ``h5py.Group``."""
+        h5_group.attrs["name"] = self.name
+        h5_group.attrs["mesh"] = self.mesh
+        h5_group["points"] = self.points
+
+    @classmethod
+    def from_hdf5(cls, h5_group: h5py.Group) -> "Polygon":
+        """Load a ``Polygon`` from an ``h5py.Group``."""
+        return Polygon(
+            h5_group.attrs["name"],
+            points=np.array(h5_group["points"]),
+            mesh=h5_group.attrs["mesh"],
+        )
 
     def __repr__(self) -> str:
         name = f'"{self.name}"' if self.name is not None else None
-        layer = f'"{self.layer}"' if self.layer is not None else None
         return (
-            f"{self.__class__.__name__}(name={name}, layer={layer}, "
+            f"{self.__class__.__name__}(name={name}, "
             f"points=<ndarray: shape={self.points.shape}>, mesh={self.mesh})"
         )
 
@@ -711,11 +736,11 @@ class Polygon:
         if not isinstance(other, Polygon):
             return False
 
-        return (
-            self.name == other.name
-            and self.layer == other.layer
-            and np.allclose(self.points, other.points)
-        )
+        return self.name == other.name and np.allclose(self.points, other.points)
 
     def copy(self) -> "Polygon":
-        return deepcopy(self)
+        return Polygon(
+            self.name,
+            points=self.points.copy(),
+            mesh=self.mesh,
+        )
