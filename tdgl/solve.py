@@ -6,6 +6,12 @@ import numpy as np
 from scipy.sparse.linalg import splu
 from scipy import spatial
 
+try:
+    import jax
+    import jax.numpy as jnp
+except (ModuleNotFoundError, ImportError):
+    jax = None
+
 from .solution import Solution
 from .parameter import Parameter
 from .device.device import Device
@@ -183,6 +189,13 @@ def solve(
         inv_rho = inv_rho[:, :, np.newaxis]
         inv_rho = inv_rho * weights[np.newaxis, :, np.newaxis]
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
+        inv_rho *= A_scale
+
+        if jax is None:
+            einsum = np.einsum
+        else:
+            einsum = jnp.einsum
+            inv_rho = jax.device_put(inv_rho)
 
     def update(
         state,
@@ -251,8 +264,9 @@ def solve(
             # 3D current density
             J_site = get_observable_on_site(supercurrent_val, mesh)
             # i: edges, j: sites, k: spatial dimensions
-            A_induced = np.einsum("jk, ijk -> ik", J_site, inv_rho, optimize=True)
-            induced_vector_potential_val = A_induced * A_scale
+            induced_vector_potential_val = np.asarray(
+                einsum("jk, ijk -> ik", J_site, inv_rho)
+            )
 
         new_current = supercurrent_val + normal_current_val
         max_current = np.max(np.abs(old_current))
