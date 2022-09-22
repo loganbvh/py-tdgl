@@ -93,6 +93,9 @@ def build_laplacian(
     Returns:
         The Laplacian matrix.
     """
+    if fixed_sites is None:
+        fixed_sites = np.array([], dtype=int)
+
     edge_mesh = mesh.edge_mesh
     # Compute the weights for each edge
     weights = edge_mesh.dual_edge_lengths / edge_mesh.edge_lengths
@@ -102,33 +105,33 @@ def build_laplacian(
         if link_exponents is not None
         else np.ones(len(weights))
     )
+
     edges0 = edge_mesh.edges[:, 0]
     edges1 = edge_mesh.edges[:, 1]
+    # Exclude all edges connected to fixed sites and set the
+    # fixed site diagonal elements separately.
+    mask = np.isin(edge_mesh.edges, fixed_sites, invert=True)
+    edges0 = edges0[mask[:, 0]]
+    edges1 = edges1[mask[:, 1]]
     # Rows and cols to update
-    rows = np.concatenate([edges0, edges1, edges0, edges1])
-    cols = np.concatenate([edges1, edges0, edges0, edges1])
+    rows = np.concatenate([edges0, edges1, edges0, edges1, fixed_sites])
+    cols = np.concatenate([edges1, edges0, edges0, edges1, fixed_sites])
     # The values
     areas0 = mesh.areas[edges0]
     areas1 = mesh.areas[edges1]
     values = np.concatenate(
         [
-            weights * link_variable_weights / areas0,
-            weights * link_variable_weights.conjugate() / areas1,
-            -weights / areas0,
-            -weights / areas1,
+            weights[mask[:, 0]] * link_variable_weights[mask[:, 0]] / areas0,
+            weights[mask[:, 1]]
+            * link_variable_weights[mask[:, 1]].conjugate()
+            / areas1,
+            -weights[mask[:, 0]] / areas0,
+            -weights[mask[:, 1]] / areas1,
+            fixed_sites_eigenvalues * np.ones(len(fixed_sites)),
         ]
     )
     # Build the Laplacian
-    laplacian = sp.csr_matrix((values, (rows, cols)), shape=(len(mesh.x), len(mesh.x)))
-    # Change the rows corresponding to fixed sites to identity
-    if fixed_sites is not None:
-        # Convert laplacian to list of lists
-        # This makes it quick to do slices
-        laplacian = laplacian.tolil()
-        # Change the rows corresponding to the fixed sites
-        laplacian[fixed_sites, :] = 0
-        laplacian[fixed_sites, fixed_sites] = fixed_sites_eigenvalues
-
+    laplacian = sp.csc_matrix((values, (rows, cols)), shape=(len(mesh.x), len(mesh.x)))
     return laplacian.asformat(sparse_format.value, copy=False)
 
 
