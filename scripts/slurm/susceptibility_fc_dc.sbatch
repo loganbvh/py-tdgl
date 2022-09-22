@@ -17,10 +17,6 @@ mkdir -p $outdir
 
 pyscript=$HOME/py-tdgl/scripts/susceptibility_fc_dc.py
 
-# Copy the python script and this shell script to the results directory
-cp $pyscript $outdir/
-cp $0 $outdir/
-
 python $pyscript \
     --directory=$outdir \
     --I_fc 0.1 5.1 51 \
@@ -37,6 +33,10 @@ python $pyscript \
     --steps=10e3 \
     --pinning=0 \
     --screening
+
+# Copy the python script and this shell script to the results directory
+cp $pyscript $outdir/
+cp $0 $outdir/
 
 # Move the stdout log to the results directory
 mv "slurm-${SLURM_JOB_ID}.out" $outdir
