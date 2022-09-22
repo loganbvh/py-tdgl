@@ -31,16 +31,14 @@ def applied_potential(x, y, z, *, fc_radius, fc_center, fc_current):
     loop_center = np.atleast_2d(fc_center)
     loop_radius = fc_radius
     loop_current = fc_current
-
-    length_units = tdgl.ureg("um")
-    positions = (np.array([x, y, z]).T * length_units).to("m").m
-    loop_center = (loop_center * length_units).to("m").m
-    loop_radius = (loop_radius * length_units).to("m").m
+    positions = np.array([x, y, z]).T
     potential = tdgl.em.current_loop_vector_potential(
         positions,
         loop_center=loop_center,
         current=loop_current,
         loop_radius=loop_radius,
+        length_units="um",
+        current_units="mA",
     )
     return potential.to("mT * um").m
 
