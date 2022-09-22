@@ -88,12 +88,18 @@ class InteractivePlot:
                     self.observable = Observable.SCALAR_POTENTIAL
 
                 elif event.key == "6":
-                    self.observable = Observable.VECTOR_POTENTIAL
+                    self.observable = Observable.TOTAL_VECTOR_POTENTIAL
 
                 elif event.key == "7":
-                    self.observable = Observable.ALPHA
+                    self.observable = Observable.APPLIED_VECTOR_POTENTIAL
 
                 elif event.key == "8":
+                    self.observable = Observable.INDUCED_VECTOR_POTENTIAL
+
+                elif event.key == "9":
+                    self.observable = Observable.ALPHA
+
+                elif event.key == "0":
                     self.observable = Observable.VORTICITY
 
                 elif event.key == "w" and self.enable_save:
@@ -119,7 +125,7 @@ class InteractivePlot:
                 )
                 state = get_state_string(h5file, self.frame, max_frame)
 
-                ax.set_title(f"{self.observable.value}\n{state}")
+                fig.suptitle(f"{self.observable.value}\n{state}")
                 triplot.set_array(value)
                 triplot.set_clim(*limits)
                 quiver.set_UVC(direction[:, 0], direction[:, 1])
@@ -131,6 +137,7 @@ class InteractivePlot:
             temp_value[1] = 0.5
 
             fig, ax = plt.subplots()
+            fig.subplots_adjust(top=0.8)
             fig.canvas.mpl_connect("key_press_event", on_keypress)
             triplot = ax.tripcolor(
                 mesh.x, mesh.y, temp_value, triangles=mesh.elements, shading="gouraud"

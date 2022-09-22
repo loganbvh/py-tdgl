@@ -9,9 +9,11 @@ class Observable(Enum):
     PHASE = "Phase"
     SUPERCURRENT = "Supercurrent density"
     NORMAL_CURRENT = "Normal current density"
-    VORTICITY = "VORTICITY"
+    VORTICITY = "Vorticity"
     SCALAR_POTENTIAL = "Scalar potential"
-    VECTOR_POTENTIAL = "Vector potential"
+    APPLIED_VECTOR_POTENTIAL = "Applied vector potential"
+    INDUCED_VECTOR_POTENTIAL = "Induced vector potential"
+    TOTAL_VECTOR_POTENTIAL = "Total vector potential"
     ALPHA = "Alpha"
 
     @classmethod

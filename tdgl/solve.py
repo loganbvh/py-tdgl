@@ -275,7 +275,7 @@ def solve(
             "mu": mu,
             "supercurrent": np.zeros(len(mesh.edge_mesh.edges)),
             "normal_current": np.zeros(len(mesh.edge_mesh.edges)),
-            "a_induced": np.zeros((len(mesh.edge_mesh.edges), 2)),
+            "induced_vector_potential": np.zeros((len(mesh.edge_mesh.edges), 2)),
         }
     else:
         seed_data = seed_solution.tdgl_data
@@ -284,8 +284,7 @@ def solve(
             "mu": seed_data.mu,
             "supercurrent": seed_data.supercurrent,
             "normal_current": seed_data.normal_current,
-            # TODO: Update this
-            "a_induced": np.zeros((len(mesh.edge_mesh.edges), 2)),
+            "induced_vector_potential": seed_data.induced_vector_potential,
         }
 
     Runner(
@@ -294,7 +293,7 @@ def solve(
         initial_values=list(parameters.values()),
         names=list(parameters),
         fixed_values=[vector_potential],
-        fixed_names=("a",),
+        fixed_names=("applied_vector_potential",),
         state={
             "current": source_drain_current,
             "flow": 0,

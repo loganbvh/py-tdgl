@@ -14,7 +14,8 @@ class TDGLData(NamedTuple):
     step: int
     psi: np.ndarray
     mu: np.ndarray
-    a: np.ndarray
+    applied_vector_potential: np.ndarray
+    induced_vector_potential: np.ndarray
     supercurrent: np.ndarray
     normal_current: np.ndarray
 
@@ -45,7 +46,6 @@ def load_tdgl_data(
             return np.asarray(h5file["data"][step][key])
         return default
 
-    # keys = ["step", "psi", "mu", "a", "supercurrent", "normal_current"]
     return TDGLData(*map(get, TDGLData._fields))
 
 
@@ -83,7 +83,8 @@ def get_plot_data(
     """
 
     # Get the tdgl fields
-    _, psi, mu, a, supercurrent, normal_current = load_tdgl_data(h5file, frame)
+    tdgl_data = load_tdgl_data(h5file, frame)
+    _, psi, mu, a_applied, a_induced, supercurrent, normal_current = tdgl_data
 
     if observable is Observable.COMPLEX_FIELD and psi is not None:
         return np.abs(psi), np.zeros((len(mesh.x), 2)), [0, 1]
@@ -100,9 +101,23 @@ def get_plot_data(
     elif observable is Observable.SCALAR_POTENTIAL and mu is not None:
         return mu, np.zeros((len(mesh.x), 2)), [np.min(mu), np.max(mu)]
 
-    elif observable is Observable.VECTOR_POTENTIAL and a is not None:
+    elif observable is Observable.APPLIED_VECTOR_POTENTIAL and a_applied is not None:
         return get_edge_observable_data(
-            (a * mesh.edge_mesh.directions).sum(axis=1), mesh
+            (a_applied * mesh.edge_mesh.directions).sum(axis=1), mesh
+        )
+
+    elif observable is Observable.INDUCED_VECTOR_POTENTIAL and a_induced is not None:
+        return get_edge_observable_data(
+            (a_induced * mesh.edge_mesh.directions).sum(axis=1), mesh
+        )
+
+    elif (
+        observable is Observable.TOTAL_VECTOR_POTENTIAL
+        and a_applied is not None
+        and a_induced is not None
+    ):
+        return get_edge_observable_data(
+            ((a_applied + a_induced) * mesh.edge_mesh.directions).sum(axis=1), mesh
         )
 
     elif observable is Observable.ALPHA:
@@ -113,7 +128,11 @@ def get_plot_data(
 
         return alpha, np.zeros((len(mesh.x), 2)), [np.min(alpha), np.max(alpha)]
 
-    elif observable is Observable.VORTICITY and supercurrent is not None:
+    elif (
+        observable is Observable.VORTICITY
+        and supercurrent is not None
+        and normal_current is not None
+    ):
         j_sc_site = get_observable_on_site(supercurrent, mesh)
         j_nm_site = get_observable_on_site(normal_current, mesh)
         j_site = j_sc_site + j_nm_site
@@ -140,6 +159,8 @@ def get_state_string(h5file: h5py.File, frame: int, max_frame: int) -> str:
     state_string = f"Frame {frame} of {max_frame}"
     i = 1
     for key, value in state.items():
+        if key == "timestamp":
+            continue
         state_string += ", "
         if i % 3 == 0:
             state_string += "\n"

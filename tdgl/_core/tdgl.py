@@ -32,16 +32,11 @@ def get_observable_on_site(
     Returns:
         The observable vector at each site.
     """
-
-    # TODO: Check whether vector = False works correctly.
-
     # Normalize the edge direction
     directions = mesh.edge_mesh.directions
     normalized_directions = (
         directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
     )
-
-    # Flux
     if vector:
         flux_x = observable_on_edge * normalized_directions[:, 0]
         flux_y = observable_on_edge * normalized_directions[:, 1]
