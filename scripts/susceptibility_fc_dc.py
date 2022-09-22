@@ -119,9 +119,8 @@ def main():
     start_time = datetime.now()
 
     path = os.path.abspath(args.directory)
-    if os.path.exists(path) and os.listdir(path):
-        raise ValueError(f"Path {path} exists and is not empty.")
-
+    # if os.path.exists(path) and os.listdir(path):
+    #     raise ValueError(f"Path {path} exists and is not empty.")
     os.makedirs(path, exist_ok=True)
 
     device = make_device(
