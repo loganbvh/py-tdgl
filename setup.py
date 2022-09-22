@@ -32,16 +32,16 @@ INSTALL_REQUIRES = [
 ]
 
 EXTRAS_REQUIRE = {
+    "dev": [
+        "black",
+        "pre-commit",
+    ],
     "docs": [
         "sphinx",
         "sphinx_rtd_theme",
         "sphinx-autodoc-typehints",
         "nbsphinx",
         "pillow",  # required for image scaling in RTD
-    ],
-    "dev": [
-        "black",
-        "pre-commit",
     ],
     # "jax": [
     #     "jax[cpu]",
