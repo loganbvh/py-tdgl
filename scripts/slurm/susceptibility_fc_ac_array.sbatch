@@ -43,4 +43,4 @@ python $pyscript \
     --screening
 
 # Move the stdout log to the results directory
-mv "slurm-${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" $outdir
+mv "slurm-${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" $outdir
