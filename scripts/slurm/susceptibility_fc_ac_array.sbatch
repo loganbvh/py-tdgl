@@ -12,7 +12,7 @@ set -x
 source $GROUP_HOME/miniconda3/bin/activate
 conda activate tdgl
 
-outdir=$GROUP_SCRATCH/py-tdgl/results/$SLURM_JOB_ID
+outdir=$GROUP_SCRATCH/py-tdgl/results/$SLURM_ARRAY_JOB_ID
 mkdir -p $outdir
 
 pyscript=$HOME/py-tdgl/scripts/susceptibility_fc_ac.py
@@ -32,12 +32,12 @@ python $pyscript \
     --z0=0.5 \
     --d=0.1 \
     --lam=2 \
-    --xi=1 \
+    --xi=0.5 \
     --gamma=10 \
     --min-points=1500 \
     --optimesh-steps=100 \
     --dt=1e-2 \
-    --steps=2e3 \
+    --steps=10e3 \
     --pinning=0 \
     --seed-solutions \
     --screening

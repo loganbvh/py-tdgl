@@ -206,7 +206,7 @@ def main():
 
         if args.seed_solutions:
             prev_solution = solution
-            steps = min(100, int(args.steps / 10))
+            steps = min(100, int(args.steps / 5))
 
         field = solution.field_at_position(
             pl_points,
