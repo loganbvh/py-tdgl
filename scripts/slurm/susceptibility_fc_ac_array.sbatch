@@ -12,6 +12,8 @@ set -x
 source $GROUP_HOME/miniconda3/bin/activate
 conda activate tdgl
 
+export LD_LIBRARY_PATH=${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}
+
 outdir=$GROUP_SCRATCH/py-tdgl/results/$SLURM_ARRAY_JOB_ID
 mkdir -p $outdir
 
