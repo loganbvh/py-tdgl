@@ -1,9 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=susc_fc_dc
-#SBATCH --partition=gpu
-#SBATCH --gpus=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=8GB
+#SBATCH --mem-per-cpu=6GB
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=12:00:00

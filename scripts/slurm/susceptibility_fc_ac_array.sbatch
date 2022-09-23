@@ -25,16 +25,16 @@ cp -u $0 $outdir/
 
 python $pyscript \
     --directory=$outdir/$SLURM_ARRAY_TASK_ID \
-    --I_fc 0.1 5.1 $SLURM_ARRAY_TASK_COUNT \
+    --I_fc 0.1 10.1 $SLURM_ARRAY_TASK_COUNT \
     --index=$SLURM_ARRAY_TASK_ID \
-    --cycles=5 \
-    --points-per-cycle=15 \
+    --cycles=3 \
+    --points-per-cycle=25 \
     --r_fc=2.5 \
     --r_pl=0.75 \
     --z0=0.5 \
-    --d=0.1 \
+    --d=0.2 \
     --lam=2 \
-    --xi=0.5 \
+    --xi=0.25 \
     --gamma=10 \
     --min-points=1500 \
     --optimesh-steps=100 \

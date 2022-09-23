@@ -119,12 +119,12 @@ def solve(
         input_sites_index = device.source_terminal.contains_points(sites, index=True)
         output_sites_index = device.drain_terminal.contains_points(sites, index=True)
 
-    metal_boundary_index = np.sort(
+    normal_boundary_index = np.sort(
         np.concatenate([input_sites_index, output_sites_index])
     ).astype(np.int64)
 
     interior_indices = np.setdiff1d(
-        np.arange(mesh.x.shape[0], dtype=int), metal_boundary_index
+        np.arange(mesh.x.shape[0], dtype=int), normal_boundary_index
     )
 
     if callable(pinning_sites):
@@ -148,7 +148,7 @@ def solve(
             interior_indices, size=n_pinning_sites, replace=False
         )
 
-    fixed_sites = np.union1d(metal_boundary_index, pinning_sites)
+    fixed_sites = np.union1d(normal_boundary_index, pinning_sites)
 
     # Update the builder and set fixed sites and link variables for
     # the complex field.
@@ -180,10 +180,8 @@ def solve(
         edge_directions = (
             edge_directions / np.linalg.norm(edge_directions, axis=1)[:, np.newaxis]
         )
-
         site_points = np.array([mesh.x, mesh.y]).T
         weights = mesh.areas
-
         inv_rho = 1 / spatial.distance.cdist(edge_points, site_points)
         # (edges, sites, spatial dimensions)
         inv_rho = inv_rho[:, :, np.newaxis]
@@ -214,7 +212,7 @@ def solve(
         nonlocal psi_laplacian
         nonlocal psi_gradient
 
-        if include_screening:
+        if include_screening and state["step"] > 0:
             _ = builder.with_link_exponents(
                 vector_potential + induced_vector_potential_val
             )
