@@ -25,7 +25,7 @@ python $pyscript \
     --directory=$outdir/$SLURM_ARRAY_TASK_ID \
     --I_fc 0.1 5.1 $SLURM_ARRAY_TASK_COUNT \
     --index=$SLURM_ARRAY_TASK_ID \
-    --cycles=3 \
+    --cycles=5 \
     --points-per-cycle=15 \
     --r_fc=2.5 \
     --r_pl=0.75 \

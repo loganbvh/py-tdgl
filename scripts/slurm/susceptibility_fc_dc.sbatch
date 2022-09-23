@@ -1,5 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=susc_fc_dc
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=8GB
 #SBATCH --nodes=1
@@ -11,6 +13,8 @@ set -x
 # Activate conda env
 source $GROUP_HOME/miniconda3/bin/activate
 conda activate tdgl
+
+export LD_LIBRARY_PATH=${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}
 
 outdir=$GROUP_SCRATCH/py-tdgl/results/$SLURM_JOB_ID
 mkdir -p $outdir
@@ -29,7 +33,7 @@ python $pyscript \
     --z0=0.5 \
     --d=0.1 \
     --lam=2 \
-    --xi=1 \
+    --xi=0.5 \
     --gamma=10 \
     --min-points=1500 \
     --optimesh-steps=100 \
