@@ -239,7 +239,8 @@ def current_loop_vector_potential(
     # http://www.physics.usu.edu/Wheeler/EMarchive/Jch5Notes.pdf
     positions = np.atleast_2d(positions) * to_meter
     loop_center = np.atleast_2d(loop_center) * to_meter
-    a = loop_radius * to_amp
+    a = loop_radius * to_meter
+    current = current * to_amp
     positions = positions - loop_center
     # # This is a pint-friendly vector norm.
     # rs = np.sqrt(np.sum(np.square(positions), axis=1))
