@@ -135,12 +135,14 @@ def main():
     parser.add_argument("--screening", action="store_true", help="Include screening.")
 
     args = parser.parse_args()
+    args_as_dict = vars(args)
+    print(args_as_dict)
 
     start_time = datetime.now()
 
     path = os.path.abspath(args.directory)
     # if os.path.exists(path) and os.listdir(path):
-    #     raise ValueError(f"Path {path} exists and is not empty.")
+    #     raise ValueError(f"Path {path!r} exists and is not empty.")
     os.makedirs(path, exist_ok=True)
 
     device = make_device(
@@ -166,8 +168,6 @@ def main():
     npoints = int(args.points_per_cycle * args.cycles) + 1
     thetas = np.linspace(0, 2 * np.pi * args.cycles, npoints)
     I_fc = I_fc_rms * np.sqrt(2) * np.cos(thetas)
-
-    args_as_dict = vars(args)
 
     all_flux = []
 
@@ -222,13 +222,16 @@ def main():
 
     end_time = datetime.now()
 
-    json_data = args_as_dict.copy()
+    json_data = {}
+    json_data["args"] = args_as_dict.copy()
+    json_data["timing"] = {
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+        "total_seconds": (end_time - start_time).total_seconds(),
+    }
     json_data["I_fc"] = I_fc.tolist()
     json_data["flux"] = all_flux
     json_data["susc"] = (1e3 * np.array(all_flux) / I_fc).tolist()
-    json_data["start_time"] = start_time.isoformat()
-    json_data["end_time"] = end_time.isoformat()
-    json_data["total_seconds"] = (end_time - start_time).total_seconds()
 
     with open(os.path.join(path, "results.json"), "w") as f:
         json.dump(json_data, f, indent=4, sort_keys=True)

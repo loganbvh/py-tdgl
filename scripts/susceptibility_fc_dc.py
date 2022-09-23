@@ -113,6 +113,8 @@ def main():
     parser.add_argument("--screening", action="store_true", help="Include screening.")
 
     args = parser.parse_args()
+    args_as_dict = vars(args)
+    print(args_as_dict)
 
     start_time = datetime.now()
 
@@ -140,8 +142,6 @@ def main():
     r_fc = args.r_fc
     start, stop, num = args.I_fc
     I_fc = np.linspace(start, stop, int(num))
-
-    args_as_dict = vars(args)
 
     all_flux = []
 
@@ -187,13 +187,16 @@ def main():
 
     end_time = datetime.now()
 
-    json_data = args_as_dict.copy()
+    json_data = {}
+    json_data["args"] = args_as_dict.copy()
+    json_data["timing"] = {
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+        "total_seconds": (end_time - start_time).total_seconds(),
+    }
     json_data["I_fc"] = I_fc.tolist()
     json_data["flux"] = all_flux
     json_data["susc"] = (1e3 * np.array(all_flux) / I_fc).tolist()
-    json_data["start_time"] = start_time.isoformat()
-    json_data["end_time"] = end_time.isoformat()
-    json_data["total_seconds"] = (end_time - start_time).total_seconds()
 
     with open(os.path.join(path, "results.json"), "w") as f:
         json.dump(json_data, f, indent=4, sort_keys=True)
