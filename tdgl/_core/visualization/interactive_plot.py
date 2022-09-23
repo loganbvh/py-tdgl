@@ -36,7 +36,10 @@ class InteractivePlot:
         with h5py.File(self.input_file, "r") as h5file:
 
             # Get the mesh
-            mesh = Mesh.load_from_hdf5(h5file["mesh"])
+            if "mesh" in h5file:
+                mesh = Mesh.load_from_hdf5(h5file["mesh"])
+            else:
+                mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
 
             # Get the ranges for the frame
             min_frame, max_frame = get_data_range(h5file)

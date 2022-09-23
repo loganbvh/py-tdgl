@@ -262,7 +262,7 @@ def solve(
         if include_screening:
             # Update the vector potential and link variables
             # 3D current density
-            J_site = get_observable_on_site(supercurrent_val, mesh)
+            J_site = get_observable_on_site(supercurrent_val + normal_current_val, mesh)
             # i: edges, j: sites, k: spatial dimensions
             induced_vector_potential_val = np.asarray(
                 einsum("jk, ijk -> ik", J_site, inv_rho)
