@@ -61,7 +61,8 @@ def solve(
     voltage_points = mesh.voltage_points
     length_units = ureg(device.length_units)
     xi = device.coherence_length
-    # The vector potential is evaluated on the mesh edges.
+    # The vector potential is evaluated on the mesh edges,
+    # where the edge coordinates are in dimensionful units.
     x = mesh.edge_mesh.x * xi
     y = mesh.edge_mesh.y * xi
     K0 = device.K0
@@ -133,7 +134,8 @@ def solve(
     else:
         if pinning_sites is None:
             pinning_sites = 0
-        total_area = xi**2 * mesh.areas.sum()
+        site_areas = xi**2 * mesh.areas[interior_indices]
+        total_area = site_areas.sum()
         n_pinning_sites = int(pinning_sites * total_area)
         if n_pinning_sites > len(interior_indices):
             area_units = (ureg(device.length_units) ** 2).units
@@ -145,7 +147,10 @@ def solve(
             )
         rng = np.random.default_rng(rng_seed)
         pinning_sites = rng.choice(
-            interior_indices, size=n_pinning_sites, replace=False
+            interior_indices,
+            size=n_pinning_sites,
+            p=site_areas / total_area,
+            replace=False,
         )
 
     fixed_sites = np.union1d(normal_boundary_index, pinning_sites)
@@ -205,8 +210,6 @@ def solve(
         induced_vector_potential_val,
     ):
         dt_val = state["dt"]
-        # i = state["step"]
-
         running_state.append("current", source_drain_current)
 
         nonlocal psi_laplacian

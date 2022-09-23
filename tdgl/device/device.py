@@ -208,7 +208,9 @@ class Device:
     def poly_points(self) -> np.ndarray:
         """Shape (n, 2) array of (x, y) coordinates of all Polygons in the Device."""
         points = np.concatenate(
-            [polygon.points for polygon in self.polygons if polygon.mesh]
+            [self.film.points]
+            + [poly.points for poly in self.abstract_regions if poly.mesh],
+            axis=0,
         )
         # Remove duplicate points to avoid meshing issues.
         # If you don't do this and there are duplicate points,
@@ -378,7 +380,7 @@ class Device:
 
     def make_mesh(
         self,
-        min_points: Optional[int] = None,
+        max_edge_length: Optional[float] = None,
         optimesh_steps: Optional[int] = None,
         optimesh_method: str = "cvt-block-diagonal",
         optimesh_tolerance: float = 1e-3,
@@ -388,9 +390,10 @@ class Device:
         """Generates and optimizes the triangular mesh.
 
         Args:
-            min_points: Minimum number of vertices in the mesh. If None, then
-                the number of vertices will be determined by meshpy_kwargs and the
-                number of vertices in the underlying polygons.
+            max_edge_length: The maximum distance between vertices in the mesh.
+                Passing a value <= 0 means that the number of mesh points will be
+                determined solely by the density of points in the Device's film
+                and abstract regions. Defaults to 1.5 * self.coherence_length.
             optimesh_steps: Maximum number of optimesh steps. If None, then no
                 optimization is done.
             optimesh_method: Name of the optimization method to use.
@@ -400,10 +403,13 @@ class Device:
         """
         logger.info("Generating mesh...")
         boundary = self.film.points
+        if max_edge_length is None:
+            max_edge_length = 1.5 * self.coherence_length
         points, triangles = mesh.generate_mesh(
-            boundary,
+            self.poly_points,
             hole_coords=[hole.points for hole in self.holes],
-            min_points=min_points,
+            max_edge_length=max_edge_length,
+            boundary=boundary,
             **meshpy_kwargs,
         )
         if optimesh_steps:

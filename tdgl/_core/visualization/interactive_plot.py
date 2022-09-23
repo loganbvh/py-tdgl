@@ -146,7 +146,7 @@ class InteractivePlot:
                 mesh.x, mesh.y, temp_value, triangles=mesh.elements, shading="gouraud"
             )
             quiver = ax.quiver(
-                mesh.x, mesh.y, temp_value, temp_value, scale=0.1, units="dots"
+                mesh.x, mesh.y, temp_value, temp_value, scale=0.05, units="dots"
             )
             fig.colorbar(triplot)
             ax.set_aspect("equal")

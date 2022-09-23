@@ -8,10 +8,28 @@ import numpy as np
 import tdgl
 
 
-def make_device(radius, xi, lambda_, d, min_points, optimesh_steps):
+def make_device(
+    radius,
+    xi,
+    lambda_,
+    d,
+    loop_radius,
+    min_points,
+    optimesh_steps,
+    points=201,
+):
     layer = tdgl.Layer(coherence_length=xi, london_lambda=lambda_, thickness=d, z0=0)
-    film = tdgl.Polygon("film", points=tdgl.geometry.circle(radius, points=201))
-    device = tdgl.Device("box", layer=layer, film=film, length_units="um")
+    film = tdgl.Polygon("film", points=tdgl.geometry.circle(radius, points=points))
+    abstract_regions = [
+        tdgl.Polygon("loop", points=tdgl.geometry.circle(loop_radius, points=points)),
+    ]
+    device = tdgl.Device(
+        "box",
+        layer=layer,
+        film=film,
+        abstract_regions=abstract_regions,
+        length_units="um",
+    )
     device.make_mesh(min_points=min_points, optimesh_steps=optimesh_steps)
     return device
 
@@ -150,6 +168,7 @@ def main():
         args.xi,
         args.lam,
         args.d,
+        args.r_pl,
         args.min_points,
         args.optimesh_steps,
     )

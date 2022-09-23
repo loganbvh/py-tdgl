@@ -26,7 +26,8 @@ cp $0 $outdir/
 python $pyscript \
     --directory=$outdir \
     --I_fc 0.1 5.1 51 \
-    --r_fc=2.5 \
+    --film-radius=25 \
+    --r_fc=2.0 \
     --r_pl=0.75 \
     --z0=0.5 \
     --d=0.1 \
