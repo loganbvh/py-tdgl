@@ -32,7 +32,7 @@ python $pyscript \
     --points-per-cycle=25 \
     --r_fc=2.0 \
     --r_pl=0.75 \
-    --z0=0.5 \
+    --z0=1.0 \
     --d=0.2 \
     --lam=2 \
     --xi=1 \

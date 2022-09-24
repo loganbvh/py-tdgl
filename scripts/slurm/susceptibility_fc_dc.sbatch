@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=susc_fc_dc
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=6GB
+#SBATCH --mem-per-cpu=16GB
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=12:00:00
@@ -25,16 +25,16 @@ cp $0 $outdir/
 
 python $pyscript \
     --directory=$outdir \
-    --I_fc 0.1 5.1 51 \
+    --I_fc 0.1 10.1 51 \
     --film-radius=20 \
     --r_fc=2.0 \
     --r_pl=0.75 \
     --z0=0.5 \
-    --d=0.1 \
-    --lam=2 \
+    --d=0.2 \
+    --lam=1 \
     --xi=0.5 \
     --gamma=10 \
-    --min-points=2000 \
+    --min-points=5000 \
     --optimesh-steps=100 \
     --dt=1e-2 \
     --steps=10e3 \
