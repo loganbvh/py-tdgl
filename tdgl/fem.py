@@ -104,6 +104,17 @@ def mass_matrix(
     return mass.diagonal()
 
 
+def edge_lengths(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
+    edges = np.concatenate(
+        [
+            points[triangles[:, [0, 1]]],
+            points[triangles[:, [1, 2]]],
+            points[triangles[:, [2, 0]]],
+        ]
+    )
+    return la.norm(np.diff(edges, axis=1), axis=2)
+
+
 def unit_vector(vector: np.ndarray) -> np.ndarray:
     """Normalizes ``vector``."""
     return vector / la.norm(vector, axis=-1)[:, np.newaxis]

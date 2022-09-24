@@ -381,6 +381,7 @@ class Device:
     def make_mesh(
         self,
         max_edge_length: Optional[float] = None,
+        min_points: Optional[float] = None,
         optimesh_steps: Optional[int] = None,
         optimesh_method: str = "cvt-block-diagonal",
         optimesh_tolerance: float = 1e-3,
@@ -390,6 +391,9 @@ class Device:
         """Generates and optimizes the triangular mesh.
 
         Args:
+            min_points: Minimum number of vertices in the mesh. If None, then
+                the number of vertices will be determined by meshpy_kwargs, the
+                number of vertices in the underlying polygons, and ``max_edge_length``.
             max_edge_length: The maximum distance between vertices in the mesh.
                 Passing a value <= 0 means that the number of mesh points will be
                 determined solely by the density of points in the Device's film
@@ -408,6 +412,7 @@ class Device:
         points, triangles = mesh.generate_mesh(
             self.poly_points,
             hole_coords=[hole.points for hole in self.holes],
+            min_points=min_points,
             max_edge_length=max_edge_length,
             boundary=boundary,
             **meshpy_kwargs,

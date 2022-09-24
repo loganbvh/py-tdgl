@@ -131,7 +131,7 @@ class InteractivePlot:
                 fig.suptitle(f"{self.observable.value}\n{state}")
                 triplot.set_array(value)
                 triplot.set_clim(*limits)
-                quiver.set_UVC(direction[:, 0], direction[:, 1])
+                # quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 
             # Temp data to use in plots
@@ -145,9 +145,9 @@ class InteractivePlot:
             triplot = ax.tripcolor(
                 mesh.x, mesh.y, temp_value, triangles=mesh.elements, shading="gouraud"
             )
-            quiver = ax.quiver(
-                mesh.x, mesh.y, temp_value, temp_value, scale=0.05, units="dots"
-            )
+            # quiver = ax.quiver(
+            #     mesh.x, mesh.y, temp_value, temp_value, scale=0.05, units="dots"
+            # )
             fig.colorbar(triplot)
             ax.set_aspect("equal")
             redraw()

@@ -10,6 +10,8 @@ from shapely.geometry import MultiLineString
 from shapely.geometry.polygon import orient, Polygon
 from shapely.ops import polygonize
 
+from ..fem import edge_lengths
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +29,7 @@ def ensure_unique(coords: np.ndarray) -> np.ndarray:
 def generate_mesh(
     poly_coords: np.ndarray,
     hole_coords: Optional[list[np.ndarray]] = None,
+    min_points: Optional[int] = None,
     max_edge_length: Optional[float] = None,
     convex_hull: bool = False,
     boundary: Optional[np.ndarray] = None,
@@ -39,6 +42,7 @@ def generate_mesh(
     Args:
         poly_coords: Shape ``(n, 2)`` array of polygon ``(x, y)`` coordinates.
         hole_coords: A list of arrays of hole boundary coordinates.
+        min_points: The minimimum number of vertices in the resulting mesh.
         max_edge_length: The maximum distance between vertices in the resulting mesh.
         convex_hull: If True, then the entire convex hull of the polygon (minus holes)
             will be meshed. Otherwise, only the polygon interior is meshed.
@@ -83,40 +87,34 @@ def generate_mesh(
         # that lies in each hole. Here we use the centroid of the hole.
         holes = [Polygon(hole).centroid.coords[0] for hole in hole_coords]
         mesh_info.set_holes(holes)
-    kwargs = kwargs.copy()
 
+    mesh = triangle.build(mesh_info=mesh_info, **kwargs)
+    points = np.array(mesh.points)
+    triangles = np.array(mesh.elements)
+
+    if min_points is None and (max_edge_length is None or max_edge_length <= 0):
+        return points, triangles
+
+    kwargs = kwargs.copy()
+    kwargs["max_volume"] = 1
+    i = 1
+    if min_points is None:
+        min_points = 0
     if max_edge_length is None or max_edge_length <= 0:
+        max_edge_length = np.inf
+    max_length = edge_lengths(points, triangles).max()
+    while (points.shape[0] < min_points) or (max_length > max_edge_length):
         mesh = triangle.build(mesh_info=mesh_info, **kwargs)
         points = np.array(mesh.points)
         triangles = np.array(mesh.elements)
-    else:
-        max_vol = 1
-        i = 1
-        max_length = np.inf
-        while max_length > max_edge_length:
-            kwargs["max_volume"] = max_vol
-            mesh = triangle.build(
-                mesh_info=mesh_info,
-                **kwargs,
-            )
-            points = np.array(mesh.points)
-            triangles = np.array(mesh.elements)
-            edges = np.concatenate(
-                [
-                    points[triangles[:, [0, 1]]],
-                    points[triangles[:, [1, 2]]],
-                    points[triangles[:, [2, 0]]],
-                ]
-            )
-            edge_lengths = np.linalg.norm(np.diff(edges, axis=1), axis=2)
-            max_length = edge_lengths.max()
-            logger.debug(
-                f"Iteration {i}: Made mesh with {points.shape[0]} points and "
-                f"{triangles.shape[0]} triangles with maximum edge length: "
-                f"{max_length:.2e}. Target maximum edge length: {max_edge_length:.2e}."
-            )
-            max_vol *= 0.9
-            i += 1
+        max_length = edge_lengths(points, triangles).max()
+        logger.debug(
+            f"Iteration {i}: Made mesh with {points.shape[0]} points and "
+            f"{triangles.shape[0]} triangles with maximum edge length: "
+            f"{max_length:.2e}. Target maximum edge length: {max_edge_length:.2e}."
+        )
+        kwargs["max_volume"] *= 0.9
+        i += 1
     return points, triangles
 
 
