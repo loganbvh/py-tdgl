@@ -244,7 +244,7 @@ def solve(
             two_c_1 + np.sqrt(two_c_1**2 - 4 * np.abs(z) ** 2 * w2)
         )
         if not np.isfinite(new_sq_psi).all():
-            raise ValueError(f"NaN or INF encountered at step {step}.")
+            raise ValueError(f"NaN or inf encountered at step {step}.")
         psi_val = w - z * new_sq_psi
 
         old_current = supercurrent_val + normal_current_val
