@@ -167,7 +167,7 @@ def main():
         args.xi,
         args.lam,
         args.d,
-        args.r_pl,
+        args.r_fc,
         args.min_points,
         args.optimesh_steps,
     )
