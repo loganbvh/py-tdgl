@@ -209,13 +209,14 @@ def solve(
         normal_current_val,
         induced_vector_potential_val,
     ):
+        step = state["step"]
         dt_val = state["dt"]
         running_state.append("current", source_drain_current)
 
         nonlocal psi_laplacian
         nonlocal psi_gradient
 
-        if include_screening and state["step"] > 0:
+        if include_screening and step > 0:
             _ = builder.with_link_exponents(
                 vector_potential + induced_vector_potential_val
             )
@@ -242,6 +243,8 @@ def solve(
         new_sq_psi = (2 * w2) / (
             two_c_1 + np.sqrt(two_c_1**2 - 4 * np.abs(z) ** 2 * w2)
         )
+        if not np.isfinite(new_sq_psi).all():
+            raise ValueError(f"NaN or INF encountered at step {step}.")
         psi_val = w - z * new_sq_psi
 
         old_current = supercurrent_val + normal_current_val
