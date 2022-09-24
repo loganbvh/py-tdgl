@@ -16,12 +16,11 @@ def make_device(
     loop_radius,
     min_points,
     optimesh_steps,
-    points=201,
 ):
     layer = tdgl.Layer(coherence_length=xi, london_lambda=lambda_, thickness=d, z0=0)
-    film = tdgl.Polygon("film", points=tdgl.geometry.circle(radius, points=points))
+    film = tdgl.Polygon("film", points=tdgl.geometry.circle(radius, points=101))
     abstract_regions = [
-        tdgl.Polygon("loop", points=tdgl.geometry.circle(loop_radius, points=points)),
+        tdgl.Polygon("loop", points=tdgl.geometry.circle(loop_radius, points=201)),
     ]
     device = tdgl.Device(
         "box",
