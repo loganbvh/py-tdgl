@@ -103,7 +103,7 @@ def solve(
     # Build divergence for the supercurrent.
     divergence = builder.build(MatrixType.DIVERGENCE)
 
-    edge_positions = np.array([x, y]).transpose()[mesh.edge_mesh.boundary_edge_indices]
+    edge_positions = np.array([x, y]).T[mesh.edge_mesh.boundary_edge_indices]
     if device.source_terminal is None:
         input_edges_index = np.array([], dtype=np.int64)
         output_edges_index = np.array([], dtype=np.int64)
@@ -242,8 +242,11 @@ def solve(
         new_sq_psi = (2 * w2) / (
             two_c_1 + np.sqrt(two_c_1**2 - 4 * np.abs(z) ** 2 * w2)
         )
-        if not np.isfinite(new_sq_psi).all():
-            raise ValueError(f"NaN or inf encountered at step {step}.")
+        if not np.all(np.isfinite(new_sq_psi)):
+            raise ValueError(
+                f"NaN or inf encountered at step {step} with time step dt = {dt:.2e}."
+                f" Try using a smaller time step."
+            )
         psi_val = w - z * new_sq_psi
 
         old_current = supercurrent_val + normal_current_val
