@@ -1,13 +1,13 @@
-from typing import Tuple, Dict, Any, Sequence, Optional, NamedTuple
+from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
 
-from ..mesh.mesh import Mesh
 from ..enums import Observable
+from ..matrices import build_gradient
+from ..mesh.mesh import Mesh
 from ..tdgl import get_observable_on_site
 from ..util import sum_contributions
-from ..matrices import build_gradient
 
 
 class TDGLData(NamedTuple):

@@ -1,12 +1,12 @@
-import os
 import copy
+import os
 import pickle
 import tempfile
 
-import pytest
-import numpy as np
-import shapely
 import matplotlib.pyplot as plt
+import numpy as np
+import pytest
+import shapely
 
 import tdgl
 from tdgl.visualization import non_gui_backend

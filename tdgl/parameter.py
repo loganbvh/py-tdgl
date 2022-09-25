@@ -1,6 +1,6 @@
 import inspect
 import operator
-from typing import Callable, Union, Optional
+from typing import Callable, Optional, Union
 
 import dill
 import numpy as np

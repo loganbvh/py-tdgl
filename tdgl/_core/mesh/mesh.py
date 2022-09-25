@@ -1,4 +1,4 @@
-from typing import Sequence, Tuple, Callable, Any, Optional
+from typing import Any, Callable, Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
@@ -6,11 +6,7 @@ import numpy as np
 from ..enums import Operator
 from .dual_mesh import DualMesh
 from .edge_mesh import EdgeMesh
-from .util import (
-    get_edges,
-    compute_surrounding_area,
-    get_surrounding_voronoi_polygons,
-)
+from .util import compute_surrounding_area, get_edges, get_surrounding_voronoi_polygons
 
 
 class Mesh:

@@ -1,9 +1,9 @@
-from typing import Union, Sequence
+from typing import Sequence, Union
 
-import scipy.sparse as sp
 import numpy as np
+import scipy.sparse as sp
 
-from .enums import SparseFormat, MatrixType
+from .enums import MatrixType, SparseFormat
 from .mesh.mesh import Mesh
 
 

@@ -1,10 +1,10 @@
-from typing import Optional, Callable, Union
 import logging
 from datetime import datetime
+from typing import Callable, Optional, Union
 
 import numpy as np
-from scipy.sparse.linalg import splu
 from scipy import spatial
+from scipy.sparse.linalg import splu
 
 try:
     import jax
@@ -12,15 +12,14 @@ try:
 except (ModuleNotFoundError, ImportError):
     jax = None
 
-from .solution import Solution
-from .parameter import Parameter
-from .device.device import Device
-from ._core.runner import Runner
+from ._core.enums import MatrixType, SparseFormat
 from ._core.io.data_handler import DataHandler
 from ._core.matrices import MatrixBuilder
-from ._core.enums import MatrixType, SparseFormat
-from ._core.tdgl import get_supercurrent, get_observable_on_site
-
+from ._core.runner import Runner
+from ._core.tdgl import get_observable_on_site, get_supercurrent
+from .device.device import Device
+from .parameter import Parameter
+from .solution import Solution
 
 logger = logging.getLogger(__name__)
 

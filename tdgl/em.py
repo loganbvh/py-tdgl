@@ -1,13 +1,12 @@
-from typing import Union, Optional, Sequence
+from typing import Optional, Sequence, Union
 
-import pint
 import numpy as np
+import pint
+from scipy import spatial, special
 from scipy.constants import mu_0
-from scipy import spatial
-from scipy import special
 
-from .units import ureg
 from .fem import mass_matrix
+from .units import ureg
 
 
 def convert_field(

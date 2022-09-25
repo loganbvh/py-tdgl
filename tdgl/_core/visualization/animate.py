@@ -9,13 +9,9 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
 
-from ..mesh.mesh import Mesh
 from ..enums import Observable
-from .helpers import (
-    get_data_range,
-    get_plot_data,
-    get_state_string,
-)
+from ..mesh.mesh import Mesh
+from .helpers import get_data_range, get_plot_data, get_state_string
 
 
 class Animate:

@@ -1,37 +1,30 @@
-import os
 import logging
+import os
 from datetime import datetime
-from typing import (
-    Optional,
-    Union,
-    Dict,
-    Tuple,
-    Any,
-    NamedTuple,
-)
+from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 
 import dill
-import pint
 import h5py
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import pint
 from scipy import interpolate
 from scipy.spatial import distance
 
-# from .about import version_dict
-from .device.device import Device
-from .device.components import Polygon
-from .parameter import Parameter
-from .em import biot_savart_2d, convert_field
-from ._core.tdgl import get_observable_on_site
 from ._core.matrices import build_gradient
+from ._core.tdgl import get_observable_on_site
 from ._core.visualization.helpers import (
     get_data_range,
-    load_tdgl_data,
-    load_state_data,
     get_edge_observable_data,
+    load_state_data,
+    load_tdgl_data,
 )
+from .device.components import Polygon
 
+# from .about import version_dict
+from .device.device import Device
+from .em import biot_savart_2d, convert_field
+from .parameter import Parameter
 
 logger = logging.getLogger(__name__)
 

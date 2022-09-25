@@ -1,13 +1,13 @@
-from typing import Optional, Tuple
 import logging
+from typing import Optional, Tuple
 
-from matplotlib.tri import Triangulation
 import numpy as np
-from scipy import spatial
-from meshpy import triangle
 import optimesh
+from matplotlib.tri import Triangulation
+from meshpy import triangle
+from scipy import spatial
 from shapely.geometry import MultiLineString
-from shapely.geometry.polygon import orient, Polygon
+from shapely.geometry.polygon import Polygon, orient
 from shapely.ops import polygonize
 
 from ..fem import edge_lengths

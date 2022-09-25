@@ -1,5 +1,5 @@
 import logging
-from os import getcwd, path, listdir
+from os import getcwd, listdir, path
 from os.path import isfile
 from typing import Optional
 
@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from .helpers import get_mean_voltage, get_magnetic_field
+from .helpers import get_magnetic_field, get_mean_voltage
 
 
 class IcVsB:

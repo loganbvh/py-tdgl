@@ -1,8 +1,8 @@
-import os
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Union
+from typing import Dict, Optional, Tuple, Union
 
 import h5py
 import numpy as np

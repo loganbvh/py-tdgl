@@ -4,8 +4,7 @@ import h5py
 import numpy as np
 
 from .dual_mesh import DualMesh
-from .util import get_dual_edge_lengths
-from .util import get_edges
+from .util import get_dual_edge_lengths, get_edges
 
 
 class EdgeMesh:

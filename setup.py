@@ -4,7 +4,7 @@
 Time-dependent Ginzburg-Landau in Python.
 """
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 DESCRIPTION = "pyTDGL: Time-dependent Ginzburg-Landau in Python."
 LONG_DESCRIPTION = __doc__
@@ -34,6 +34,7 @@ INSTALL_REQUIRES = [
 EXTRAS_REQUIRE = {
     "dev": [
         "black",
+        "isort",
         "pre-commit",
     ],
     "docs": [

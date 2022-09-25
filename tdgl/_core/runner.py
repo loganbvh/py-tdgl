@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import Callable, Sequence, Optional, Any, List, Dict
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from tqdm import tqdm
 

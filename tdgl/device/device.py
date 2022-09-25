@@ -1,21 +1,21 @@
-import os
 import logging
-from operator import itemgetter
-from contextlib import contextmanager, nullcontext
-from typing import Optional, Sequence, Union, List, Tuple, Dict, Any
+import os
 import warnings
+from contextlib import contextmanager, nullcontext
+from operator import itemgetter
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import h5py
-import pint
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.path import Path
+import numpy as np
+import pint
 from matplotlib.patches import PathPatch
+from matplotlib.path import Path
 
-from . import mesh
-from ..units import ureg
-from .components import Layer, Polygon
 from .._core.mesh.mesh import Mesh
+from ..units import ureg
+from . import mesh
+from .components import Layer, Polygon
 
 logger = logging.getLogger(__name__)
 

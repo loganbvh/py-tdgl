@@ -1,6 +1,6 @@
+import json
 import os
 from datetime import datetime
-import json
 
 import h5py
 import numpy as np

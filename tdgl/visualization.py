@@ -1,13 +1,13 @@
-from typing import Tuple, Union, Dict, Optional, Sequence, List
 import inspect
-from contextlib import contextmanager
 import warnings
+from contextlib import contextmanager
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-import numpy as np
-from scipy import interpolate
-import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+from scipy import interpolate
 
 from .solution import Solution
 
