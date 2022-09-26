@@ -222,11 +222,6 @@ def main():
         type=float,
         help="RMS field coil current in mA: start, stop, num_steps.",
     )
-    tdgl_grp.add_argument(
-        "--index",
-        type=int,
-        help="Index for RMS current in I_fc array.",
-    )
     tdgl_grp.add_argument("--dt", default=1e-2, type=float, help="GL ODE time step.")
     tdgl_grp.add_argument("--steps", default=5e3, type=float, help="GL ODE steps.")
     tdgl_grp.add_argument(
@@ -319,6 +314,7 @@ def main():
 
         with h5py.File(tdgl_solution.path, "r+") as f:
             for key, val in args_as_dict.items():
+                print(f"Saving {key}: {val}.")
                 f.attrs[key] = val
             f.attrs["pl_fluxoid_in_Phi_0"] = flux
 
