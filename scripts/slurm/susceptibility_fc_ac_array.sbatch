@@ -6,7 +6,7 @@
 #SBATCH --mem-per-cpu=6GB
 #SBATCH --time=12:00:00
 
-# set -x
+set -x
 
 # Activate conda env
 source $GROUP_HOME/miniconda3/bin/activate

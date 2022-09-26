@@ -227,23 +227,6 @@ def main():
         type=int,
         help="Index for RMS current in I_fc array.",
     )
-    tdgl_grp.add_argument(
-        "--cycles",
-        default=3,
-        type=float,
-        help="Number of AC field cycles.",
-    )
-    tdgl_grp.add_argument(
-        "--points-per-cycle",
-        type=float,
-        default=10,
-        help="Number of current points per AC cycle.",
-    )
-    tdgl_grp.add_argument(
-        "--seed-solutions",
-        action="store_true",
-        help="Seed each simulation with the previous solution.",
-    )
     tdgl_grp.add_argument("--dt", default=1e-2, type=float, help="GL ODE time step.")
     tdgl_grp.add_argument("--steps", default=5e3, type=float, help="GL ODE steps.")
     tdgl_grp.add_argument(
@@ -296,15 +279,9 @@ def main():
     )
 
     start, stop, num = args.I_fc
-    I_fc_rms = np.linspace(start, stop, int(num))[args.index]
-
-    npoints = int(args.points_per_cycle * args.cycles) + 1
-    thetas = np.linspace(0, 2 * np.pi * args.cycles, npoints)
-    I_fc = I_fc_rms * np.sqrt(2) * np.cos(thetas)
+    I_fc = np.linspace(start, stop, int(num))
 
     all_flux = []
-
-    prev_solution = None
 
     steps = int(args.steps)
 
@@ -334,13 +311,8 @@ def main():
             source_drain_current=0,
             include_screening=args.screening,
             rng_seed=42,
-            seed_solution=prev_solution,
         )
         tdgl_solution.to_hdf5()
-
-        if args.seed_solutions:
-            prev_solution = tdgl_solution
-            steps = max(100, int(args.steps / 5))
 
         flux = calculate_pl_flux(squid, tdgl_solution, iterations=args.squid_iterations)
         all_flux.append(flux)
@@ -361,7 +333,7 @@ def main():
     }
     json_data["I_fc"] = I_fc.tolist()
     json_data["flux"] = all_flux
-    json_data["susc"] = (1e3 * np.array(all_flux) / (I_fc / np.sqrt(2))).tolist()
+    json_data["susc"] = (1e3 * np.array(all_flux) / I_fc).tolist()
 
     with open(os.path.join(path, "results.json"), "w") as f:
         json.dump(json_data, f, indent=4, sort_keys=True)

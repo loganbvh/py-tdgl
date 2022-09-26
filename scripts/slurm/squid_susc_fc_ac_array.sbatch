@@ -33,7 +33,7 @@ python $pyscript \
     --squid-optimesh=50 \
     --squid-iterations=5 \
     --film-radius=20 \
-    --film-points=3000 \
+    --film-points=4000 \
     --film-optimesh=100 \
     --cycles=3 \
     --points-per-cycle=25 \
