@@ -41,7 +41,6 @@ python $pyscript \
     --dt=1e-2 \
     --steps=10e3 \
     --pinning=0 \
-    --seed-solutions \
     --screening
 
 # Move the stdout log to the results directory
