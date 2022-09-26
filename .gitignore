@@ -1,6 +1,7 @@
 notebooks/**/*.h5
 notebooks/**/*.json
 results/
+.DS_Store
 
 
 # Byte-compiled / optimized / DLL files
