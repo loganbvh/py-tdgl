@@ -693,10 +693,24 @@ class Solution:
             group.attrs["time_created"] = self.time_created.isoformat()
             group.attrs["current_units"] = self.current_units
             group.attrs["field_units"] = self.field_units
-            # See: https://docs.h5py.org/en/2.8.0/strings.html
-            group.attrs["applied_vector_potential"] = np.void(
-                dill.dumps(self.applied_vector_potential)
-            )
+            try:
+                # See: https://docs.h5py.org/en/2.8.0/strings.html
+                group.attrs["applied_vector_potential"] = np.void(
+                    dill.dumps(self.applied_vector_potential)
+                )
+            except RuntimeError as e:
+                dirname = os.path.dirname(self.path)
+                fname = os.path.basename(self.path).replace(".h5", "")
+                dill_path = os.path.join(
+                    dirname,
+                    f"applied_vector_potential-{fname}.dill",
+                )
+                logger.warning(
+                    f"Unable to serialize the applied vector potential to HDF5: {e}. "
+                    f"Saving the applied vector potential to {dill_path!r} instead."
+                )
+                with open(dill_path, "wb") as f:
+                    dill.dump(self.applied_vector_potential, f)
             group.attrs["source_drain_current"] = self.source_drain_current
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
@@ -712,14 +726,22 @@ class Solution:
             The loaded Solution instance
         """
         with h5py.File(path, "r") as f:
+            fname = os.path.basename(path).replace(".h5", "")
+            dill_path = f"applied_vector_potential-{fname}.dill"
             grp = f["solution"]
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             current_units = grp.attrs["current_units"]
             field_units = grp.attrs["field_units"]
-            # See: https://docs.h5py.org/en/2.8.0/strings.html
-            vector_potential = dill.loads(
-                grp.attrs["applied_vector_potential"].tostring()
-            )
+            if "applied_vector_potential" in grp.attrs:
+                # See: https://docs.h5py.org/en/2.8.0/strings.html
+                vector_potential = dill.loads(
+                    grp.attrs["applied_vector_potential"].tostring()
+                )
+            elif dill_path in os.listdir(os.path.dirname(path)):
+                with open(dill_path, "rb") as f:
+                    vector_potential = dill.load(f)
+            else:
+                raise IOError(f"Unable to load applied vector potential from {path!r}.")
             current = grp.attrs["source_drain_current"]
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])

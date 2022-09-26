@@ -142,7 +142,7 @@ def device():
     abstract_regions = [
         tdgl.Polygon(
             "abstract",
-            points=tdgl.geometry.box(2, angle=90),
+            points=tdgl.geometry.box(2.5, angle=45),
         ),
     ]
 
