@@ -144,7 +144,7 @@ def main():
     parser.add_argument("--dt", default=1e-2, type=float, help="GL ODE time step.")
     parser.add_argument("--steps", default=5e3, type=float, help="GL ODE steps.")
     parser.add_argument(
-        "--save-every", default=10, type=int, help="Save interval in steps."
+        "--save-every", default=100, type=int, help="Save interval in steps."
     )
     parser.add_argument(
         "--pinning", default=0, type=float, help="Pinning sites per square micron."

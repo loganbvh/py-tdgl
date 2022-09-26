@@ -247,7 +247,7 @@ def main():
     tdgl_grp.add_argument("--dt", default=1e-2, type=float, help="GL ODE time step.")
     tdgl_grp.add_argument("--steps", default=5e3, type=float, help="GL ODE steps.")
     tdgl_grp.add_argument(
-        "--save-every", default=10, type=int, help="Save interval in steps."
+        "--save-every", default=100, type=int, help="Save interval in steps."
     )
     tdgl_grp.add_argument(
         "--field-units",
