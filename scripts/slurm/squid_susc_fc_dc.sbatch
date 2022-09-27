@@ -25,23 +25,23 @@ cp $0 $outdir/
 
 python $pyscript \
     --directory=$outdir \
-    --I_fc 0.1 5.1 51 \
+    --I_fc 0.1 10.1 51 \
     --squid-type=hypres-small \
     --squid-position 0 0 0.5 \
     --squid-points=3000 \
     --squid-optimesh=50 \
     --squid-iterations=5 \
-    --film-radius=20 \
+    --film-radius=15 \
     --film-points=4000 \
     --film-optimesh=100 \
     --d=0.2 \
     --lam=2 \
     --xi=1 \
     --gamma=10 \
-    --dt=1e-2 \
-    --steps=10e3 \
-    --pinning=0 \
-    --screening
+    --dt-min=1e-3 \
+    --dt-max=1e-2 \
+    --total-time=3e3 \
+    --pinning=0
 
 # Move the stdout log to the results directory
 mv "slurm-${SLURM_JOB_ID}.out" $outdir

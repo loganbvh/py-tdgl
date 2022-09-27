@@ -25,27 +25,27 @@ cp -u $0 $outdir/
 
 python $pyscript \
     --directory=$outdir/$SLURM_ARRAY_TASK_ID \
-    --I_fc 0.1 5.1 $SLURM_ARRAY_TASK_COUNT \
+    --I_fc 0.1 10.1 $SLURM_ARRAY_TASK_COUNT \
     --index=$SLURM_ARRAY_TASK_ID \
     --squid-type=hypres-small \
     --squid-position 0 0 0.5 \
     --squid-points=3000 \
     --squid-optimesh=50 \
     --squid-iterations=5 \
-    --film-radius=20 \
+    --film-radius=15 \
     --film-points=4000 \
     --film-optimesh=100 \
     --cycles=3 \
-    --points-per-cycle=25 \
+    --points-per-cycle=15 \
     --d=0.2 \
     --lam=2 \
     --xi=1 \
     --gamma=10 \
-    --dt=1e-2 \
-    --steps=10e3 \
+    --dt-min=1e-3 \
+    --dt-max=1e-2
+    --total-time=5e3 \
     --pinning=0 \
-    --seed-solutions \
-    --screening
+    --seed-solutions
 
 # Move the stdout log to the results directory
 mv "slurm-${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" $outdir

@@ -178,7 +178,7 @@ def main():
     )
 
     sample_grp.add_argument(
-        "--film-radius", type=float, default=20, help="Film radius in microns."
+        "--film-radius", type=float, default=15, help="Film radius in microns."
     )
     sample_grp.add_argument(
         "--film-points",
@@ -222,8 +222,19 @@ def main():
         type=float,
         help="RMS field coil current in mA: start, stop, num_steps.",
     )
-    tdgl_grp.add_argument("--dt", default=1e-2, type=float, help="GL ODE time step.")
-    tdgl_grp.add_argument("--steps", default=5e3, type=float, help="GL ODE steps.")
+    tdgl_grp.add_argument(
+        "--dt-min", default=1e-3, type=float, help="Min. GL ODE time step."
+    )
+    tdgl_grp.add_argument(
+        "--dt-max", default=None, type=float, help="Max. GL ODE time step."
+    )
+    tdgl_grp.add_argument(
+        "--total-time",
+        type=float,
+        default=None,
+        help="Total solve time in units of GL tau.",
+    )
+    tdgl_grp.add_argument("--steps", type=float, default=None, help="GL ODE steps.")
     tdgl_grp.add_argument(
         "--save-every", default=100, type=int, help="Save interval in steps."
     )
@@ -240,8 +251,6 @@ def main():
 
     args = parser.parse_args()
     args_as_dict = vars(args)
-    for k, v in args_as_dict.items():
-        print(f"{k}: {v}")
 
     start_time = datetime.now()
 
@@ -257,7 +266,6 @@ def main():
     squid_solution = get_base_squid_solution(squid, args.squid_iterations)
     squid_solution_path = os.path.join(path, "squid_solution")
     squid_solution.to_file(squid_solution_path)
-    logger.info(repr(squid))
 
     field_units = args.field_units
     current_units = args.current_units
@@ -268,7 +276,7 @@ def main():
         args.xi,
         args.lam,
         args.d,
-        1.5,
+        3,
         args.film_points,
         args.film_optimesh,
     )
@@ -278,7 +286,13 @@ def main():
 
     all_flux = []
 
-    steps = int(args.steps)
+    options = tdgl.SolverOptions(
+        dt_min=args.dt_min,
+        dt_max=args.dt_max,
+        total_time=args.total_time,
+        min_steps=args.steps,
+        save_every=args.save_every,
+    )
 
     for i, current in enumerate(I_fc):
 
@@ -296,13 +310,10 @@ def main():
             device,
             A_applied,
             os.path.join(path, f"output-{i}.h5"),
+            options,
             pinning_sites=args.pinning,
             field_units=field_units,
             gamma=args.gamma,
-            dt=args.dt,
-            skip=0,
-            max_steps=steps,
-            save_every=args.save_every,
             source_drain_current=0,
             include_screening=args.screening,
             rng_seed=42,
@@ -314,8 +325,9 @@ def main():
 
         with h5py.File(tdgl_solution.path, "r+") as f:
             for key, val in args_as_dict.items():
-                print(f"Saving {key}: {val}.")
-                f.attrs[key] = val
+                if val is not None:
+                    print(f"Saving {key}: {val}.")
+                    f.attrs[key] = val
             f.attrs["pl_fluxoid_in_Phi_0"] = flux
 
     end_time = datetime.now()

@@ -178,7 +178,7 @@ def main():
     )
 
     sample_grp.add_argument(
-        "--film-radius", type=float, default=20, help="Film radius in microns."
+        "--film-radius", type=float, default=15, help="Film radius in microns."
     )
     sample_grp.add_argument(
         "--film-points",
@@ -244,8 +244,19 @@ def main():
         action="store_true",
         help="Seed each simulation with the previous solution.",
     )
-    tdgl_grp.add_argument("--dt", default=1e-2, type=float, help="GL ODE time step.")
-    tdgl_grp.add_argument("--steps", default=5e3, type=float, help="GL ODE steps.")
+    tdgl_grp.add_argument(
+        "--dt-min", default=1e-3, type=float, help="Min. GL ODE time step."
+    )
+    tdgl_grp.add_argument(
+        "--dt-max", default=None, type=float, help="Max. GL ODE time step."
+    )
+    tdgl_grp.add_argument(
+        "--total-time",
+        type=float,
+        default=None,
+        help="Total solve time in units of GL tau.",
+    )
+    tdgl_grp.add_argument("--steps", type=float, default=None, help="GL ODE steps.")
     tdgl_grp.add_argument(
         "--save-every", default=100, type=int, help="Save interval in steps."
     )
@@ -290,7 +301,7 @@ def main():
         args.xi,
         args.lam,
         args.d,
-        1.5,
+        3,
         args.film_points,
         args.film_optimesh,
     )
@@ -306,9 +317,21 @@ def main():
 
     prev_solution = None
 
-    steps = int(args.steps)
+    steps = args.steps
+    total_time = args.total_time
+
+    options = tdgl.SolverOptions(
+        dt_min=args.dt_min,
+        dt_max=args.dt_max,
+        total_time=total_time,
+        min_steps=steps,
+        save_every=args.save_every,
+    )
 
     for i, current in enumerate(I_fc):
+
+        options.min_steps = steps
+        options.total_time = total_time
 
         A_applied = tdgl.Parameter(
             applied_potential,
@@ -324,13 +347,10 @@ def main():
             device,
             A_applied,
             os.path.join(path, f"output-{i}.h5"),
+            options=options,
             pinning_sites=args.pinning,
             field_units=field_units,
             gamma=args.gamma,
-            dt=args.dt,
-            skip=0,
-            max_steps=steps,
-            save_every=args.save_every,
             source_drain_current=0,
             include_screening=args.screening,
             rng_seed=42,
@@ -340,7 +360,10 @@ def main():
 
         if args.seed_solutions:
             prev_solution = tdgl_solution
-            steps = max(100, int(args.steps / 5))
+            if total_time is not None:
+                total_time = max(10, int(args.total_time / 5))
+            else:
+                steps = max(100, int(args.steps / 5))
 
         flux = calculate_pl_flux(squid, tdgl_solution, iterations=args.squid_iterations)
         all_flux.append(flux)
