@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import os
 from datetime import datetime
@@ -12,6 +13,7 @@ from scipy import interpolate
 from scipy.spatial import distance
 
 from ._core.matrices import build_gradient
+from ._core.runner import SolverOptions
 from ._core.tdgl import get_observable_on_site
 from ._core.visualization.helpers import (
     get_data_range,
@@ -81,6 +83,7 @@ class Solution:
         *,
         device: Device,
         filename: os.PathLike,
+        options: SolverOptions,
         applied_vector_potential: Parameter,
         source_drain_current: Union[float, str, pint.Quantity],
         field_units: str,
@@ -90,6 +93,7 @@ class Solution:
     ):
         self.device = device.copy()
         self.device.mesh = device.mesh
+        self.options = options
         self.path = filename
         self.applied_vector_potential = applied_vector_potential
         self.source_drain_current = float(source_drain_current)
@@ -689,6 +693,10 @@ class Solution:
         with h5py.File(self.path, "r+") as f:
             if "mesh" in f:
                 del f["mesh"]
+            data_grp = f.require_group("data")
+            for k, v in dataclasses.asdict(self.options).items():
+                if v is not None:
+                    data_grp.attrs[k] = v
             group = f.create_group("solution")
             group.attrs["time_created"] = self.time_created.isoformat()
             group.attrs["current_units"] = self.current_units
@@ -728,6 +736,11 @@ class Solution:
         with h5py.File(path, "r") as f:
             fname = os.path.basename(path).replace(".h5", "")
             dill_path = f"applied_vector_potential-{fname}.dill"
+            data_grp = f["data"]
+            options_kwargs = dict()
+            for k, v in data_grp.attrs.items():
+                options_kwargs[k] = v
+            options = SolverOptions(**options_kwargs)
             grp = f["solution"]
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             current_units = grp.attrs["current_units"]
@@ -749,6 +762,7 @@ class Solution:
         solution = Solution(
             device=device,
             filename=path,
+            options=options,
             applied_vector_potential=vector_potential,
             source_drain_current=current,
             current_units=current_units,

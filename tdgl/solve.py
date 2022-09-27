@@ -15,7 +15,7 @@ except (ModuleNotFoundError, ImportError):
 from ._core.enums import MatrixType, SparseFormat
 from ._core.io.data_handler import DataHandler
 from ._core.matrices import MatrixBuilder
-from ._core.runner import Runner
+from ._core.runner import Runner, SolverOptions
 from ._core.tdgl import get_observable_on_site, get_supercurrent
 from .device.device import Device
 from .parameter import Parameter
@@ -28,19 +28,13 @@ def solve(
     device: Device,
     applied_vector_potential: Callable,
     output: str,
+    options: SolverOptions,
     source_drain_current: float = 0,
     pinning_sites: Union[float, Callable, None] = None,
-    miniters: Optional[int] = None,
-    dt: float = 1e-4,
-    min_steps: int = 0,
-    max_steps: int = 10_000,
-    save_every: int = 100,
-    skip: int = 0,
     complex_time_scale: float = 5.79,
     gamma: float = 10.0,
     field_units: str = "mT",
     current_units: str = "uA",
-    rtol: float = 0,
     include_screening: bool = False,
     seed_solution: Optional[Solution] = None,
     rng_seed: Optional[int] = None,
@@ -51,8 +45,10 @@ def solve(
     if rng_seed is None:
         rng_seed = np.random.SeedSequence().entropy
 
-    if not (0 <= rtol <= 1):
-        raise ValueError(f"Relative tolerance must be in [0, 1], got {rtol:.2e}.")
+    if not (0 <= options.rtol <= 1):
+        raise ValueError(
+            f"Relative tolerance must be in [0, 1], got {options.rtol:.2e}."
+        )
 
     ureg = device.ureg
     mesh = device.mesh
@@ -199,6 +195,8 @@ def solve(
             einsum = jnp.einsum
             inv_rho = jax.device_put(inv_rho)
 
+    d_psi_sq_vals = []
+
     def update(
         state,
         running_state,
@@ -207,26 +205,21 @@ def solve(
         supercurrent_val,
         normal_current_val,
         induced_vector_potential_val,
+        dt_val,
     ):
         step = state["step"]
-        dt_val = state["dt"]
+        # dt_val = state["dt"]
         running_state.append("current", source_drain_current)
 
         nonlocal psi_laplacian
         nonlocal psi_gradient
-
-        if include_screening and step > 0:
-            _ = builder.with_link_exponents(
-                vector_potential + induced_vector_potential_val
-            )
-            psi_laplacian = builder.build(MatrixType.LAPLACIAN)
-            psi_gradient = builder.build(MatrixType.GRADIENT)
 
         # Compute the next time step for psi with the discrete gauge
         # invariant discretization presented in chapter 5 in
         # http://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-312132
 
         abs_sq_psi = np.abs(psi_val) ** 2
+
         phase = np.exp(-1j * mu_val * dt_val)
         z = phase * sq_gamma / 2 * psi_val
         w = z * abs_sq_psi + phase * (
@@ -242,9 +235,17 @@ def solve(
         new_sq_psi = (2 * w2) / (
             two_c_1 + np.sqrt(two_c_1**2 - 4 * np.abs(z) ** 2 * w2)
         )
+
+        if include_screening and step > 0:
+            _ = builder.with_link_exponents(
+                vector_potential + induced_vector_potential_val
+            )
+            psi_laplacian = builder.build(MatrixType.LAPLACIAN)
+            psi_gradient = builder.build(MatrixType.GRADIENT)
+
         if not np.all(np.isfinite(new_sq_psi)):
             raise ValueError(
-                f"NaN or inf encountered at step {step} with time step dt = {dt:.2e}."
+                f"NaN or inf encountered at step {step} with time step dt = {dt_val:.2e}."
                 f" Try using a smaller time step."
             )
         psi_val = w - z * new_sq_psi
@@ -278,8 +279,19 @@ def solve(
         max_current = np.max(np.abs(old_current))
         converged = (
             max_current > 0
-            and np.max(np.abs(new_current - old_current)) / max_current < rtol
+            and np.max(np.abs(new_current - old_current)) / max_current < options.rtol
         )
+
+        d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
+        d_psi_sq_vals.append(d_psi_sq)
+        if step > options.adpative_window:
+            new_dt = options.dt_min / (
+                1e3 * np.mean(d_psi_sq_vals[-options.adpative_window :])
+            )
+            dt_val = max(options.dt_min, min(options.dt_max, new_dt))
+
+        running_state.append("dt", dt_val)
+
         return (
             converged,
             psi_val,
@@ -287,6 +299,7 @@ def solve(
             supercurrent_val,
             normal_current_val,
             induced_vector_potential_val,
+            dt_val,
         )
 
     if seed_solution is None:
@@ -309,6 +322,7 @@ def solve(
 
     Runner(
         function=update,
+        options=options,
         data_handler=data_handler,
         initial_values=list(parameters.values()),
         names=list(parameters),
@@ -323,14 +337,9 @@ def solve(
         running_names=(
             "voltage",
             "current",
+            "dt",
         ),
-        min_steps=min_steps,
-        max_steps=max_steps,
-        dt=dt,
-        save_every=save_every,
         logger=logger,
-        skip=skip,
-        miniters=miniters,
     ).run()
 
     data_handler.close()
@@ -342,6 +351,7 @@ def solve(
     solution = Solution(
         device=device,
         filename=data_handler.output_path,
+        options=options,
         applied_vector_potential=applied_vector_potential,
         source_drain_current=source_drain_current,
         total_seconds=(end_time - start_time).total_seconds(),
