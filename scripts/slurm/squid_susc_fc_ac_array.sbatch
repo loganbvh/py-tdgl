@@ -42,7 +42,7 @@ python $pyscript \
     --xi=1 \
     --gamma=10 \
     --dt-min=1e-3 \
-    --dt-max=1e-2
+    --dt-max=1e-2 \
     --total-time=5e3 \
     --pinning=0 \
     --seed-solutions
