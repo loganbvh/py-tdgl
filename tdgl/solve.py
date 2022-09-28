@@ -257,7 +257,7 @@ def solve(
         )
         while new_sq_psi is None:
             old_dt = dt_val
-            dt_val = max(options.dt_min, dt_val / 10)
+            dt_val = max(options.dt_min, dt_val / 2)
             logger.debug(
                 f"\nFailed to converge at step {step} with dt = {old_dt:.3e}."
                 f" Retrying with dt = {dt_val:.3e}."
