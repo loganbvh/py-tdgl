@@ -326,7 +326,6 @@ def main():
         with h5py.File(tdgl_solution.path, "r+") as f:
             for key, val in args_as_dict.items():
                 if val is not None:
-                    print(f"Saving {key}: {val}.")
                     f.attrs[key] = val
             f.attrs["pl_fluxoid_in_Phi_0"] = flux
 
