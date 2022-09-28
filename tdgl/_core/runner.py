@@ -17,7 +17,7 @@ class SolverOptions:
     total_time: Optional[float] = None
     min_steps: Optional[int] = None
     max_steps: Optional[int] = None
-    adaptive_window: int = 1000
+    adaptive_window: int = 1
     save_every: int = 100
     skip_steps: int = 0
     skip_time: float = 0.0

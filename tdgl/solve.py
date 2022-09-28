@@ -24,6 +24,35 @@ from .solution import Solution
 logger = logging.getLogger(__name__)
 
 
+def _solve_for_psi_squared(
+    psi,
+    abs_sq_psi,
+    alpha,
+    gamma,
+    u,
+    mu,
+    dt,
+    psi_laplacian,
+):
+    phase = np.exp(-1j * mu * dt)
+    z = phase * gamma**2 / 2 * psi
+    w = z * abs_sq_psi + phase * (
+        psi
+        + (dt / u)
+        * np.sqrt(1 + gamma**2 * abs_sq_psi)
+        * ((alpha - abs_sq_psi) * psi + psi_laplacian @ psi)
+    )
+    c = w.real * z.real + w.imag * z.imag
+    # Find the modulus squared for the next time step
+    two_c_1 = 2 * c + 1
+    w2 = np.abs(w) ** 2
+    sqrt_arg = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
+    if np.any(sqrt_arg < 0):
+        return z, w, None
+    new_sq_psi = (2 * w2) / (two_c_1 + np.sqrt(sqrt_arg))
+    return z, w, new_sq_psi
+
+
 def solve(
     device: Device,
     applied_vector_potential: Callable,
@@ -172,7 +201,6 @@ def solve(
     # Create the alpha parameter which weakens the complex field if it
     # is less than unity.
     alpha = np.ones_like(mesh.x, dtype=np.float64)
-    sq_gamma = gamma**2
 
     if include_screening:
         edge_points = np.array([mesh.edge_mesh.x, mesh.edge_mesh.y]).T
@@ -208,33 +236,10 @@ def solve(
         dt_val,
     ):
         step = state["step"]
-        # dt_val = state["dt"]
         running_state.append("current", source_drain_current)
 
         nonlocal psi_laplacian
         nonlocal psi_gradient
-
-        # Compute the next time step for psi with the discrete gauge
-        # invariant discretization presented in chapter 5 in
-        # http://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-312132
-
-        abs_sq_psi = np.abs(psi_val) ** 2
-
-        phase = np.exp(-1j * mu_val * dt_val)
-        z = phase * sq_gamma / 2 * psi_val
-        w = z * abs_sq_psi + phase * (
-            psi_val
-            + (dt_val / u)
-            * np.sqrt(1 + sq_gamma * abs_sq_psi)
-            * ((alpha - abs_sq_psi) * psi_val + psi_laplacian @ psi_val)
-        )
-        c = w.real * z.real + w.imag * z.imag
-        # Find the modulus squared for the next time step
-        two_c_1 = 2 * c + 1
-        w2 = np.abs(w) ** 2
-        new_sq_psi = (2 * w2) / (
-            two_c_1 + np.sqrt(two_c_1**2 - 4 * np.abs(z) ** 2 * w2)
-        )
 
         if include_screening and step > 0:
             _ = builder.with_link_exponents(
@@ -243,11 +248,31 @@ def solve(
             psi_laplacian = builder.build(MatrixType.LAPLACIAN)
             psi_gradient = builder.build(MatrixType.GRADIENT)
 
-        if not np.all(np.isfinite(new_sq_psi)):
-            raise ValueError(
-                f"NaN or inf encountered at step {step} with time step dt = {dt_val:.2e}."
-                f" Try using a smaller time step."
+        # Compute the next time step for psi with the discrete gauge
+        # invariant discretization presented in chapter 5 in
+        # http://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-312132
+        abs_sq_psi = np.abs(psi_val) ** 2
+        z, w, new_sq_psi = _solve_for_psi_squared(
+            psi_val, abs_sq_psi, alpha, gamma, u, mu_val, dt_val, psi_laplacian
+        )
+        while new_sq_psi is None:
+            old_dt = dt_val
+            dt_val = max(options.dt_min, dt_val / 10)
+            logger.debug(
+                f"\nFailed to converge at step {step} with dt = {old_dt:.3e}."
+                f" Retrying with dt = {dt_val:.3e}."
             )
+            z, w, new_sq_psi = _solve_for_psi_squared(
+                psi_val, abs_sq_psi, alpha, gamma, u, mu_val, dt_val, psi_laplacian
+            )
+
+        running_state.append("dt", dt_val)
+
+        # if not np.all(np.isfinite(new_sq_psi)):
+        #     raise ValueError(
+        #         f"NaN or inf encountered at step {step} with time step dt = {dt_val:.2e}."
+        #         f" Try using a smaller time step."
+        #     )
         psi_val = w - z * new_sq_psi
 
         old_current = supercurrent_val + normal_current_val
@@ -284,13 +309,12 @@ def solve(
 
         d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
         d_psi_sq_vals.append(d_psi_sq)
-        if step > options.adpative_window:
+        # if step > 0 and step % options.adaptive_window == 0:
+        if step > options.adaptive_window:
             new_dt = options.dt_min / (
-                1e3 * np.mean(d_psi_sq_vals[-options.adpative_window :])
+                1e3 * np.mean(d_psi_sq_vals[-options.adaptive_window :])
             )
             dt_val = max(options.dt_min, min(options.dt_max, new_dt))
-
-        running_state.append("dt", dt_val)
 
         return (
             converged,
