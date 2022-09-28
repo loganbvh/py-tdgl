@@ -110,7 +110,7 @@ class Runner:
                 start_step=0,
                 start_time=self.time,
                 end_step=self.options.skip_steps,
-                end_time=self.options.skip_time,
+                end_time=self.options.end_time,
                 save=False,
             )
             self.running_state.clear()

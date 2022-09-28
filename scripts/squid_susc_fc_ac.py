@@ -370,7 +370,8 @@ def main():
 
         with h5py.File(tdgl_solution.path, "r+") as f:
             for key, val in args_as_dict.items():
-                f.attrs[key] = val
+                if val is not None:
+                    f.attrs[key] = val
             f.attrs["pl_fluxoid_in_Phi_0"] = flux
 
     end_time = datetime.now()
