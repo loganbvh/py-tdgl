@@ -10,14 +10,14 @@ from .io.data_handler import DataHandler
 from .io.running_state import RunningState
 
 
-@dataclass()
+@dataclass
 class SolverOptions:
     dt_min: float = 1e-4
     dt_max: Optional[float] = None
     total_time: Optional[float] = None
     min_steps: Optional[int] = None
     max_steps: Optional[int] = None
-    adaptive_window: int = 1
+    adaptive_window: int = 10
     save_every: int = 100
     skip_steps: int = 0
     skip_time: float = 0.0
