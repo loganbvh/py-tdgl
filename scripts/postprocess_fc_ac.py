@@ -47,6 +47,8 @@ def process_many_rms_fields(
             pass
     input_paths = sorted(input_paths)
     os.makedirs(output_dir, exist_ok=False)
+    if verbose:
+        print(f"Processing {len(input_paths)} results using {threads} threads.")
     with ThreadPoolExecutor(max_workers=threads) as executor:
         future_to_file = {}
         for n in input_paths:
