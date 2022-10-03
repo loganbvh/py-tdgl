@@ -37,9 +37,9 @@ def process_single_rms_field(
                     step = solve_steps[-1]
                     # f["data"].copy(str(step), data_grp, name=str(step + i))
                     grp = data_grp.create_group(str(step + i))
-                    for k, v in f["data"][str(step)].attrs.items():
+                    for k, v in f[f"data/{step}"].attrs.items():
                         grp.attrs[k] = v
-                    for k, v in f["data"][str(step)].items():
+                    for k, v in f[f"data/{step}"].items():
                         grp[k] = np.asarray(v)
                 if verbose:
                     print("DONE")
