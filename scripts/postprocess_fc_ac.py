@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import h5py
 import numpy as np
@@ -35,7 +36,7 @@ def process_single_rms_field(
 
 
 def process_many_rms_fields(
-    input_dir: str, output_dir: str, verbose: bool = True
+    input_dir: str, output_dir: str, threads: int = 1, verbose: bool = True
 ) -> None:
     input_paths = []
     for p in os.listdir(input_dir):
@@ -46,11 +47,20 @@ def process_many_rms_fields(
             pass
     input_paths = sorted(input_paths)
     os.makedirs(output_dir, exist_ok=False)
-    for n in input_paths:
-        output_path = os.path.join(output_dir, f"run-{n:02}.h5")
-        process_single_rms_field(
-            os.path.join(input_dir, str(n)), output_path, verbose=verbose
-        )
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        future_to_file = {}
+        for n in input_paths:
+            input_path = os.path.join(input_dir, str(n))
+            output_path = os.path.join(output_dir, f"run-{n:02}.h5")
+            future = executor.submit(
+                process_single_rms_field, input_path, output_path, verbose=verbose
+            )
+            future_to_file[future] = input_path
+        for future in as_completed(future_to_file):
+            input_path = future_to_file[future]
+            output_path = future.result()
+            if verbose:
+                print("DONE", input_path, output_path)
 
 
 def main():
@@ -61,6 +71,9 @@ def main():
 
     parser.add_argument("-i", "--input", type=str, help="Input directory.")
     parser.add_argument("-o", "--output", type=str, help="Output directory.")
+    parser.add_argument(
+        "-t", "--threads", type=int, default=10, help="Number of threads to use."
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose.")
 
     args = parser.parse_args()
