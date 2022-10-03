@@ -4,7 +4,7 @@
 #SBATCH --mem-per-cpu=16GB
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 
 set -x
 
@@ -25,7 +25,7 @@ cp $0 $outdir/
 
 python $pyscript \
     --directory=$outdir \
-    --I_fc 0.1 10.1 51 \
+    --I_fc 0.1 10.1 101 \
     --squid-type=hypres-small \
     --squid-position 0 0 0.5 \
     --squid-points=3000 \
@@ -35,13 +35,14 @@ python $pyscript \
     --film-points=4000 \
     --film-optimesh=100 \
     --d=0.2 \
-    --lam=2 \
+    --lam=1.5 \
     --xi=1 \
     --gamma=10 \
-    --dt-min=1e-3 \
+    --dt-min=5e-3 \
     --dt-max=1e-2 \
-    --total-time=3e3 \
-    --pinning=0
+    --total-time=5e3 \
+    --pinning=0 \
+    --screening
 
 # Move the stdout log to the results directory
 mv "slurm-${SLURM_JOB_ID}.out" $outdir
