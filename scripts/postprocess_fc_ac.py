@@ -23,8 +23,10 @@ def process_single_rms_field(
                 solve_steps = np.sort(np.array([int(key) for key in f["data"]]))
                 if i == 0:
                     f["solution/device"].copy("mesh", out)
-                    for step in solve_steps:
-                        f["data"].copy(str(step), data_grp)
+                    # for step in solve_steps:
+                    #     f["data"].copy(str(step), data_grp)
+                if False:
+                    pass
                 else:
                     step = solve_steps[-1]
                     f["data"].copy(str(step), data_grp, name=str(step + i))
