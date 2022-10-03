@@ -15,8 +15,10 @@ def process_single_rms_field(
     h5_files = [p for p in os.listdir(input_path) if p.endswith(".h5")]
     h5_files = sorted(h5_files, key=get_key)
 
-    with h5py.File(output_path, "x", libver="latest") as out:
-        data_grp = out.create_group("data")
+    # with h5py.File(output_path, "x", libver="latest") as out:
+    #     data_grp = out.create_group("data")
+    if True:
+        os.makedirs(output_path)
         for i, h5_file in enumerate(tqdm(h5_files, desc="h5 files", disable=verbose)):
             with h5py.File(
                 os.path.join(input_path, h5_file), "r", libver="latest"
@@ -26,9 +28,17 @@ def process_single_rms_field(
                 solve_steps = np.sort(np.array([int(key) for key in f["data"]]))
                 if i == 0:
                     # f["solution/device"].copy("mesh", out)
-                    mesh_grp = out.create_group("mesh")
-                    for k, v in f["solution/device/mesh"].items():
-                        mesh_grp[k] = np.asarray(v)
+                    np.savez(
+                        os.path.join(output_path, "mesh.npz"),
+                        f["solution/device"]
+                        ** {
+                            k: np.asarray(v)
+                            for k, v in f["solution/device/mesh"].items()
+                        },
+                    )
+                    # mesh_grp = out.create_group("mesh")
+                    # for k, v in f["solution/device/mesh"].items():
+                    #     mesh_grp[k] = np.asarray(v)
                     # for step in solve_steps:
                     #     f["data"].copy(str(step), data_grp)
                 if False:
@@ -36,11 +46,15 @@ def process_single_rms_field(
                 else:
                     step = solve_steps[-1]
                     # f["data"].copy(str(step), data_grp, name=str(step + i))
-                    grp = data_grp.create_group(str(step + i))
-                    for k, v in f[f"data/{step}"].attrs.items():
-                        grp.attrs[k] = v
-                    for k, v in f[f"data/{step}"].items():
-                        grp[k] = np.asarray(v)
+                    # grp = data_grp.create_group(str(step + i))
+                    # for k, v in f[f"data/{step}"].attrs.items():
+                    #     grp.attrs[k] = v
+                    # for k, v in f[f"data/{step}"].items():
+                    #     grp[k] = np.asarray(v)
+                    np.savez(
+                        os.path.join(output_path, f"{step + 1}.npz"),
+                        **{k: np.asarray(v) for k, v in f[f"data/{step}"].items()},
+                    )
                 if verbose:
                     print("DONE")
 
@@ -61,9 +75,10 @@ def process_many_rms_fields(
     os.makedirs(output_dir, exist_ok=False)
     for n in input_paths:
         input_path = os.path.join(input_dir, str(n))
+        output_path = os.path.join(output_dir, str(n))
         if verbose:
             print(input_path)
-        output_path = os.path.join(output_dir, f"run-{n:02}.h5")
+        # output_path = os.path.join(output_dir, f"run-{n:02}.h5")
         process_single_rms_field(input_path, output_path, verbose=verbose)
 
 
