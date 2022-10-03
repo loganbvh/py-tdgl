@@ -3,10 +3,10 @@ import argparse
 import logging
 
 from .enums import Observable
-from .visualization.animate import Animate
+from .visualization.animate import Animate, MultiAnimate
 from .visualization.ic_dist import IcDist
 from .visualization.ic_vs_b import IcVsB
-from .visualization.interactive_plot import InteractivePlot
+from .visualization.interactive_plot import InteractivePlot, MultiInteractivePlot
 from .visualization.iv_plot import IvPlot
 
 
@@ -21,6 +21,12 @@ class Visualize:
 
         parser.add_argument(
             "input", metavar="INPUT", type=str, help="data file to visualize"
+        )
+
+        parser.add_argument(
+            "--observables",
+            type=str,
+            nargs="*",
         )
 
         parser.add_argument(
@@ -51,7 +57,7 @@ class Visualize:
         subparsers = parser.add_subparsers()
 
         animate_parser = subparsers.add_parser(
-            "animate", help="create an animation of " "the TDGL data"
+            "animate", help="create an animation of the TDGL data"
         )
 
         animate_parser.add_argument(
@@ -61,10 +67,10 @@ class Visualize:
         animate_parser.add_argument(
             "-o",
             "--observable",
-            type=str,
+            type=lambda s: str(s).upper(),
             choices=Observable.get_keys(),
             default="COMPLEX_FIELD",
-            help="specify the observable to " "display in the animation",
+            help="specify the observable to display in the animation",
         )
 
         animate_parser.add_argument(
@@ -119,7 +125,7 @@ class Visualize:
             "--threshold",
             type=float,
             default=0.01,
-            help="voltage level to measure the " "critical current",
+            help="voltage level to measure the critical current",
         )
 
         ic_vs_b_parser.add_argument(
@@ -151,7 +157,7 @@ class Visualize:
             "--threshold",
             type=float,
             default=0.01,
-            help="voltage level to measure the " "critical current",
+            help="voltage level to measure the critical current",
         )
 
         ic_dist.add_argument(
@@ -203,23 +209,38 @@ class Visualize:
         self.args.func()
 
     def visualize_tdgl(self):
-        InteractivePlot(
+        if len(self.args.observables) == 0:
+            InteractivePlot(
+                input_file=self.args.input,
+                enable_save=self.args.allow_save,
+                logger=self.logger,
+            ).show()
+            return
+        kwargs = dict(
             input_file=self.args.input,
-            enable_save=self.args.allow_save,
             logger=self.logger,
-        ).show()
+        )
+        if "all" not in self.args.observables:
+            kwargs["observables"] = self.args.observables
+        MultiInteractivePlot(**kwargs).show()
 
     def animate_tdgl(self):
-        Animate(
+        kwargs = dict(
             input_file=self.args.input,
             output_file=self.args.output,
             logger=self.logger,
             silent=self.args.silent,
-            observable=Observable.from_key(self.args.observable),
             dpi=self.args.dpi,
             fps=self.args.fps,
             gpu=self.args.gpu,
-        ).build()
+        )
+        if len(self.args.observables) == 0:
+            kwargs["observable"] = Observable.from_key(self.args.observable)
+            Animate(**kwargs).build()
+            return
+        if "all" not in self.args.observables:
+            kwargs["observables"] = self.args.observables
+        MultiAnimate(**kwargs).build()
 
     def iv(self):
         IvPlot(

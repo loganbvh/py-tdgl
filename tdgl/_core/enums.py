@@ -22,7 +22,7 @@ class Observable(Enum):
 
     @classmethod
     def from_key(cls, key: str) -> "Observable":
-        return Observable[key]
+        return Observable[key.upper()]
 
 
 class SparseFormat(Enum):
