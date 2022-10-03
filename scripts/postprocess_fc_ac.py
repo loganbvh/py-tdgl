@@ -15,14 +15,14 @@ def process_single_rms_field(
     h5_files = [p for p in os.listdir(input_path) if p.endswith(".h5")]
     h5_files = sorted(h5_files, key=get_key)
 
-    with h5py.File(output_path, "x") as out:
+    with h5py.File(output_path, "x", libver="latest") as out:
         data_grp = out.create_group("data")
         for i, h5_file in enumerate(tqdm(h5_files, desc="h5 files", disable=True)):
             with h5py.File(
                 os.path.join(input_path, h5_file), "r", libver="latest"
             ) as f:
                 if verbose:
-                    print(h5_file)
+                    print(h5_file, end="...")
                 solve_steps = np.sort(np.array([int(key) for key in f["data"]]))
                 if i == 0:
                     f["solution/device"].copy("mesh", out)
@@ -33,6 +33,8 @@ def process_single_rms_field(
                 else:
                     step = solve_steps[-1]
                     f["data"].copy(str(step), data_grp, name=str(step + i))
+                if verbose:
+                    print("DONE")
 
     return output_path
 
@@ -50,9 +52,9 @@ def process_many_rms_fields(
     input_paths = sorted(input_paths)
     os.makedirs(output_dir, exist_ok=False)
     for n in input_paths:
-        if verbose:
-            print(str(n))
         input_path = os.path.join(input_dir, str(n))
+        if verbose:
+            print(input_path)
         output_path = os.path.join(output_dir, f"run-{n:02}.h5")
         process_single_rms_field(input_path, output_path, verbose=verbose)
 
