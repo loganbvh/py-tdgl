@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=squid_susc_fc_ac_array
-#SBATCH --array=0-50
+#SBATCH --array=0-99
 #SBATCH --output=slurm-%A_%a.out
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=8GB
-#SBATCH --time=12:00:00
+#SBATCH --mem-per-cpu=10GB
+#SBATCH --time=24:00:00
 
 set -x
 
@@ -35,15 +35,15 @@ python $pyscript \
     --film-radius=15 \
     --film-points=4000 \
     --film-optimesh=100 \
-    --cycles=3 \
-    --points-per-cycle=15 \
+    --cycles=2 \
+    --points-per-cycle=25 \
     --d=0.2 \
-    --lam=2 \
-    --xi=1 \
+    --lam=1.5 \
+    --xi=0.3 \
     --gamma=10 \
     --dt-min=1e-3 \
     --dt-max=1e-2 \
-    --total-time=5e3 \
+    --total-time=10e3 \
     --pinning=0 \
     --seed-solutions
 
