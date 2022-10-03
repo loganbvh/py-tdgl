@@ -76,11 +76,7 @@ class Runner:
         self.time = 0
         self.options = options
         self.dt = self.options.dt_min
-
-        # Set the function to run in the loop.
         self.function = function
-
-        # Set the initial parameter values for the function and the names.
         self.values = initial_values
         self.names = names
         self.fixed_values = fixed_values if fixed_values is not None else []
@@ -90,11 +86,7 @@ class Runner:
             running_names if running_names is not None else [], self.options.save_every
         )
         self.state = state if state is not None else {}
-
-        # Set the logger.
         self.logger = logger if logger is not None else logging.getLogger()
-
-        # Set the data handler.
         self.data_handler = data_handler
 
     def run(self) -> None:
@@ -139,9 +131,11 @@ class Runner:
         """Run a stage of the simulation.
 
         Args:
-            start: Start step.
-            end: End step.
-            stage_name: Name of the stage.
+            name: Name of the solver stage.
+            start_step: Start step.
+            end_step: End step.
+            start_time: Start time.
+            end_time: End time.
             save: If the data should be saved.
         """
         # Check if the progress bar is disabled.
@@ -149,7 +143,6 @@ class Runner:
             self.options.progress_interval is not None
             and self.options.progress_interval > 0
         )
-        # Create variable to save the current time.
         now = None
         if end_step is None and end_time is None:
             raise ValueError("Either 'end_step' or 'end_time' must be specified.")
@@ -168,6 +161,16 @@ class Runner:
             unit = "tau"
             bar_format = "{l_bar}{bar}" + r_bar
             it = itertools.count()
+
+        def save_step(step):
+            data = dict(zip(self.names, self.values))
+            # Add the fixed values.
+            for idx, name in enumerate(self.fixed_names):
+                data[name] = self.fixed_values[idx]
+            # Add the running state data to the dict.
+            if step != 0:
+                data.update(self.running_state.export())
+            self.data_handler.save_time_step(self.state, data)
 
         with tqdm(
             initial=initial,
@@ -202,24 +205,10 @@ class Runner:
                         )
                 # Save data
                 if i % self.options.save_every == 0:
-                    # Save data if it is enabled.
                     if save:
-                        # Create a dict containing the data.
-                        data = dict(
-                            (self.names[i], self.values[i])
-                            for i in range(len(self.names))
-                        )
-                        # Add the fixed values.
-                        for idx, name in enumerate(self.fixed_names):
-                            data[name] = self.fixed_values[idx]
-                        # Add the running state data to the dict.
-                        if i != 0:
-                            data.update(self.running_state.export())
-                        # Save the time step.
-                        self.data_handler.save_time_step(self.state, data)
-                    # Clear the running state.
+                        save_step(i)
+                        saved_this_iteration = True
                     self.running_state.clear()
-                    saved_this_iteration = True
 
                 # Run time step.
                 function_result = self.function(
@@ -228,9 +217,11 @@ class Runner:
                 converged, *self.values, new_dt = function_result
 
                 if end_step is None:
+                    # tqdm will spit out a warning if you try to update past "total"
                     if self.time + self.dt < end_time:
                         pbar.update(self.dt)
                     else:
+
                         pbar.update(end_time - self.time)
                 else:
                     pbar.update(1)
@@ -240,21 +231,10 @@ class Runner:
 
                 if converged and i > self.min_steps:
                     if save and not saved_this_iteration:
-                        # Create a dict containing the data.
-                        data = dict(
-                            (self.names[i], self.values[i])
-                            for i in range(len(self.names))
-                        )
-                        # Add the fixed values.
-                        for idx, name in enumerate(self.fixed_names):
-                            data[name] = self.fixed_values[idx]
-                        # Add the runnings state data to the dict.
-                        if i != 0:
-                            data.update(self.running_state.export())
-                        # Save the time step.
-                        self.data_handler.save_time_step(self.state, data)
+                        save_step(i)
                     self.logger.warning(f"\nSimulation converged at step {i}.")
                     return
+
                 if self.time >= end_time:
                     break
                 # Update the running state.

@@ -1,15 +1,24 @@
 import datetime
 import logging
 from os import getcwd, path
-from typing import Optional
+from typing import Any, Dict, Optional, Sequence
 
 import h5py
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.ticker import FuncFormatter
 
 from ..enums import Observable
 from ..mesh.mesh import Mesh
-from .helpers import get_data_range, get_plot_data, get_state_string
+from .defaults import PLOT_DEFAULTS
+from .helpers import auto_grid, get_data_range, get_plot_data, get_state_string
+
+_default_observables = (
+    "complex_field",
+    "phase",
+    "supercurrent",
+    "vorticity",
+)
 
 
 class InteractivePlot:
@@ -127,6 +136,8 @@ class InteractivePlot:
                 fig.suptitle(f"{self.observable.value}\n{state}")
                 triplot.set_array(value)
                 triplot.set_clim(*limits)
+                triplot.set_cmap(PLOT_DEFAULTS[self.observable].cmap)
+                cbar.set_label(PLOT_DEFAULTS[self.observable].clabel)
                 # quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 
@@ -144,7 +155,128 @@ class InteractivePlot:
             # quiver = ax.quiver(
             #     mesh.x, mesh.y, temp_value, temp_value, scale=0.05, units="dots"
             # )
-            fig.colorbar(triplot)
+            cbar = fig.colorbar(triplot)
             ax.set_aspect("equal")
+            redraw()
+            plt.show()
+
+
+class MultiInteractivePlot:
+    def __init__(
+        self,
+        input_file: str,
+        observables: Sequence[str] = _default_observables,
+        max_cols: int = 4,
+        logger: logging.Logger = None,
+        figure_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        self.input_file = path.join(getcwd(), input_file)
+        self.frame = 0
+        if observables is None:
+            observables = Observable.get_keys()
+        self.observables = [Observable.from_key(name) for name in observables]
+        self.num_plots = len(observables)
+        self.max_cols = max_cols
+        self.hide_quiver = False
+        self.logger = logger if logger is not None else logging.getLogger()
+        self.figure_kwargs = figure_kwargs or dict()
+        self.figure_kwargs.setdefault("constrained_layout", True)
+        default_figsize = (
+            3.25 * min(self.max_cols, self.num_plots),
+            3 * max(1, self.num_plots // self.max_cols),
+        )
+        self.figure_kwargs.setdefault("figsize", default_figsize)
+
+    def show(self):
+        # Open the file
+        with h5py.File(self.input_file, "r") as h5file:
+
+            # Get the mesh
+            if "mesh" in h5file:
+                mesh = Mesh.load_from_hdf5(h5file["mesh"])
+            else:
+                mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
+
+            # Get the ranges for the frame
+            min_frame, max_frame = get_data_range(h5file)
+
+            def on_keypress(event):
+                if event.key == "right":
+                    self.frame = np.minimum(self.frame + 1, max_frame)
+
+                elif event.key == "left":
+                    self.frame = np.maximum(self.frame - 1, min_frame)
+
+                if event.key == "shift+right":
+                    self.frame = np.minimum(self.frame + 10, max_frame)
+
+                elif event.key == "shift+left":
+                    self.frame = np.maximum(self.frame - 10, min_frame)
+
+                elif event.key == "up":
+                    self.frame = np.minimum(self.frame + 100, max_frame)
+
+                elif event.key == "down":
+                    self.frame = np.maximum(self.frame - 100, min_frame)
+
+                elif event.key == "shift+up":
+                    self.frame = np.minimum(self.frame + 1000, max_frame)
+
+                elif event.key == "shift+down":
+                    self.frame = np.maximum(self.frame - 1000, min_frame)
+
+                elif event.key == "home":
+                    self.frame = min_frame
+
+                elif event.key == "end":
+                    self.frame = max_frame
+
+                redraw()
+
+            def redraw():
+                state = get_state_string(h5file, self.frame, max_frame)
+                fig.suptitle(state)
+                for observable, collection in zip(self.observables, collections):
+                    value, direction, limits = get_plot_data(
+                        h5file, mesh, observable, self.frame
+                    )
+                    collection.set_array(value)
+                    collection.set_clim(*limits)
+                # quiver.set_UVC(direction[:, 0], direction[:, 1])
+                fig.canvas.draw()
+
+            # Temp data to use in plots
+            temp_value = np.ones_like(mesh.x)
+            temp_value[0] = 0
+            temp_value[1] = 0.5
+
+            fig, axes = auto_grid(
+                self.num_plots, max_cols=self.max_cols, **self.figure_kwargs
+            )
+            fig.canvas.mpl_connect("key_press_event", on_keypress)
+
+            collections = []
+
+            for observable, ax in zip(self.observables, axes.flat):
+                opts = PLOT_DEFAULTS[observable]
+                collection = ax.tripcolor(
+                    mesh.x,
+                    mesh.y,
+                    temp_value,
+                    triangles=mesh.elements,
+                    shading="gouraud",
+                    cmap=opts.cmap,
+                )
+                # quiver = ax.quiver(
+                #     mesh.x, mesh.y, temp_value, temp_value, scale=0.05, units="dots"
+                # )
+                cbar = fig.colorbar(
+                    collection, ax=ax, format=FuncFormatter("{:.2f}".format)
+                )
+                cbar.set_label(opts.clabel)
+                ax.set_aspect("equal")
+                ax.set_title(observable.value)
+                collections.append(collection)
+
             redraw()
             plt.show()

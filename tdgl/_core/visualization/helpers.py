@@ -1,6 +1,7 @@
 from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple
 
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 
 from ..enums import Observable
@@ -90,7 +91,7 @@ def get_plot_data(
         return np.abs(psi), np.zeros((len(mesh.x), 2)), [0, 1]
 
     elif observable is Observable.PHASE and psi is not None:
-        return np.angle(psi), np.zeros((len(mesh.x), 2)), [-np.pi, np.pi]
+        return np.angle(psi) / np.pi, np.zeros((len(mesh.x), 2)), [-1, 1]
 
     elif observable is Observable.SUPERCURRENT and supercurrent is not None:
         return get_edge_observable_data(supercurrent, mesh)
@@ -255,3 +256,25 @@ def get_magnetic_field(input_path: str, frame: int) -> float:
     # Open the file
     with h5py.File(input_path, "r") as h5file:
         return h5file["data"][str(frame)].attrs["magnetic field"]
+
+
+def auto_grid(
+    num_plots: int,
+    max_cols: int = 3,
+    **kwargs,
+) -> Tuple[plt.Figure, np.ndarray]:
+    """Creates a grid of at least ``num_plots`` subplots
+    with at most ``max_cols`` columns.
+    Additional keyword arguments are passed to plt.subplots().
+    Args:
+        num_plots: Total number of plots that will be populated.
+        max_cols: Maximum number of columns in the grid.
+    Returns:
+        matplotlib figure and axes
+    """
+    ncols = min(max_cols, num_plots)
+    nrows = int(np.ceil(num_plots / ncols))
+    fig, axes = plt.subplots(nrows, ncols, **kwargs)
+    if not isinstance(axes, (list, np.ndarray)):
+        axes = np.array([axes])
+    return fig, axes
