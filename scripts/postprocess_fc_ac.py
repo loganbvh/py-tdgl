@@ -38,16 +38,16 @@ def process_many_rms_fields(
     input_paths = []
     for p in os.listdir(input_dir):
         try:
-            _ = int(p)
-            input_paths.append(p)
+            n = int(p)
+            input_paths.append(n)
         except ValueError:
             pass
-    input_paths = sorted(input_paths, key=int)
+    input_paths = sorted(input_paths)
     os.makedirs(output_dir, exist_ok=False)
-    for path in input_paths:
-        output_path = os.path.join(output_dir, f"run-{path:02}.h5")
+    for n in input_paths:
+        output_path = os.path.join(output_dir, f"run-{n:02}.h5")
         process_single_rms_field(
-            os.path.join(input_dir, path), output_path, verbose=verbose
+            os.path.join(input_dir, str(n)), output_path, verbose=verbose
         )
 
 
