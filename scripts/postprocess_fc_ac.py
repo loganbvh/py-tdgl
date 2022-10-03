@@ -22,12 +22,12 @@ def process_single_rms_field(
                     print(h5_file)
                 solve_steps = np.sort(np.array([int(key) for key in f["data"]]))
                 if i == 0:
-                    out["mesh"] = f["solution/device/mesh"]
+                    f["solution/device"].copy("mesh", out)
                     for step in solve_steps:
-                        data_grp[str(step)] = f["data"][str(step)]
+                        f["data"].copy(str(step), data_grp)
                 else:
                     step = solve_steps[-1]
-                    data_grp[str(step + i)] = f["data"][str(step)]
+                    f["data"].copy(str(step), data_grp, name=str(step + i))
 
     return output_path
 
