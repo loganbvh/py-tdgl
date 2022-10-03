@@ -78,7 +78,9 @@ def main():
 
     args = parser.parse_args()
 
-    process_many_rms_fields(args.input, args.output, verbose=args.verbose)
+    process_many_rms_fields(
+        args.input, args.output, threads=args.threads, verbose=args.verbose
+    )
 
 
 if __name__ == "__main__":
