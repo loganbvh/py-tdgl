@@ -1,8 +1,8 @@
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import h5py
 import numpy as np
+from tqdm import tqdm
 
 
 def get_key(h5_name: str) -> int:
@@ -17,7 +17,7 @@ def process_single_rms_field(
 
     with h5py.File(output_path, "x") as out:
         data_grp = out.create_group("data")
-        for i, h5_file in enumerate(h5_files):
+        for i, h5_file in enumerate(tqdm(h5_files, desc="h5 files")):
             with h5py.File(os.path.join(input_path, h5_file), "r") as f:
                 if verbose:
                     print(h5_file)
@@ -36,7 +36,7 @@ def process_single_rms_field(
 
 
 def process_many_rms_fields(
-    input_dir: str, output_dir: str, threads: int = 1, verbose: bool = True
+    input_dir: str, output_dir: str, threads: int = 1, verbose: bool = False
 ) -> None:
     input_paths = []
     for p in os.listdir(input_dir):
@@ -47,22 +47,12 @@ def process_many_rms_fields(
             pass
     input_paths = sorted(input_paths)
     os.makedirs(output_dir, exist_ok=False)
-    if verbose:
-        print(f"Processing {len(input_paths)} results using {threads} threads.")
-    with ThreadPoolExecutor(max_workers=threads) as executor:
-        future_to_file = {}
-        for n in input_paths:
-            input_path = os.path.join(input_dir, str(n))
-            output_path = os.path.join(output_dir, f"run-{n:02}.h5")
-            future = executor.submit(
-                process_single_rms_field, input_path, output_path, verbose=verbose
-            )
-            future_to_file[future] = input_path
-        for future in as_completed(future_to_file):
-            input_path = future_to_file[future]
-            output_path = future.result()
-            if verbose:
-                print("DONE", input_path, output_path)
+    for n in input_paths:
+        if verbose:
+            print(str(n))
+        input_path = os.path.join(input_dir, str(n))
+        output_path = os.path.join(output_dir, f"run-{n:02}.h5")
+        process_single_rms_field(input_path, output_path, verbose=verbose)
 
 
 def main():
@@ -73,9 +63,6 @@ def main():
 
     parser.add_argument("-i", "--input", type=str, help="Input directory.")
     parser.add_argument("-o", "--output", type=str, help="Output directory.")
-    parser.add_argument(
-        "-t", "--threads", type=int, default=10, help="Number of threads to use."
-    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose.")
 
     args = parser.parse_args()

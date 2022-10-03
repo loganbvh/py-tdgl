@@ -221,7 +221,6 @@ class Runner:
                     if self.time + self.dt < end_time:
                         pbar.update(self.dt)
                     else:
-
                         pbar.update(end_time - self.time)
                 else:
                     pbar.update(1)
