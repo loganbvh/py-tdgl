@@ -44,6 +44,7 @@ def process_single_rms_field(
                     pass
                 else:
                     step = solve_steps[-1]
+                    print(step)
                     # f["data"].copy(str(step), data_grp, name=str(step + i))
                     # grp = data_grp.create_group(str(step + i))
                     # for k, v in f[f"data/{step}"].attrs.items():
