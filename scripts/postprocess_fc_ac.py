@@ -30,8 +30,7 @@ def process_single_rms_field(
                     # f["solution/device"].copy("mesh", out)
                     np.savez(
                         os.path.join(output_path, "mesh.npz"),
-                        f["solution/device"]
-                        ** {
+                        **{
                             k: np.asarray(v)
                             for k, v in f["solution/device/mesh"].items()
                         },
