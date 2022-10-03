@@ -36,7 +36,7 @@ def process_single_rms_field(
 
 
 def process_many_rms_fields(
-    input_dir: str, output_dir: str, threads: int = 1, verbose: bool = False
+    input_dir: str, output_dir: str, verbose: bool = False
 ) -> None:
     input_paths = []
     for p in os.listdir(input_dir):
@@ -67,9 +67,7 @@ def main():
 
     args = parser.parse_args()
 
-    process_many_rms_fields(
-        args.input, args.output, threads=args.threads, verbose=args.verbose
-    )
+    process_many_rms_fields(args.input, args.output, verbose=args.verbose)
 
 
 if __name__ == "__main__":
