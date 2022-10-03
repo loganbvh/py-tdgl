@@ -114,7 +114,7 @@ class Runner:
             "Simulating",
             start_step=0,
             start_time=self.time,
-            end_step=self.options.max_steps,
+            end_step=self.options.min_steps,
             end_time=self.options.total_time,
             save=True,
         )
@@ -146,6 +146,10 @@ class Runner:
         now = None
         if end_step is None and end_time is None:
             raise ValueError("Either 'end_step' or 'end_time' must be specified.")
+        if end_step is not None and end_time is not None:
+            raise ValueError(
+                "Either 'end_step' or 'end_time' must be specified (but not both)."
+            )
         if end_step is not None:
             initial = start_step
             total = end_step + 1

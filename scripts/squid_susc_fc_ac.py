@@ -10,6 +10,7 @@ import superscreen as sc
 
 import squids
 import tdgl
+from tdgl._core.visualization.helpers import get_data_range
 
 squid_funcs = {
     "ibm-small": squids.ibm.small.make_squid,
@@ -328,6 +329,13 @@ def main():
         save_every=args.save_every,
     )
 
+    with h5py.File(
+        os.path.join(path, "steady-state.h5"),
+        "x",
+        libver="latest",
+    ) as f:
+        device.to_hdf5(f.create_group("mesh"))
+
     for i, current in enumerate(I_fc):
 
         options.min_steps = steps
@@ -373,6 +381,16 @@ def main():
                 if val is not None:
                     f.attrs[key] = val
             f.attrs["pl_fluxoid_in_Phi_0"] = flux
+
+            i_start, i_end = get_data_range(f)
+
+            with h5py.File(os.path.join(path, "steady-state.h5"), "r+") as out:
+                data_grp = out.require_group("data")
+                f["data"].copy(str(i_end), data_grp, name=str(i))
+                for key, val in args_as_dict.items():
+                    if val is not None:
+                        out.attrs[key] = val
+                data_grp[str(i)].attrs["pl_fluxoid_in_Phi_0"] = flux
 
     end_time = datetime.now()
 

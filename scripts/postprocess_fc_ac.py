@@ -15,10 +15,8 @@ def process_single_rms_field(
     h5_files = [p for p in os.listdir(input_path) if p.endswith(".h5")]
     h5_files = sorted(h5_files, key=get_key)
 
-    # with h5py.File(output_path, "x", libver="latest") as out:
-    #     data_grp = out.create_group("data")
-    if True:
-        os.makedirs(output_path)
+    with h5py.File(output_path, "x", libver="latest") as out:
+        data_grp = out.create_group("data")
         for i, h5_file in enumerate(tqdm(h5_files, desc="h5 files", disable=verbose)):
             with h5py.File(
                 os.path.join(input_path, h5_file), "r", libver="latest"
@@ -27,14 +25,7 @@ def process_single_rms_field(
                     print(h5_file, end="...")
                 solve_steps = np.sort(np.array([int(key) for key in f["data"]]))
                 if i == 0:
-                    # f["solution/device"].copy("mesh", out)
-                    np.savez(
-                        os.path.join(output_path, "mesh.npz"),
-                        **{
-                            k: np.asarray(v)
-                            for k, v in f["solution/device/mesh"].items()
-                        },
-                    )
+                    f["solution/device"].copy("mesh", out)
                     # mesh_grp = out.create_group("mesh")
                     # for k, v in f["solution/device/mesh"].items():
                     #     mesh_grp[k] = np.asarray(v)
@@ -45,16 +36,12 @@ def process_single_rms_field(
                 else:
                     step = solve_steps[-1]
                     print(step)
-                    # f["data"].copy(str(step), data_grp, name=str(step + i))
+                    f["data"].copy(str(step), data_grp, name=str(step + i))
                     # grp = data_grp.create_group(str(step + i))
                     # for k, v in f[f"data/{step}"].attrs.items():
                     #     grp.attrs[k] = v
                     # for k, v in f[f"data/{step}"].items():
                     #     grp[k] = np.asarray(v)
-                    np.savez(
-                        os.path.join(output_path, f"{step + 1}.npz"),
-                        **{k: np.asarray(v) for k, v in f[f"data/{step}"].items()},
-                    )
                 if verbose:
                     print("DONE")
 

@@ -643,7 +643,7 @@ class Device:
             if os.path.exists(path):
                 raise IOError(f"Path already exists: {path}.")
             os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-            save_context = h5py.File(path, "w-")
+            save_context = h5py.File(path, "w-", libver="latest")
         else:
             h5_group = path_or_group
             save_context = nullcontext(h5_group)

@@ -45,6 +45,7 @@ python $pyscript \
     --dt-max=1e-2 \
     --total-time=10e3 \
     --pinning=0 \
+    --save-every=500 \
     --seed-solutions
 
 # Move the stdout log to the results directory
