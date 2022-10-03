@@ -25,14 +25,22 @@ def process_single_rms_field(
                     print(h5_file, end="...")
                 solve_steps = np.sort(np.array([int(key) for key in f["data"]]))
                 if i == 0:
-                    f["solution/device"].copy("mesh", out)
+                    # f["solution/device"].copy("mesh", out)
+                    mesh_grp = out.create_group("mesh")
+                    for k, v in f["solution/device/mesh"].items():
+                        mesh_grp[k] = np.asarray(v)
                     # for step in solve_steps:
                     #     f["data"].copy(str(step), data_grp)
                 if False:
                     pass
                 else:
                     step = solve_steps[-1]
-                    f["data"].copy(str(step), data_grp, name=str(step + i))
+                    # f["data"].copy(str(step), data_grp, name=str(step + i))
+                    grp = data_grp.create_group(str(step + i))
+                    for k, v in f["data"][str(step)].attrs.items():
+                        grp.attrs[k] = v
+                    for k, v in f["data"][str(step)].items():
+                        grp[k] = np.asarray(v)
                 if verbose:
                     print("DONE")
 
