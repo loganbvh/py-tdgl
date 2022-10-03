@@ -18,7 +18,9 @@ def process_single_rms_field(
     with h5py.File(output_path, "x") as out:
         data_grp = out.create_group("data")
         for i, h5_file in enumerate(tqdm(h5_files, desc="h5 files")):
-            with h5py.File(os.path.join(input_path, h5_file), "r") as f:
+            with h5py.File(
+                os.path.join(input_path, h5_file), "r", libver="latest"
+            ) as f:
                 if verbose:
                     print(h5_file)
                 solve_steps = np.sort(np.array([int(key) for key in f["data"]]))

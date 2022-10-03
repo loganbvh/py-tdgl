@@ -38,7 +38,7 @@ class InteractivePlot:
 
     def show(self):
         # Open the file
-        with h5py.File(self.input_file, "r") as h5file:
+        with h5py.File(self.input_file, "r", libver="latest") as h5file:
 
             # Get the mesh
             if "mesh" in h5file:
@@ -189,7 +189,7 @@ class MultiInteractivePlot:
 
     def show(self):
         # Open the file
-        with h5py.File(self.input_file, "r") as h5file:
+        with h5py.File(self.input_file, "r", libver="latest") as h5file:
 
             # Get the mesh
             if "mesh" in h5file:

@@ -29,7 +29,9 @@ class DataHandler:
         logger: Optional[logging.Logger] = None,
     ):
         if isinstance(input_value, str):
-            with h5py.File(os.path.join(os.getcwd(), input_value), "r") as f:
+            with h5py.File(
+                os.path.join(os.getcwd(), input_value), "r", libver="latest"
+            ) as f:
                 self.mesh = Mesh.load_from_hdf5(f)
         else:
             self.mesh = input_value
@@ -83,7 +85,7 @@ class DataHandler:
             file_path = os.path.join(os.getcwd(), file_name)
 
             try:
-                file = h5py.File(file_path, "x")
+                file = h5py.File(file_path, "x", libver="latest")
             except (OSError, FileExistsError):
                 # Increment the serial number if the file could not be created
                 # and try again

@@ -680,7 +680,7 @@ class Device:
             The loaded Device instance.
         """
         if isinstance(path_or_group, str):
-            h5_context = h5py.File(path_or_group, "r")
+            h5_context = h5py.File(path_or_group, "r", libver="latest")
         else:
             if not isinstance(path_or_group, (h5py.File, h5py.Group)):
                 raise TypeError(

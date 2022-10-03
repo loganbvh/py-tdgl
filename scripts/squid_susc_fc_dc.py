@@ -323,7 +323,7 @@ def main():
         flux = calculate_pl_flux(squid, tdgl_solution, iterations=args.squid_iterations)
         all_flux.append(flux)
 
-        with h5py.File(tdgl_solution.path, "r+") as f:
+        with h5py.File(tdgl_solution.path, "r+", libver="latest") as f:
             for key, val in args_as_dict.items():
                 if val is not None:
                     f.attrs[key] = val

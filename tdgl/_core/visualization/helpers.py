@@ -196,7 +196,7 @@ def find_voltage_points(mesh: Mesh, h5file: h5py.File, frame: int) -> np.ndarray
 def get_mean_voltage(input_path: str) -> Tuple[np.ndarray, np.ndarray]:
 
     # Open the file
-    with h5py.File(input_path, "r") as h5file:
+    with h5py.File(input_path, "r", libver="latest") as h5file:
 
         min_frame, max_frame = get_data_range(h5file)
 
@@ -254,7 +254,7 @@ def get_mean_voltage(input_path: str) -> Tuple[np.ndarray, np.ndarray]:
 
 def get_magnetic_field(input_path: str, frame: int) -> float:
     # Open the file
-    with h5py.File(input_path, "r") as h5file:
+    with h5py.File(input_path, "r", libver="latest") as h5file:
         return h5file["data"][str(frame)].attrs["magnetic field"]
 
 

@@ -118,7 +118,7 @@ class Solution:
         # self._version_info = version_dict()
 
     def load_tdgl_data(self, solve_step: int = -1):
-        with h5py.File(self.path, "r") as f:
+        with h5py.File(self.path, "r", libver="latest") as f:
             step_min, step_max = get_data_range(f)
             if solve_step == 0:
                 step = step_min
@@ -690,7 +690,7 @@ class Solution:
         Args:
             save_mesh: Whether to save the Device's mesh.
         """
-        with h5py.File(self.path, "r+") as f:
+        with h5py.File(self.path, "r+", libver="latest") as f:
             if "mesh" in f:
                 del f["mesh"]
             data_grp = f.require_group("data")
@@ -733,7 +733,7 @@ class Solution:
         Returns:
             The loaded Solution instance
         """
-        with h5py.File(path, "r") as f:
+        with h5py.File(path, "r", libver="latest") as f:
             fname = os.path.basename(path).replace(".h5", "")
             dill_path = f"applied_vector_potential-{fname}.dill"
             data_grp = f["data"]

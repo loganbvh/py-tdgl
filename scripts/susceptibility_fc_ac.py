@@ -233,7 +233,7 @@ def main():
         flux = (field * pl_areas).sum()
         all_flux.append(flux)
 
-        with h5py.File(solution.path, "r+") as f:
+        with h5py.File(solution.path, "r+", libver="latest") as f:
             for key, val in args_as_dict.items():
                 f.attrs[key] = val
             f.attrs["flux_in_Phi_0"] = flux
