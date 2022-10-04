@@ -334,7 +334,7 @@ def main():
         "x",
         libver="latest",
     ) as f:
-        device.to_hdf5(f.create_group("mesh"))
+        device.mesh.save_to_hdf5(f.create_group("mesh"))
 
     for i, current in enumerate(I_fc):
 
