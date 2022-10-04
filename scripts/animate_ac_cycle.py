@@ -129,8 +129,8 @@ def create_animation(
         fig.canvas.draw()
 
     with tqdm(
-        total=len(range(min_frame, max_frame)),
-        unit="frames",
+        total=len(frames),
+        unit="frame",
         disable=silent,
     ) as progress:
         ani = FuncAnimation(fig, update, frames=frames, blit=False)
