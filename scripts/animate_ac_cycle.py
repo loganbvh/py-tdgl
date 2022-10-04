@@ -133,7 +133,7 @@ def create_animation(
         unit="frames",
         disable=silent,
     ) as progress:
-        ani = FuncAnimation(fig, update, frames=max_frame - min_frame, blit=False)
+        ani = FuncAnimation(fig, update, frames=frames, blit=False)
         ani.save(
             output_file,
             fps=fps,
