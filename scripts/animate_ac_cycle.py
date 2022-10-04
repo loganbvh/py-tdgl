@@ -38,7 +38,7 @@ def get_all_h5_groups(h5_files: Sequence[str]) -> List[np.ndarray]:
     groups = []
     for path in h5_files:
         with h5py.File(path, "r", libver="latest") as f:
-            groups.append(np.sort(np.array([int(grp) for grp in f])))
+            groups.append(np.sort(np.array([int(grp) for grp in f["data"]])))
     return groups
 
 
