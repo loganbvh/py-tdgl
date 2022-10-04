@@ -66,6 +66,8 @@ def create_animation(
     observables = [Observable.from_key(name) for name in observables]
     num_plots = len(observables)
 
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
     h5_files = get_output_h5_files(input_dir)[skip_files:]
     mesh = load_mesh(h5_files[0])
 
