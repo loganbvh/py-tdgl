@@ -66,6 +66,14 @@ def create_animation(
     observables = [Observable.from_key(name) for name in observables]
     num_plots = len(observables)
 
+    figure_kwargs = figure_kwargs or dict()
+    figure_kwargs.setdefault("constrained_layout", True)
+    default_figsize = (
+        3.25 * min(max_cols, num_plots),
+        3 * max(1, num_plots // max_cols),
+    )
+    figure_kwargs.setdefault("figsize", default_figsize)
+
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
     h5_files = get_output_h5_files(input_dir)[skip_files:]
