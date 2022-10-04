@@ -42,7 +42,10 @@ class InteractivePlot:
 
             # Get the mesh
             if "mesh" in h5file:
-                mesh = Mesh.load_from_hdf5(h5file["mesh"])
+                if "mesh" in h5file["mesh"]:
+                    mesh = Mesh.load_from_hdf5(h5file["mesh/mesh"])
+                else:
+                    mesh = Mesh.load_from_hdf5(h5file["mesh"])
             else:
                 mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
 
@@ -193,7 +196,10 @@ class MultiInteractivePlot:
 
             # Get the mesh
             if "mesh" in h5file:
-                mesh = Mesh.load_from_hdf5(h5file["mesh"])
+                if "mesh" in h5file["mesh"]:
+                    mesh = Mesh.load_from_hdf5(h5file["mesh/mesh"])
+                else:
+                    mesh = Mesh.load_from_hdf5(h5file["mesh"])
             else:
                 mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
 
@@ -241,7 +247,8 @@ class MultiInteractivePlot:
                         h5file, mesh, observable, self.frame
                     )
                     collection.set_array(value)
-                    collection.set_clim(*limits)
+                    if self.frame == min_frame:
+                        collection.set_clim(*limits)
                 # quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 

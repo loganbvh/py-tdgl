@@ -236,11 +236,12 @@ class Runner:
                     if save and not saved_this_iteration:
                         save_step(i)
                     self.logger.warning(f"\nSimulation converged at step {i}.")
-                    return
+                    break
 
                 if self.time >= end_time:
+                    if save and not saved_this_iteration:
+                        save_step(i)
                     break
-                # Update the running state.
+
                 self.running_state.next()
-                # Run update time
                 self.time += self.dt

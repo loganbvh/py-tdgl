@@ -209,7 +209,7 @@ class Visualize:
         self.args.func()
 
     def visualize_tdgl(self):
-        if len(self.args.observables) == 0:
+        if self.args.observables is None:
             InteractivePlot(
                 input_file=self.args.input,
                 enable_save=self.args.allow_save,
@@ -234,7 +234,7 @@ class Visualize:
             fps=self.args.fps,
             gpu=self.args.gpu,
         )
-        if len(self.args.observables) == 0:
+        if self.args.observables is None:
             kwargs["observable"] = Observable.from_key(self.args.observable)
             Animate(**kwargs).build()
             return
