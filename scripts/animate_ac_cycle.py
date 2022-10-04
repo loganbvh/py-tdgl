@@ -120,7 +120,7 @@ def create_animation(
         with h5py.File(path, "r", libver="latest") as f:
             state = get_state_string(f, group, max_frame)
             for observable, collection in zip(observables, collections):
-                value, direction, limits = get_plot_data(f, mesh, observable, frame)
+                value, direction, limits = get_plot_data(f, mesh, observable, group)
                 collection.set_array(value)
                 if frame == min_frame:
                     collection.set_clim(*limits)
