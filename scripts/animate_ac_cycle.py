@@ -19,7 +19,7 @@ logger = logging.getLogger(os.path.basename(__file__).replace(".py", ""))
 
 
 def get_output_h5_files(dirname: str) -> List[str]:
-    h5_files = glob.glob(os.path.expandvars(os.path.join(dirname, "*", "output-*.h5")))
+    h5_files = glob.glob(os.path.expandvars(os.path.join(dirname, "output-*.h5")))
     return sorted(
         h5_files, key=lambda s: int(os.path.basename(s).split("-")[-1].split(".")[0])
     )
