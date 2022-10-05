@@ -12,7 +12,7 @@ from tqdm import tqdm
 from tdgl._core.enums import Observable
 from tdgl._core.mesh.mesh import Mesh
 from tdgl._core.visualization.defaults import PLOT_DEFAULTS
-from tdgl._core.visualization.helpers import auto_grid, get_plot_data, get_state_string
+from tdgl._core.visualization.helpers import auto_grid, get_plot_data, load_state_data
 from tdgl._core.visualization.interactive_plot import _default_observables
 
 logger = logging.getLogger(os.path.basename(__file__).replace(".py", ""))
@@ -85,8 +85,8 @@ def create_animation(
         [[path] * len(groups) for path, groups in zip(h5_files, all_groups)],
     ).tolist()
     all_groups = np.concatenate(all_groups).tolist()
-    frames = list(zip(paths, all_groups))
-    min_frame = 0
+    frames = list(zip(paths, all_groups, range(len(paths))))
+    # min_frame = 0
     max_frame = len(frames) - 1
 
     # Temp data to use in plots
@@ -115,17 +115,25 @@ def create_animation(
         ax.set_title(observable.value)
         collections.append(collection)
 
+    total_time = 0
+
     def update(frame):
-        path, group = frame
+        nonlocal total_time
+        path, group, index = frame
         with h5py.File(path, "r", libver="latest") as f:
-            state = get_state_string(f, group, max_frame)
+            state = load_state_data(f, group)
+            total_time += state["dt"]
             for observable, collection in zip(observables, collections):
                 value, direction, limits = get_plot_data(f, mesh, observable, group)
                 collection.set_array(value)
-                if frame == min_frame:
-                    collection.set_clim(*limits)
+                collection.set_clim(*limits)
+        state_string = (
+            f"Frame {frame} of {max_frame},"
+            f"\ndt: {state['dt']:.2e}, time: {total_time:.2e},"
+            f"\ngamma: {state['gamma']:.2e}, u: {state['u']:.2e}"
+        )
         # quiver.set_UVC(direction[:, 0], direction[:, 1])
-        fig.suptitle(state)
+        fig.suptitle(state_string)
         fig.canvas.draw()
 
     with tqdm(
