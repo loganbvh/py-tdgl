@@ -14,6 +14,8 @@ conda activate tdgl
 
 export LD_LIBRARY_PATH=${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}
 
+module load system ffmpeg
+
 target_slurm_job_id=64043402
 target_slurm_array_id=0
 outdir=$GROUP_SCRATCH/py-tdgl/videos/$target_slurm_job_id/$SLURM_JOB_ID
