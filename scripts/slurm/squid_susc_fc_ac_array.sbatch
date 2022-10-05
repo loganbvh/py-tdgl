@@ -39,10 +39,10 @@ python $pyscript \
     --points-per-cycle=25 \
     --d=0.2 \
     --lam=1.5 \
-    --xi=0.3 \
+    --xi=0.5 \
     --gamma=10 \
     --dt-min=1e-3 \
-    --dt-max=1e-2 \
+    --dt-max=5e-2 \
     --total-time=10e3 \
     --pinning=0 \
     --save-every=500 \
