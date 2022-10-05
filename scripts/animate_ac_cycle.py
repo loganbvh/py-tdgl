@@ -117,18 +117,23 @@ def create_animation(
 
     total_time = 0
 
+    vmin = +np.inf
+    vmax = -np.inf
+
     def update(frame):
-        nonlocal total_time
+        nonlocal total_time, vmin, vmax
         path, group, index = frame
         with h5py.File(path, "r", libver="latest") as f:
             state = load_state_data(f, group)
             total_time += state["dt"]
             for observable, collection in zip(observables, collections):
                 value, direction, limits = get_plot_data(f, mesh, observable, group)
+                vmin = min(vmin, limits[0])
+                vmax = max(vmax, limits[1])
                 collection.set_array(value)
-                collection.set_clim(*limits)
+                collection.set_clim(vmin, vmax)
         state_string = (
-            f"Frame {frame} of {max_frame},"
+            f"Frame {index} of {max_frame},"
             f"\ndt: {state['dt']:.2e}, time: {total_time:.2e},"
             f"\ngamma: {state['gamma']:.2e}, u: {state['u']:.2e}"
         )
