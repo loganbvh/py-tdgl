@@ -82,6 +82,14 @@ class Visualize:
         )
 
         animate_parser.add_argument(
+            "-s",
+            "--skip",
+            type=int,
+            default=0,
+            help="Number of frames to skip at the beginning of the animation.",
+        )
+
+        animate_parser.add_argument(
             "-g",
             "--gpu",
             action="store_true",
@@ -233,6 +241,7 @@ class Visualize:
             dpi=self.args.dpi,
             fps=self.args.fps,
             gpu=self.args.gpu,
+            skip=self.args.skip,
         )
         if self.args.observables is None:
             kwargs["observable"] = Observable.from_key(self.args.observable)

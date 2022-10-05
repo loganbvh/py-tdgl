@@ -25,6 +25,7 @@ class Animate:
         observable: Observable,
         fps: int,
         dpi: float,
+        skip: int = 0,
         gpu: bool = False,
         logger: Optional[Logger] = None,
         silent: bool = False,
@@ -35,6 +36,7 @@ class Animate:
         self.observable = observable
         self.fps = fps
         self.dpi = dpi
+        self.skip = skip
         self.gpu = gpu
         self.silent = silent
         self.logger = logger if logger is not None else logging.getLogger()
@@ -60,6 +62,7 @@ class Animate:
 
             # Get the ranges for the frame
             min_frame, max_frame = get_data_range(h5file)
+            min_frame += self.skip
 
             # Temp data to use in plots
             temp_value = np.ones_like(mesh.x)
@@ -119,6 +122,7 @@ class MultiAnimate:
         dpi: float,
         observables: Sequence[str] = _default_observables,
         max_cols: int = 4,
+        skip: int = 0,
         gpu: bool = False,
         logger: Optional[Logger] = None,
         silent: bool = False,
@@ -134,6 +138,7 @@ class MultiAnimate:
         self.max_cols = max_cols
         self.fps = fps
         self.dpi = dpi
+        self.skip = skip
         self.gpu = gpu
         self.silent = silent
         self.logger = logger if logger is not None else logging.getLogger()
@@ -171,6 +176,7 @@ class MultiAnimate:
 
             # Get the ranges for the frame
             min_frame, max_frame = get_data_range(h5file)
+            min_frame += self.skip
 
             # Temp data to use in plots
             temp_value = np.ones_like(mesh.x)
@@ -202,16 +208,22 @@ class MultiAnimate:
                 ax.set_title(observable.value)
                 collections.append(collection)
 
+            vmins = [+np.inf for _ in self.observables]
+            vmaxs = [-np.inf for _ in self.observables]
+
             def update(frame):
                 state = get_state_string(h5file, frame, max_frame)
                 fig.suptitle(state)
-                for observable, collection in zip(self.observables, collections):
+                for i, (observable, collection) in enumerate(
+                    zip(self.observables, collections)
+                ):
                     value, direction, limits = get_plot_data(
                         h5file, mesh, observable, frame
                     )
+                    vmins[i] = min(vmins[i], limits[0])
+                    vmaxs[i] = max(vmaxs[i], limits[1])
                     collection.set_array(value)
-                    if frame == min_frame:
-                        collection.set_clim(*limits)
+                    collection.set_clim(vmins[i], vmaxs[i])
                 # quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 
