@@ -13,11 +13,10 @@ source $GROUP_HOME/miniconda3/bin/activate
 conda activate tdgl
 
 export LD_LIBRARY_PATH=${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}
-
 module load system ffmpeg
 
-target_slurm_job_id=64043402
-target_slurm_array_id=0
+target_slurm_job_id=64121830
+target_slurm_array_id=50
 outdir=$GROUP_SCRATCH/py-tdgl/videos/$target_slurm_job_id/$SLURM_JOB_ID
 outfile=$outdir/field-${target_slurm_array_id}.mp4
 mkdir -p $outdir
@@ -31,9 +30,10 @@ cp $0 $outdir/
 python $pyscript \
     --input=$GROUP_SCRATCH/py-tdgl/results/$target_slurm_job_id/$target_slurm_array_id \
     --output=$outfile \
-    --fps=30 \
+    --fps=50 \
     --dpi=200 \
-    --skip=1
+    --skip=25 \
+    --dynamic
 
 # Move the stdout log to the results directory
 mv "slurm-${SLURM_JOB_ID}.out" $outdir
