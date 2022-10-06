@@ -73,7 +73,7 @@ def create_animation_dynamic(
 
     figure_kwargs = figure_kwargs or dict()
     # figure_kwargs.setdefault("constrained_layout", True)
-    default_figsize = (3.25 * num_plots, 4)
+    default_figsize = (3.25 * num_plots, 5)
     figure_kwargs.setdefault("figsize", default_figsize)
 
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -217,7 +217,7 @@ def create_animation_steady_state(
     num_plots = len(observables)
     figure_kwargs = figure_kwargs or dict()
     # figure_kwargs.setdefault("constrained_layout", True)
-    default_figsize = (3.25 * num_plots, 4)
+    default_figsize = (3.25 * num_plots, 5)
     figure_kwargs.setdefault("figsize", default_figsize)
 
     logger.info(f"Creating animation for {[obs.name for obs in observables]!r}.")
