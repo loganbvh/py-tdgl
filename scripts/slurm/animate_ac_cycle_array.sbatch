@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=animate-ac-cycle
 #SBATCH --array=0-99
+#SBATCH --output=slurm-%A_%a.out
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=16GB
 #SBATCH --nodes=1
