@@ -174,8 +174,8 @@ def create_animation_dynamic(
             "r-",
         )
         bx.plot(
-            thetas / (2 * np.pi),
-            np.sqrt(2) * I_fc_rms * np.cos(thetas)[cycle_index],
+            (thetas / (2 * np.pi))[cycle_index],
+            (np.sqrt(2) * I_fc_rms * np.cos(thetas))[cycle_index],
             "ro",
         )
         bx.axhline(0, color="k", lw=0.5)
