@@ -86,16 +86,16 @@ def create_animation_dynamic(
         rms_I_fcs = np.linspace(I_min, I_max, int(num_steps))
         cycles = f.attrs["cycles"]
         points_per_cycle = int(f.attrs["points_per_cycle"])
-        thetas = 2 * np.pi * np.linspace(0, cycles, int(cycles * points_per_cycle))
+        num_points = int(cycles * points_per_cycle)
+        thetas = 2 * np.pi * np.linspace(0, cycles, num_points)
 
     all_groups = get_all_h5_groups(h5_files)
     assert len(all_groups) == len(h5_files)
     paths = np.concatenate(
         [[path] * len(groups) for path, groups in zip(h5_files, all_groups)],
     ).tolist()
-    cycle_indices = np.arange(skip_files, len(paths), dtype=int)
     cycle_indices = np.concatenate(
-        [[cycle_indices] * len(groups) for groups in all_groups]
+        [list(range(skip_files, num_points)) * len(groups) for groups in all_groups]
     ).tolist()
     all_groups = np.concatenate(all_groups).tolist()
     frames = list(zip(paths, all_groups, cycle_indices, range(len(paths))))
