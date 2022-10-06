@@ -93,7 +93,7 @@ def create_animation_dynamic(
     paths = np.concatenate(
         [[path] * len(groups) for path, groups in zip(h5_files, all_groups)],
     ).tolist()
-    cycle_indices = np.arange(len(paths), dtype=int)
+    cycle_indices = np.arange(skip_files, len(paths), dtype=int)
     cycle_indices = np.concatenate(
         [[cycle_indices] * len(groups) for groups in all_groups]
     ).tolist()
