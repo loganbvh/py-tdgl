@@ -95,7 +95,7 @@ def create_animation_dynamic(
         [[path] * len(groups) for path, groups in zip(h5_files, all_groups)],
     ).tolist()
     cycle_indices = np.concatenate(
-        [list(range(skip_files, num_points)) * len(groups) for groups in all_groups]
+        [[i] * len(groups) for i, groups in enumerate(all_groups)]
     ).tolist()
     all_groups = np.concatenate(all_groups).tolist()
     frames = list(zip(paths, all_groups, cycle_indices, range(len(paths))))
@@ -161,10 +161,10 @@ def create_animation_dynamic(
                 collection.set_array(value)
                 collection.set_clim(vmins[i], vmaxs[i])
         state_string = (
-            f"Frame {index} of {max_frame},"
-            f" $I_{{FC,\\,\\mathrm{{rms}}}}$={I_fc_rms:.3f} mA,"
-            f"\ndt: {state['dt']:.2e}, time: {total_time:.2e},"
-            f"\ngamma: {state['gamma']:.2e}, u: {state['u']:.2e}"
+            f"Frame {index} of {max_frame}"
+            f", $I_{{FC,\\,\\mathrm{{rms}}}}$={I_fc_rms:.3f} mA"
+            f",\ndt: {state['dt']:.2e}, time: {total_time:.2e}"
+            f", gamma: {state['gamma']:.2e}, u: {state['u']:.2e}"
         )
         # quiver.set_UVC(direction[:, 0], direction[:, 1])
         bx.clear()
@@ -173,9 +173,10 @@ def create_animation_dynamic(
             np.sqrt(2) * I_fc_rms * np.cos(thetas),
             "r-",
         )
+        ix = slice(skip_files, skip_files + cycle_index)
         bx.plot(
-            (thetas / (2 * np.pi))[cycle_index],
-            (np.sqrt(2) * I_fc_rms * np.cos(thetas))[cycle_index],
+            (thetas / (2 * np.pi))[ix],
+            (np.sqrt(2) * I_fc_rms * np.cos(thetas))[ix],
             "ro",
         )
         bx.axhline(0, color="k", lw=0.5)
