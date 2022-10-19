@@ -19,7 +19,7 @@ export OMP_NUM_THREADS=1
 outdir=$GROUP_SCRATCH/py-tdgl/results/$SLURM_ARRAY_JOB_ID
 mkdir -p $outdir
 
-pyscript=$HOME/py-tdgl/scripts/squid_susc_fc_ac_mpi.py
+pyscript=$HOME/py-tdgl/scripts/squid_susc_fc_ac_adaptive.py
 
 # Copy the python script and this shell script to the results directory
 cp -u $pyscript $outdir/
