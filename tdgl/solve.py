@@ -84,7 +84,14 @@ def solve(
     sites = device.points
     voltage_points = mesh.voltage_points
     length_units = ureg(device.length_units)
+    current_units = ureg(current_units)
     xi = device.coherence_length
+    K0 = device.K0
+    source_drain_current = (
+        (source_drain_current * current_units / (K0 * xi * length_units))
+        .to_base_units()
+        .magnitude
+    )
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
     x = mesh.edge_mesh.x * xi
@@ -265,15 +272,9 @@ def solve(
             z, w, new_sq_psi = _solve_for_psi_squared(
                 psi_val, abs_sq_psi, alpha, gamma, u, mu_val, dt_val, psi_laplacian
             )
+        psi_val = w - z * new_sq_psi
 
         running_state.append("dt", dt_val)
-
-        # if not np.all(np.isfinite(new_sq_psi)):
-        #     raise ValueError(
-        #         f"NaN or inf encountered at step {step} with time step dt = {dt_val:.2e}."
-        #         f" Try using a smaller time step."
-        #     )
-        psi_val = w - z * new_sq_psi
 
         old_current = supercurrent_val + normal_current_val
         # Get the supercurrent
@@ -292,7 +293,7 @@ def solve(
         running_state.append("voltage", d_mu)
 
         if include_screening:
-            # Update the vector potential and link variables
+            # Update the vector potential and link variables.
             # 3D current density
             J_site = get_observable_on_site(supercurrent_val + normal_current_val, mesh)
             # i: edges, j: sites, k: spatial dimensions

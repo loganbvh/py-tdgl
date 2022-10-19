@@ -239,16 +239,22 @@ class MultiInteractivePlot:
 
                 redraw()
 
+            vmins = [+np.inf for _ in self.observables]
+            vmaxs = [-np.inf for _ in self.observables]
+
             def redraw():
                 state = get_state_string(h5file, self.frame, max_frame)
                 fig.suptitle(state)
-                for observable, collection in zip(self.observables, collections):
+                for i, (observable, collection) in enumerate(
+                    zip(self.observables, collections)
+                ):
                     value, direction, limits = get_plot_data(
                         h5file, mesh, observable, self.frame
                     )
                     collection.set_array(value)
-                    if self.frame == min_frame:
-                        collection.set_clim(*limits)
+                    vmins[i] = min(vmins[i], limits[0])
+                    vmaxs[i] = max(vmaxs[i], limits[1])
+                    collection.set_clim(vmins[i], vmaxs[i])
                 # quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 
