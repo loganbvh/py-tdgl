@@ -100,6 +100,7 @@ def get_plot_data(
         return get_edge_observable_data(normal_current, mesh)
 
     elif observable is Observable.SCALAR_POTENTIAL and mu is not None:
+        mu = mu - np.nanmin(mu)
         return mu, np.zeros((len(mesh.x), 2)), [np.min(mu), np.max(mu)]
 
     elif observable is Observable.APPLIED_VECTOR_POTENTIAL and a_applied is not None:

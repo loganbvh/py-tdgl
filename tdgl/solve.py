@@ -96,7 +96,6 @@ def solve(
     # where the edge coordinates are in dimensionful units.
     x = mesh.edge_mesh.x * xi
     y = mesh.edge_mesh.y * xi
-    K0 = device.K0
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
     if not isinstance(applied_vector_potential, Parameter):

@@ -1,3 +1,4 @@
+notebooks/
 notebooks/**/*.h5
 notebooks/**/*.json
 results/

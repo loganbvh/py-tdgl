@@ -204,6 +204,15 @@ class Device:
             return None
         return self.mesh.edge_mesh.edge_lengths * self.coherence_length
 
+    def contains_points(self, points: np.ndarray, index: bool = False) -> np.ndarray:
+        mask = self.film.contains_points(points)
+        mask = mask & ~np.logical_or.reduce(
+            [hole.contains_points(points) for hole in self.holes]
+        )
+        if index:
+            return np.where(mask)[0]
+        return mask
+
     @property
     def poly_points(self) -> np.ndarray:
         """Shape (n, 2) array of (x, y) coordinates of all Polygons in the Device."""

@@ -263,19 +263,26 @@ def plot_currents(
     units = units or old_units
     if isinstance(units, str):
         units = device.ureg(units).units
+    if dataset is None:
+        J = solution.current_density
+    elif dataset in ["supercurrent"]:
+        J = solution.supercurrent_density
+    elif dataset in ["normal_current"]:
+        J = solution.normal_current_density
+    else:
+        raise ValueError(f"Unexpected dataset: {dataset}.")
     fig, ax = plt.subplots(**kwargs)
-    xgrid, ygrid, Jgrid = solution.grid_current_density(
-        dataset=dataset,
-        grid_shape=grid_shape,
-        method=grid_method,
-        units=str(units),
-        with_units=False,
-    )
-    Jx, Jy = Jgrid
-    J = np.sqrt(Jx**2 + Jy**2)
+
+    J = J.to(units).magnitude
+    Jx = J[:, 0]
+    Jy = J[:, 1]
+    Jnorm = np.sqrt(Jx**2 + Jy**2)
+    x = solution.device.points[:, 0]
+    y = solution.device.points[:, 1]
+    t = solution.device.triangles
     clabel = "$|\\,\\vec{J}\\,|$" + f" [${units:~L}$]"
     clim = setup_color_limits(
-        {"J": J},
+        {"J": Jnorm},
         vmin=vmin,
         vmax=vmax,
         symmetric_color_scale=symmetric_color_scale,
@@ -283,19 +290,19 @@ def plot_currents(
     )["J"]
     vmin, vmax = clim
     norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
-    im = ax.pcolormesh(xgrid, ygrid, J, shading="auto", cmap=cmap, norm=norm)
+    im = ax.tripcolor(x, y, t, Jnorm, shading="gouraud", cmap=cmap, norm=norm)
     ax.set_title(f"{clabel.split('[')[0].strip()}")
     ax.set_aspect("equal")
     ax.set_xlabel(f"$x$ [${length_units:~L}$]")
     ax.set_ylabel(f"$y$ [${length_units:~L}$]")
-    ax.set_xlim(xgrid.min(), xgrid.max())
-    ax.set_ylim(ygrid.min(), ygrid.max())
+    ax.set_xlim(x.min(), x.max())
+    ax.set_ylim(y.min(), y.max())
     if cross_section_coords is not None:
         ax_divider = make_axes_locatable(ax)
         cax = ax_divider.append_axes("bottom", size="40%", pad="30%")
         coords, paths, cross_sections = cross_section(
-            np.array([xgrid.ravel(), ygrid.ravel()]).T,
-            J.ravel(),
+            np.array([x, y]).T,
+            Jnorm,
             cross_section_coords,
         )
         for i, (coord, path, cross) in enumerate(zip(coords, paths, cross_sections)):
@@ -310,6 +317,20 @@ def plot_currents(
         cax.set_xlabel(f"Distance along cut [${length_units:~L}$]")
         cax.set_ylabel(clabel)
     if streamplot:
+        xgrid, ygrid, Jgrid = solution.grid_current_density(
+            dataset=dataset,
+            grid_shape=grid_shape,
+            method=grid_method,
+            units=str(units),
+            with_units=False,
+        )
+        Jx, Jy = Jgrid
+        J = np.sqrt(Jx**2 + Jy**2)
+        xy = np.array([xgrid.ravel(), ygrid.ravel()]).T
+        ix = np.where(~solution.device.contains_points(xy)[0])
+        ix = np.unravel_index(ix, J.shape)
+        Jx[ix] = np.nan
+        Jy[ix] = np.nan
         if min_stream_amp is not None:
             cutoff = np.nanmax(J) * min_stream_amp
             Jx[J < cutoff] = np.nan
