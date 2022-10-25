@@ -46,9 +46,11 @@ class Layer:
 
     @property
     def Lambda(self) -> float:
+        """Effective magnetic penetration depth: :math:`\\Lambda=\\lambda^2/d`."""
         return self.london_lambda**2 / self.thickness
 
     def copy(self) -> "Layer":
+        """Create a deep copy of the Layer."""
         return Layer(
             london_lambda=self.london_lambda,
             coherence_length=self.coherence_length,

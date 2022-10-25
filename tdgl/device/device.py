@@ -111,6 +111,7 @@ class Device:
 
     @property
     def coherence_length(self) -> float:
+        """Ginzburg-Landau coherence length in ``length_units``."""
         return self.layer._coherence_length
 
     @coherence_length.setter
@@ -135,23 +136,27 @@ class Device:
 
     @property
     def kappa(self) -> float:
-        """The Ginzburg-Landau parameter."""
+        """The Ginzburg-Landau parameter, :math:`\\kappa=\\lambda/\\xi`."""
         return self.layer.london_lambda / self.coherence_length
 
     @property
     def Bc2(self) -> pint.Quantity:
-        """Upper critical field."""
+        """Upper critical field, :math:`B_{c2}=\\Phi_0/(2\\pi\\xi^2)`."""
         xi_ = self.coherence_length * ureg(self.length_units)
         return (ureg("Phi_0") / (2 * np.pi * xi_**2)).to_base_units()
 
     @property
     def A0(self) -> pint.Quantity:
-        """Scale for the magnetic vector potential."""
-        return self.Bc2 * self.coherence_length * self.ureg(self.length_units)
+        """Scale for the magnetic vector potential, :math:`A_0=\\xi B_{c2}`."""
+        return (
+            self.Bc2 * self.coherence_length * self.ureg(self.length_units)
+        ).to_base_units()
 
     @property
     def K0(self) -> pint.Quantity:
-        """Sheet current density scale (dimensions of current / length)."""
+        """Sheet current density scale (dimensions of current / length),
+        :math:`K_0=4\\xi B_{c2}/(\\mu_0\\Lambda)`.
+        """
         length_units = ureg(self.length_units)
         xi = self.coherence_length * length_units
         Lambda = self.layer.Lambda * length_units
@@ -166,12 +171,14 @@ class Device:
 
     @property
     def terminals(self) -> Tuple[Polygon, ...]:
+        """Tuple of ``(source_terminal, drain_terminal)``."""
         if self.source_terminal is None:
             return tuple()
         return (self.source_terminal, self.drain_terminal)
 
     @property
     def polygons(self) -> Tuple[Polygon, ...]:
+        """Tuple of all ``Polygons`` in the ``Device``."""
         return (
             self.terminals
             + (self.film,)
@@ -181,18 +188,23 @@ class Device:
 
     @property
     def points(self) -> Optional[np.ndarray]:
+        """The mesh vertex coordinates in ``length_units``
+        (shape ``(n, 2)``, type ``float``).
+        """
         if self.mesh is None:
             return None
         return self.coherence_length * np.array([self.mesh.x, self.mesh.y]).T
 
     @property
     def triangles(self) -> Optional[np.ndarray]:
+        """Mesh triangle indices (shape ``(m, 3)``, type ``int``)."""
         if self.mesh is None:
             return None
         return self.mesh.elements
 
     @property
     def edges(self) -> Optional[np.ndarray]:
+        """Mesh edge indices (shape ``(p, 2)``, type ``int``)."""
         if self.mesh is None:
             return None
         return self.mesh.edge_mesh.edges
@@ -204,8 +216,28 @@ class Device:
             return None
         return self.mesh.edge_mesh.edge_lengths * self.coherence_length
 
-    def contains_points(self, points: np.ndarray, index: bool = False) -> np.ndarray:
-        mask = self.film.contains_points(points)
+    def contains_points(
+        self,
+        points: np.ndarray,
+        index: bool = False,
+        radius: float = 0,
+    ) -> np.ndarray:
+        """Determines whether ``points`` lie within the Device.
+
+        Args:
+            points: Shape ``(n, 2)`` array of x, y coordinates.
+            index: If True, then return the indices of the points in ``points``
+                that lie within the polygon. Otherwise, returns a shape ``(n, )``
+                boolean array.
+            radius: An additional margin on ``self.path``.
+                See :meth:`matplotlib.path.Path.contains_points`.
+
+        Returns:
+            If index is True, returns the indices of the points in ``points``
+            that lie within the polygon. Otherwise, returns a shape ``(n, )``
+            boolean array indicating whether each point lies within the polygon.
+        """
+        mask = self.film.contains_points(points, radius=radius)
         mask = mask & ~np.logical_or.reduce(
             [hole.contains_points(points) for hole in self.holes]
         )
@@ -224,8 +256,7 @@ class Device:
         # Remove duplicate points to avoid meshing issues.
         # If you don't do this and there are duplicate points,
         # meshpy.triangle will segfault.
-        _, ix = np.unique(points, return_index=True, axis=0)
-        points = points[np.sort(ix)]
+        points = mesh.ensure_unique(points)
         return points
 
     def copy(self) -> "Device":

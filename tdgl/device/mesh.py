@@ -46,6 +46,8 @@ def generate_mesh(
         max_edge_length: The maximum distance between vertices in the resulting mesh.
         convex_hull: If True, then the entire convex hull of the polygon (minus holes)
             will be meshed. Otherwise, only the polygon interior is meshed.
+        boundary: Shape ``(m, 2)`` (where ``m <= n``) array of ``(x, y)`` coordinates
+            for points on the boundary of the polygon.
 
     Returns:
         Mesh vertex coordinates and triangle indices.

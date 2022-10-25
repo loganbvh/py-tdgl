@@ -309,7 +309,6 @@ def solve(
 
         d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
         d_psi_sq_vals.append(d_psi_sq)
-        # if step > 0 and step % options.adaptive_window == 0:
         if step > options.adaptive_window:
             new_dt = options.dt_min / (
                 1e3 * np.mean(d_psi_sq_vals[-options.adaptive_window :])
@@ -350,7 +349,7 @@ def solve(
         data_handler=data_handler,
         initial_values=list(parameters.values()),
         names=list(parameters),
-        fixed_values=[vector_potential],
+        fixed_values=(vector_potential,),
         fixed_names=("applied_vector_potential",),
         state={
             "current": source_drain_current,
@@ -369,7 +368,7 @@ def solve(
     data_handler.close()
 
     end_time = datetime.now()
-    logger.info(f"Simulation ended on {end_time}")
+    logger.info(f"Simulation ended at {end_time}")
     logger.info(f"Simulation took {end_time - start_time}")
 
     solution = Solution(
