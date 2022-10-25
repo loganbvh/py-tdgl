@@ -12,10 +12,10 @@ import pint
 from scipy import interpolate
 from scipy.spatial import distance
 
-from ._core.matrices import build_gradient
-from ._core.runner import SolverOptions
-from ._core.tdgl import get_observable_on_site
-from ._core.visualization.helpers import (
+from .core.matrices import build_gradient
+from .core.runner import SolverOptions
+from .core.tdgl import get_observable_on_site
+from .core.visualization.helpers import (
     get_data_range,
     get_edge_observable_data,
     load_state_data,

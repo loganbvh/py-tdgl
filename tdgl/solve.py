@@ -12,11 +12,11 @@ try:
 except (ModuleNotFoundError, ImportError):
     jax = None
 
-from ._core.enums import MatrixType, SparseFormat
-from ._core.io.data_handler import DataHandler
-from ._core.matrices import MatrixBuilder
-from ._core.runner import Runner, SolverOptions
-from ._core.tdgl import get_observable_on_site, get_supercurrent
+from .core.enums import MatrixType, SparseFormat
+from .core.io.data_handler import DataHandler
+from .core.matrices import MatrixBuilder
+from .core.runner import Runner, SolverOptions
+from .core.tdgl import get_observable_on_site, get_supercurrent
 from .device.device import Device
 from .parameter import Parameter
 from .solution import Solution

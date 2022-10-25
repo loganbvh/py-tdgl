@@ -17,7 +17,7 @@ from mpi4py.futures import MPIPoolExecutor
 
 import squids
 import tdgl
-from tdgl._core.visualization.helpers import get_data_range
+from tdgl.core.visualization.helpers import get_data_range
 
 squid_funcs = {
     "ibm-small": squids.ibm.small.make_squid,

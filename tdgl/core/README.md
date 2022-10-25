@@ -2,7 +2,7 @@
 
 <!-- ![](example.webp) -->
 
-Everything in this directory, `_core`, is adapted from the
+Everything in this directory, `core`, is adapted from the
 [super-decector-py repo](https://github.com/afsa/super-detector-py/tree/c58ba1b3a8b8e3bf5620ee3f925b5ebd25097dd9), written by Mattias Jönsson.
 The README for that repo is copied below.
 
