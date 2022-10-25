@@ -5,7 +5,7 @@ import pint
 from scipy import spatial, special
 from scipy.constants import mu_0
 
-from .fem import mass_matrix
+from .finite_volume.fem import mass_matrix
 from .units import ureg
 
 

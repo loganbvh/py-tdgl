@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
 from ..enums import Observable
-from ..mesh.mesh import Mesh
+from ..finite_volume.mesh import Mesh
 from .defaults import PLOT_DEFAULTS
 from .helpers import auto_grid, get_data_range, get_plot_data, get_state_string
 

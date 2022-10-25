@@ -10,7 +10,7 @@ from shapely.geometry import MultiLineString
 from shapely.geometry.polygon import Polygon, orient
 from shapely.ops import polygonize
 
-from ..fem import edge_lengths
+from ..finite_volume.fem import edge_lengths
 
 logger = logging.getLogger(__name__)
 

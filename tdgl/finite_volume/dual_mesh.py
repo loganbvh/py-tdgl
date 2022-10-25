@@ -3,7 +3,7 @@ from typing import Sequence
 import h5py
 import numpy as np
 
-from ..mesh.util import generate_voronoi_vertices
+from .util import generate_voronoi_vertices
 
 
 class DualMesh:

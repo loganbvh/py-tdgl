@@ -3,8 +3,8 @@ from typing import Sequence, Union
 import numpy as np
 import scipy.sparse as sp
 
-from .enums import MatrixType, SparseFormat
-from .mesh.mesh import Mesh
+from ..enums import MatrixType, SparseFormat
+from .mesh import Mesh
 
 
 def build_divergence(mesh: Mesh) -> sp.csr_matrix:

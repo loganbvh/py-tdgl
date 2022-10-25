@@ -6,8 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from tqdm import tqdm
 
-from .io.data_handler import DataHandler
-from .io.running_state import RunningState
+from .data import DataHandler, RunningState
 
 
 @dataclass

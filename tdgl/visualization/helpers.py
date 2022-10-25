@@ -5,10 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..enums import Observable
-from ..matrices import build_gradient
-from ..mesh.mesh import Mesh
-from ..tdgl import get_observable_on_site
-from ..util import sum_contributions
+from ..finite_volume.matrices import build_gradient
+from ..finite_volume.mesh import Mesh
+from ..finite_volume.util import sum_contributions
 
 
 class TDGLData(NamedTuple):
@@ -57,7 +56,7 @@ def load_state_data(h5file: h5py.File, step: int) -> Dict[str, Any]:
 def get_edge_observable_data(
     observable: np.ndarray, mesh: Mesh
 ) -> Tuple[np.ndarray, np.ndarray, Sequence[float]]:
-    directions = get_observable_on_site(observable, mesh)
+    directions = mesh.get_observable_on_site(observable)
     norm = np.linalg.norm(directions, axis=1)
     directions /= np.maximum(norm, 1e-12)[:, None]
     return norm, directions, [np.min(norm), np.max(norm)]
@@ -135,8 +134,8 @@ def get_plot_data(
         and supercurrent is not None
         and normal_current is not None
     ):
-        j_sc_site = get_observable_on_site(supercurrent, mesh)
-        j_nm_site = get_observable_on_site(normal_current, mesh)
+        j_sc_site = mesh.get_observable_on_site(supercurrent)
+        j_nm_site = mesh.get_observable_on_site(normal_current)
         j_site = j_sc_site + j_nm_site
         gradient = build_gradient(mesh)
         normalized_directions = (
@@ -148,7 +147,7 @@ def get_plot_data(
         djy_dx = grad_jy * normalized_directions[:, 0]
         djx_dy = grad_jx * normalized_directions[:, 1]
         vorticity_on_edges = djy_dx - djx_dy
-        vorticity = get_observable_on_site(vorticity_on_edges, mesh, vector=False)
+        vorticity = mesh.get_observable_on_site(vorticity_on_edges, vector=False)
         vmax = max(np.abs(np.max(vorticity)), np.abs(np.min(vorticity)))
         return vorticity, np.zeros((len(mesh.x), 2)), [-vmax, vmax]
 

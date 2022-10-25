@@ -9,7 +9,7 @@ import numpy as np
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from scipy import interpolate
 
-from .solution import Solution
+from ..solution import Solution
 
 
 @contextmanager

@@ -12,14 +12,14 @@ try:
 except (ModuleNotFoundError, ImportError):
     jax = None
 
-from .core.enums import MatrixType, SparseFormat
-from .core.io.data_handler import DataHandler
-from .core.matrices import MatrixBuilder
-from .core.runner import Runner, SolverOptions
-from .core.tdgl import get_observable_on_site, get_supercurrent
-from .device.device import Device
-from .parameter import Parameter
-from .solution import Solution
+from ..device.device import Device
+from ..enums import MatrixType, SparseFormat
+from ..finite_volume.matrices import MatrixBuilder
+from ..finite_volume.util import get_supercurrent
+from ..parameter import Parameter
+from ..solution import Solution
+from .data import DataHandler
+from .runner import Runner, SolverOptions
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +294,7 @@ def solve(
         if include_screening:
             # Update the vector potential and link variables.
             # 3D current density
-            J_site = get_observable_on_site(supercurrent_val + normal_current_val, mesh)
+            J_site = mesh.get_observable_on_site(supercurrent_val + normal_current_val)
             # i: edges, j: sites, k: spatial dimensions
             induced_vector_potential_val = np.asarray(
                 einsum("jk, ijk -> ik", J_site, inv_rho)

@@ -12,22 +12,21 @@ import pint
 from scipy import interpolate
 from scipy.spatial import distance
 
-from .core.matrices import build_gradient
-from .core.runner import SolverOptions
-from .core.tdgl import get_observable_on_site
-from .core.visualization.helpers import (
+from .device.components import Polygon
+
+# from .about import version_dict
+from .device.device import Device
+from .em import biot_savart_2d, convert_field
+from .finite_volume.matrices import build_gradient
+from .parameter import Parameter
+from .solver.runner import SolverOptions
+from .visualization.helpers import (
     TDGLData,
     get_data_range,
     get_edge_observable_data,
     load_state_data,
     load_tdgl_data,
 )
-from .device.components import Polygon
-
-# from .about import version_dict
-from .device.device import Device
-from .em import biot_savart_2d, convert_field
-from .parameter import Parameter
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +133,7 @@ class Solution:
             if solve_step == 0:
                 step = step_min
             elif solve_step < 0:
-                step = step_max + 1 - solve_step
+                step = step_max + 1 + solve_step
             else:
                 step = solve_step
             self.tdgl_data = load_tdgl_data(f, step)
@@ -152,8 +151,8 @@ class Solution:
         self.supercurrent_density = K0 * supercurrent[:, np.newaxis] * sc_direc
         self.normal_current_density = K0 * normal_current[:, np.newaxis] * nc_direc
 
-        j_sc_site = get_observable_on_site(self.tdgl_data.supercurrent, mesh)
-        j_nm_site = get_observable_on_site(self.tdgl_data.normal_current, mesh)
+        j_sc_site = mesh.get_observable_on_site(self.tdgl_data.supercurrent)
+        j_nm_site = mesh.get_observable_on_site(self.tdgl_data.normal_current)
         j_site = j_sc_site + j_nm_site
         gradient = build_gradient(mesh)
         normalized_directions = (
@@ -165,7 +164,7 @@ class Solution:
         djy_dx = grad_jy * normalized_directions[:, 0]
         djx_dy = grad_jx * normalized_directions[:, 1]
         vorticity_on_edges = djy_dx - djx_dy
-        vorticity = get_observable_on_site(vorticity_on_edges, mesh, vector=False)
+        vorticity = mesh.get_observable_on_site(vorticity_on_edges, vector=False)
         scale = (
             device.K0 / (device.coherence_length * device.ureg(device.length_units))
         ).to(f"{self.current_units} / {self.device.length_units}**2")
@@ -822,13 +821,13 @@ class Solution:
 
     def plot_currents(self, **kwargs) -> Tuple[plt.Figure, np.ndarray]:
         """Alias for :func:`tdgl.visualization.plot_currents`."""
-        from .visualization import plot_currents
+        from .visualization.visualization import plot_currents
 
         return plot_currents(self, **kwargs)
 
     def plot_order_parameter(self, **kwargs) -> Tuple[plt.Figure, np.ndarray]:
         """Alias for :func:`tdgl.visualization.plot_order_parameter`."""
-        from .visualization import plot_order_parameter
+        from .visualization.visualization import plot_order_parameter
 
         return plot_order_parameter(self, **kwargs)
 
@@ -836,18 +835,18 @@ class Solution:
         self, points: np.ndarray, **kwargs
     ) -> Tuple[plt.Figure, np.ndarray]:
         """Alias for :func:`tdgl.visualization.plot_field_at_positions`."""
-        from .visualization import plot_field_at_positions
+        from .visualization.visualization import plot_field_at_positions
 
         return plot_field_at_positions(self, points, **kwargs)
 
     def plot_vorticity(self, **kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """Alias for :func:`tdgl.visualization.plot_vorticity`."""
-        from .visualization import plot_vorticity
+        from .visualization.visualization import plot_vorticity
 
         return plot_vorticity(self, **kwargs)
 
     def plot_scalar_potential(self, **kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """Alis for :func:`tdgl.visualization.plot_scalar_potential`."""
-        from .visualization import plot_scalar_potential
+        from .visualization.visualization import plot_scalar_potential
 
         return plot_scalar_potential(self, **kwargs)

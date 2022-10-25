@@ -1,6 +1,7 @@
 from typing import Dict, Tuple
 
 import numpy as np
+from scipy.sparse import csr_matrix
 from scipy.spatial import ConvexHull
 from scipy.spatial.qhull import QhullError
 
@@ -228,3 +229,44 @@ def get_convex_polygon_area(x: np.ndarray, y: np.ndarray) -> Tuple[float, bool]:
     # Handle error when all points is on a line
     except QhullError:
         return 0, True
+
+
+def sum_contributions(
+    groups: np.ndarray, values: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Sum all contributions from value over each group.
+
+    Args:
+        groups: The groups to get the summed values for. Must be a one
+            dimensional vector.
+        values: The values for each item. Must be a one dimensional vector.
+
+    Returns:
+        A tuple of groups, group values, and counts.
+    """
+
+    # Get the unique groups and the corresponding indices
+    unique_groups, idx, counts = np.unique(
+        groups, return_inverse=True, return_counts=True
+    )
+
+    # Sum each unique group
+    group_values = np.bincount(idx, weights=values)
+
+    return unique_groups, group_values, counts
+
+
+def get_supercurrent(
+    psi: np.ndarray, gradient: csr_matrix, edges: np.ndarray
+) -> np.ndarray:
+    """Compute the supercurrent on the edges.
+
+    Args:
+        psi: The value of the complex order parameter.
+        gradient: The covariant derivative matrix.
+        edges: The indices for the edges.
+
+    Returns:
+        The supercurrent at each edge.
+    """
+    return (psi.conjugate()[edges[:, 0]] * (gradient @ psi)).imag
