@@ -16,6 +16,7 @@ from .core.matrices import build_gradient
 from .core.runner import SolverOptions
 from .core.tdgl import get_observable_on_site
 from .core.visualization.helpers import (
+    TDGLData,
     get_data_range,
     get_edge_observable_data,
     load_state_data,
@@ -98,9 +99,9 @@ class Solution:
         self.applied_vector_potential = applied_vector_potential
         self.source_drain_current = float(source_drain_current)
 
-        self.supercurrent_density = None
-        self.normal_current_density = None
-        self.vorticity = None
+        self.supercurrent_density: Optional[np.ndarray] = None
+        self.normal_current_density: Optional[np.ndarray] = None
+        self.vorticity: Optional[np.ndarray] = None
 
         # Make field_units and current_units "read-only" attributes.
         # The should never be changed after instantiation.
@@ -110,20 +111,30 @@ class Solution:
         self._time_created = datetime.now()
         self.total_seconds = total_seconds
 
-        self.tdgl_data = None
-        self.state = None
-        self._solve_step = None
-        self.load_tdgl_data()
+        self.tdgl_data: Optional[TDGLData] = None
+        self.state: Optional[dict[str, Any]] = None
+        self._solve_step: int = -1
+        self.load_tdgl_data(self._solve_step)
 
         # self._version_info = version_dict()
 
-    def load_tdgl_data(self, solve_step: int = -1):
+    @property
+    def solve_step(self) -> int:
+        return self._solve_step
+
+    def load_tdgl_data(self, solve_step: int = -1) -> None:
+        """Loads the TDGL results from file for a given solve step.
+
+        Args:
+            solve_step: The step index for which to load data.
+                Defaults to -1, i.e. the final step.
+        """
         with h5py.File(self.path, "r", libver="latest") as f:
             step_min, step_max = get_data_range(f)
             if solve_step == 0:
                 step = step_min
-            elif solve_step == -1:
-                step = step_max
+            elif solve_step < 0:
+                step = step_max + 1 - solve_step
             else:
                 step = solve_step
             self.tdgl_data = load_tdgl_data(f, step)
@@ -165,10 +176,6 @@ class Solution:
         if self.supercurrent_density is None:
             return None
         return self.supercurrent_density + self.normal_current_density
-
-    @property
-    def solve_step(self) -> int:
-        return self._solve_step
 
     @solve_step.setter
     def solve_step(self, step: int) -> None:
@@ -838,3 +845,9 @@ class Solution:
         from .visualization import plot_vorticity
 
         return plot_vorticity(self, **kwargs)
+
+    def plot_scalar_potential(self, **kwargs) -> Tuple[plt.Figure, plt.Axes]:
+        """Alis for :func:`tdgl.visualization.plot_scalar_potential`."""
+        from .visualization import plot_scalar_potential
+
+        return plot_scalar_potential(self, **kwargs)

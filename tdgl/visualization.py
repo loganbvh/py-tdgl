@@ -571,10 +571,9 @@ def plot_vorticity(
         units: The units in which to plot the vorticity. Must have dimensions of
             [current] / [length]^2.
         auto_range_cutoff: Cutoff percentile for ``auto_range_iqr``.
-        share_color_scale: Whether to force all layers to use the same color scale.
         symmetric_color_scale: Whether to use a symmetric color scale (vmin = -vmax).
-        vmin: Color scale minimum to use for all layers
-        vmax: Color scale maximum to use for all layers
+        vmin: Color scale minimum.
+        vmax: Color scale maximum.
         shading: May be 'flat' or 'gouraud'. The latter does some interpolation.
 
     Returns:
@@ -622,6 +621,66 @@ def plot_vorticity(
     return fig, ax
 
 
+def plot_scalar_potential(
+    solution,
+    cmap="magma",
+    auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
+    shading: str = "gouraud",
+    **kwargs,
+):
+    """Plots the scalar potential :math:`\\mu` in the film.
+
+    Args:
+        solution: The solution for which to plot the vorticity.
+        cmap: Name of the matplotlib colormap to use.
+        auto_range_cutoff: Cutoff percentile for ``auto_range_iqr``.
+        vmin: Color scale minimum.
+        vmax: Color scale maximum.
+        shading: May be 'flat' or 'gouraud'. The latter does some interpolation.
+
+    Returns:
+        matplotlib Figure and and Axes.
+    """
+    kwargs.setdefault("constrained_layout", True)
+    fig, ax = plt.subplots(**kwargs)
+    ax.set_aspect("equal")
+    device = solution.device
+    points = device.points
+    triangles = device.triangles
+    length_units = device.ureg(device.length_units).units
+    mu = solution.tdgl_data.mu
+    mu = mu - np.nanmin(mu)
+    clim = setup_color_limits(
+        {"mu": mu},
+        vmin=vmin,
+        vmax=vmax,
+        auto_range_cutoff=auto_range_cutoff,
+    )["mu"]
+    vmin, vmax = clim
+    norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+    x, y = points[:, 0], points[:, 1]
+    im = ax.tripcolor(
+        x,
+        y,
+        mu,
+        triangles=triangles,
+        cmap=cmap,
+        norm=norm,
+        shading=shading,
+    )
+    cbar = fig.colorbar(im, ax=ax)
+    ax.set_title("$\\mu/v_0$")
+    ax.set_aspect("equal")
+    ax.set_xlabel(f"$x$ [${length_units:~L}$]")
+    ax.set_ylabel(f"$y$ [${length_units:~L}$]")
+    cbar.set_label("$\\mu/v_0$")
+    ax.set_xlim(x.min(), x.max())
+    ax.set_ylim(y.min(), y.max())
+    return fig, ax
+
+
 def _patch_docstring(func):
     other_func = getattr(Solution, func.__name__)
     other_func.__signature__ = inspect.signature(func)
@@ -637,5 +696,10 @@ def _patch_docstring(func):
     other_func.__annotations__.update(annotations)
 
 
-for func in [plot_currents, plot_field_at_positions, plot_order_parameter]:
+for func in (
+    plot_currents,
+    plot_field_at_positions,
+    plot_order_parameter,
+    plot_scalar_potential,
+):
     _patch_docstring(func)
