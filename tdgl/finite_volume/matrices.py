@@ -108,27 +108,28 @@ def build_laplacian(
 
     edges0 = edge_mesh.edges[:, 0]
     edges1 = edge_mesh.edges[:, 1]
-    # Exclude all edges connected to fixed sites and set the
-    # fixed site diagonal elements separately.
-    mask = np.isin(edge_mesh.edges, fixed_sites, invert=True)
-    edges0 = edges0[mask[:, 0]]
-    edges1 = edges1[mask[:, 1]]
-    # Rows and cols to update
-    rows = np.concatenate([edges0, edges1, edges0, edges1, fixed_sites])
-    cols = np.concatenate([edges1, edges0, edges0, edges1, fixed_sites])
-    # The values
+    rows = np.concatenate([edges0, edges1, edges0, edges1])
+    cols = np.concatenate([edges1, edges0, edges0, edges1])
     areas0 = mesh.areas[edges0]
     areas1 = mesh.areas[edges1]
     values = np.concatenate(
         [
-            weights[mask[:, 0]] * link_variable_weights[mask[:, 0]] / areas0,
-            weights[mask[:, 1]]
-            * link_variable_weights[mask[:, 1]].conjugate()
-            / areas1,
-            -weights[mask[:, 0]] / areas0,
-            -weights[mask[:, 1]] / areas1,
-            fixed_sites_eigenvalues * np.ones(len(fixed_sites)),
+            weights * link_variable_weights / areas0,
+            weights * link_variable_weights.conjugate() / areas1,
+            -weights / areas0,
+            -weights / areas1,
         ]
+    )
+    # Exclude all edges connected to fixed sites and set the
+    # fixed site diagonal elements separately.
+    not_fixed = np.isin(rows, fixed_sites, invert=True)
+    rows = rows[not_fixed]
+    cols = cols[not_fixed]
+    values = values[not_fixed]
+    rows = np.concatenate([rows, fixed_sites])
+    cols = np.concatenate([cols, fixed_sites])
+    values = np.concatenate(
+        [values, fixed_sites_eigenvalues * np.ones(len(fixed_sites))]
     )
     # Build the Laplacian
     laplacian = sp.csc_matrix((values, (rows, cols)), shape=(len(mesh.x), len(mesh.x)))
