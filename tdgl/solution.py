@@ -96,7 +96,7 @@ class Solution:
         self.options = options
         self.path = filename
         self.applied_vector_potential = applied_vector_potential
-        self.source_drain_current = float(source_drain_current)
+        self.source_drain_current = source_drain_current
 
         self.supercurrent_density: Optional[np.ndarray] = None
         self.normal_current_density: Optional[np.ndarray] = None

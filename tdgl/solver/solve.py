@@ -58,7 +58,7 @@ def solve(
     applied_vector_potential: Callable,
     output: str,
     options: SolverOptions,
-    source_drain_current: float = 0,
+    source_drain_current: Union[float, Callable] = 0,
     pinning_sites: Union[float, Callable, None] = None,
     complex_time_scale: float = 5.79,
     gamma: float = 10.0,
@@ -87,15 +87,18 @@ def solve(
     current_units = ureg(current_units)
     xi = device.coherence_length
     K0 = device.K0
-    source_drain_current = (
-        (source_drain_current * current_units / (K0 * xi * length_units))
-        .to_base_units()
-        .magnitude
-    )
+    current_scale = (current_units / (K0 * xi * length_units)).to_base_units().magnitude
+    if not callable(source_drain_current):
+        current_val = float(source_drain_current)
+
+        def source_drain_current(t):
+            return current_val
+
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
     x = mesh.edge_mesh.x * xi
     y = mesh.edge_mesh.y * xi
+    edge_positions = np.array([x, y]).T
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
     if not isinstance(applied_vector_potential, Parameter):
@@ -134,21 +137,37 @@ def solve(
     # Build divergence for the supercurrent.
     divergence = builder.build(MatrixType.DIVERGENCE)
 
-    edge_positions = np.array([x, y]).T[mesh.edge_mesh.boundary_edge_indices]
     if device.source_terminal is None:
         input_edges_index = np.array([], dtype=np.int64)
         output_edges_index = np.array([], dtype=np.int64)
         input_sites_index = np.array([], dtype=np.int64)
         output_sites_index = np.array([], dtype=np.int64)
     else:
+        # input_edges_index = device.source_terminal.contains_points(
+        #     edge_positions, index=True
+        # )
+        # output_edges_index = device.drain_terminal.contains_points(
+        #     edge_positions, index=True
+        # )
+        boundary_edges = mesh.edge_mesh.get_boundary_edges()
+        boundary_edge_positions = sites[boundary_edges].mean(axis=1)
         input_edges_index = device.source_terminal.contains_points(
-            edge_positions, index=True
+            boundary_edge_positions,
+            index=True,
         )
         output_edges_index = device.drain_terminal.contains_points(
-            edge_positions, index=True
+            boundary_edge_positions,
+            index=True,
         )
         input_sites_index = device.source_terminal.contains_points(sites, index=True)
         output_sites_index = device.drain_terminal.contains_points(sites, index=True)
+        edge_lengths = device.edge_lengths
+        input_edge_length = edge_lengths[
+            device.source_terminal.contains_points(edge_positions, index=True)
+        ].sum()
+        output_edge_length = edge_lengths[
+            device.source_terminal.contains_points(edge_positions, index=True)
+        ].sum()
 
     normal_boundary_index = np.sort(
         np.concatenate([input_sites_index, output_sites_index])
@@ -187,9 +206,9 @@ def solve(
 
     # Update the builder and set fixed sites and link variables for
     # the complex field.
-    builder.with_dirichlet_boundary(fixed_sites=fixed_sites).with_link_exponents(
-        link_exponents=vector_potential
-    )
+    builder = builder.with_dirichlet_boundary(
+        fixed_sites=fixed_sites
+    ).with_link_exponents(link_exponents=vector_potential)
     # Build complex field matrices.
     psi_laplacian = builder.build(MatrixType.LAPLACIAN)
     psi_gradient = builder.build(MatrixType.GRADIENT)
@@ -198,12 +217,7 @@ def solve(
     psi[fixed_sites] = 0
     mu = np.zeros(len(mesh.x))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=np.float64)
-    lengths = mesh.edge_mesh.edge_lengths
-    if device.source_terminal is not None:
-        input_length = lengths[input_edges_index].sum()
-        output_length = lengths[output_edges_index].sum()
-        mu_boundary[input_edges_index] = source_drain_current / input_length
-        mu_boundary[output_edges_index] = -source_drain_current / output_length
+
     # Create the alpha parameter which weakens the complex field if it
     # is less than unity.
     alpha = np.ones_like(mesh.x, dtype=np.float64)
@@ -242,7 +256,13 @@ def solve(
         dt_val,
     ):
         step = state["step"]
-        running_state.append("current", source_drain_current)
+        time = state["time"]
+        current = current_scale * source_drain_current(time)
+        running_state.append("current", current)
+        state["current"] = current
+
+        mu_boundary[input_edges_index] = current_scale * current / input_edge_length
+        mu_boundary[output_edges_index] = -current_scale * current / output_edge_length
 
         nonlocal psi_laplacian
         nonlocal psi_gradient
@@ -310,8 +330,8 @@ def solve(
         d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
         d_psi_sq_vals.append(d_psi_sq)
         if step > options.adaptive_window:
-            new_dt = options.dt_min / (
-                1e3 * np.mean(d_psi_sq_vals[-options.adaptive_window :])
+            new_dt = options.dt_min / max(
+                1e-10, 1e3 * np.mean(d_psi_sq_vals[-options.adaptive_window :])
             )
             dt_val = max(options.dt_min, min(options.dt_max, new_dt))
 
@@ -352,7 +372,7 @@ def solve(
         fixed_values=(vector_potential,),
         fixed_names=("applied_vector_potential",),
         state={
-            "current": source_drain_current,
+            "current": current_scale * source_drain_current(0),
             "flow": 0,
             "u": u,
             "gamma": gamma,

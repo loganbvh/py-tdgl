@@ -229,11 +229,12 @@ class Mesh:
         Returns:
             The selected boundary points.
         """
+        boundary_edges = self.edge_mesh.get_boundary_edges()
         return operator(
             [
                 condition(
-                    self.x[self.edge_mesh.get_boundary_edges()],
-                    self.y[self.edge_mesh.get_boundary_edges()],
+                    self.x[boundary_edges],
+                    self.y[boundary_edges],
                 )
                 for condition in conditions
             ],
