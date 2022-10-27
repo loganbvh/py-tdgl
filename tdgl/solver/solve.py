@@ -159,8 +159,14 @@ def solve(
             boundary_edge_positions,
             index=True,
         )
-        input_sites_index = device.source_terminal.contains_points(sites, index=True)
-        output_sites_index = device.drain_terminal.contains_points(sites, index=True)
+        input_sites_index = np.intersect1d(
+            device.source_terminal.contains_points(sites, index=True),
+            mesh.boundary_indices,
+        )
+        output_sites_index = np.intersect1d(
+            device.drain_terminal.contains_points(sites, index=True),
+            mesh.boundary_indices,
+        )
         edge_lengths = device.edge_lengths
         input_edge_length = edge_lengths[
             device.source_terminal.contains_points(edge_positions, index=True)

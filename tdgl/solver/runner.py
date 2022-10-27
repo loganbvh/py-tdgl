@@ -18,8 +18,8 @@ class SolverOptions:
     max_steps: Optional[int] = None
     adaptive_window: int = 10
     save_every: int = 100
-    skip_steps: int = 0
-    skip_time: float = 0.0
+    skip_steps: Optional[int] = None
+    skip_time: Optional[float] = None
     progress_interval: int = 0
     rtol: float = 0.0
 
@@ -101,18 +101,18 @@ class Runner:
                 start_step=0,
                 start_time=self.time,
                 end_step=self.options.skip_steps,
-                end_time=self.options.end_time,
+                end_time=self.options.skip_time,
                 save=False,
             )
             self.running_state.clear()
         self.state["step"] = 0
-        self.state["time"] = self.time
+        self.state["time"] = 0
         self.state["dt"] = self.dt
         # Run simulation.
         self._run_stage_(
             "Simulating",
             start_step=0,
-            start_time=self.time,
+            start_time=0,
             end_step=self.options.min_steps,
             end_time=self.options.total_time,
             save=True,
