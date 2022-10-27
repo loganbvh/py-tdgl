@@ -10,7 +10,7 @@ from .util import get_dual_edge_lengths, get_edges
 class EdgeMesh:
     """Mesh for the edges in the original mesh.
 
-    NOTE: Use from_mesh factory method to create from mesh.
+    **Note**: Use :meth:`EdgeMesh.from_mesh` to create from an existing mesh.
 
     Args:
         x: Coordinates for the mesh points.
@@ -94,7 +94,7 @@ class EdgeMesh:
         Returns:
             The boundary edges.
         """
-        return self.edges[self.boundary_edge_indices, :]
+        return self.edges[self.boundary_edge_indices]
 
     def save_to_hdf5(self, h5group: h5py.Group) -> None:
         """Save the data to a HDF5 file.

@@ -1,9 +1,20 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 import numpy as np
-from scipy.sparse import csr_matrix
+import scipy.sparse as sp
 from scipy.spatial import ConvexHull
 from scipy.spatial.qhull import QhullError
+
+
+def get_edge_lengths(points: np.ndarray, elements: np.ndarray) -> np.ndarray:
+    edges = np.concatenate(
+        [
+            points[elements[:, [0, 1]]],
+            points[elements[:, [1, 2]]],
+            points[elements[:, [2, 0]]],
+        ]
+    )
+    return np.linalg.norm(np.diff(edges, axis=1), axis=2)
 
 
 def get_dual_edge_lengths(
@@ -257,7 +268,7 @@ def sum_contributions(
 
 
 def get_supercurrent(
-    psi: np.ndarray, gradient: csr_matrix, edges: np.ndarray
+    psi: np.ndarray, gradient: sp.csr_matrix, edges: np.ndarray
 ) -> np.ndarray:
     """Compute the supercurrent on the edges.
 
@@ -270,3 +281,67 @@ def get_supercurrent(
         The supercurrent at each edge.
     """
     return (psi.conjugate()[edges[:, 0]] * (gradient @ psi)).imag
+
+
+def triangle_areas(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
+    """Calculates the area of each triangle.
+
+    Args:
+        points: Shape (n, 2) array of x, y coordinates of vertices
+        triangles: Shape (m, 3) array of triangle indices
+
+    Returns:
+        Shape (m, ) array of triangle areas
+    """
+    xy = points[triangles]
+    # s1 = xy[:, 2, :] - xy[:, 1, :]
+    # s2 = xy[:, 0, :] - xy[:, 2, :]
+    # s3 = xy[:, 1, :] - xy[:, 0, :]
+    # which can be simplified to
+    # s = xy[:, [2, 0, 1]] - xy[:, [1, 2, 0]]  # 3D
+    s = xy[:, [2, 0]] - xy[:, [1, 2]]  # 2D
+    a = np.linalg.det(s)
+    return a * 0.5
+
+
+def mass_matrix(
+    points: np.ndarray,
+    triangles: np.ndarray,
+    sparse: bool = False,
+) -> Union[np.ndarray, sp.csc_matrix]:
+    """The mass matrix defines an effective area for each vertex.
+
+    Args:
+        points: Shape (n, 2) array of x, y coordinates of vertices.
+        triangles: Shape (m, 3) array of triangle indices.
+        sparse: Whether to return a sparse matrix or numpy ndarray.
+
+    Returns:
+        Shape (n, n) sparse mass matrix or shape (n,) vector of diagonals.
+    """
+    # Adapted from spharaphy.TriMesh:
+    # https://spharapy.readthedocs.io/en/latest/modules/trimesh.html
+    # https://gitlab.com/uwegra/spharapy/-/blob/master/spharapy/trimesh.py
+    N = points.shape[0]
+    if sparse:
+        mass = sp.lil_matrix((N, N), dtype=float)
+    else:
+        mass = np.zeros((N, N), dtype=float)
+
+    tri_areas = triangle_areas(points, triangles)
+
+    for a, t in zip(tri_areas / 3, triangles):
+        mass[t[0], t[0]] += a
+        mass[t[1], t[1]] += a
+        mass[t[2], t[2]] += a
+
+    if sparse:
+        # Use csc_matrix because we will eventually invert the mass matrix,
+        # and csc is efficient for inversion.
+        return mass.tocsc()
+    return mass.diagonal()
+
+
+def unit_vector(vector: np.ndarray) -> np.ndarray:
+    """Normalizes ``vector``."""
+    return vector / np.linalg.norm(vector, axis=-1)[:, np.newaxis]

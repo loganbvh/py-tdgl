@@ -1,19 +1,18 @@
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
 
-from ..enums import Operator
 from .dual_mesh import DualMesh
 from .edge_mesh import EdgeMesh
 from .util import compute_surrounding_area, get_edges, get_surrounding_voronoi_polygons
 
 
 class Mesh:
-    """A triangular mesh of a simply connected polygon.
+    """A triangular mesh of a simply- or multiply-connected polygon.
 
-    NOTE: Use Mesh.from_triangulation to create a new mesh.
-    The __init__ constructor requires that all parameters to be known.
+    **Note**: Use :meth:`Mesh.from_triangulation` to create a new mesh.
+    The ``__init__`` constructor requires that all parameters to be known.
 
     Args:
         x: The x coordinates for the triangle vertices.
@@ -112,13 +111,13 @@ class Mesh:
         if elements.shape[0] == 3:
             elements = elements.transpose()
         # Find the boundary
-        boundary_indices: np.ndarray = cls.__find_boundary(elements)
+        boundary_indices = Mesh.find_boundary_indices(elements)
         # Create the dual mesh
         dual_mesh = DualMesh.from_mesh(x, y, elements)
         # Create the edge mesh
         edge_mesh = EdgeMesh.from_mesh(x, y, elements, dual_mesh)
         # Compute areas
-        areas = cls.__compute_areas(
+        areas = Mesh.compute_voronoi_areas(
             x, y, elements, dual_mesh, edge_mesh, boundary_indices
         )
         return Mesh(
@@ -134,8 +133,8 @@ class Mesh:
             output_edge=output_edge,
         )
 
-    @classmethod
-    def __find_boundary(cls, elements: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def find_boundary_indices(elements: np.ndarray) -> np.ndarray:
         """Find the boundary vertices.
 
         Args:
@@ -149,9 +148,8 @@ class Mesh:
         boundary_edges = edges[is_boundary.nonzero()[0], :]
         return np.unique(boundary_edges.flatten())
 
-    @classmethod
-    def __compute_areas(
-        cls,
+    @staticmethod
+    def compute_voronoi_areas(
         x: np.ndarray,
         y: np.ndarray,
         elements: np.ndarray,
@@ -184,86 +182,6 @@ class Mesh:
         """
         return self.x[self.boundary_indices], self.y[self.boundary_indices]
 
-    def get_boundary_index_where(
-        self,
-        *conditions: Callable[[np.ndarray, np.ndarray], Any],
-        operator: Operator = Operator.AND
-    ) -> np.ndarray:
-        """Get the indices for the boundary vertices that fulfill the conditions.
-
-        Args:
-            conditions: A function (x: np.ndarray, y: np.ndarray) -> np.ndarray that
-                takes the coordinates of the boundary vertices and returns a boolean
-                array specifying which points to select. If multiple conditions are
-                given, the operator specifies how to merge the conditions.
-            operator: Operator used to merge multiple conditions. The operator AND
-                (np.all) gives the intersection and the operator OR (np.any) gives
-                the union. Default is AND.
-
-        Returns:
-            The selected boundary points.
-        """
-        return self.boundary_indices[
-            operator(
-                [condition(*self.get_boundary()) for condition in conditions], axis=0
-            ).nonzero()[0]
-        ]
-
-    def get_edge_boundary_index_where(
-        self,
-        *conditions: Callable[[np.ndarray, np.ndarray], Any],
-        operator: Operator = Operator.AND
-    ) -> np.ndarray:
-        """Get the indices for the boundary edges that fulfill the conditions.
-
-        Args:
-            conditions: A function (x: np.ndarray, y: np.ndarray) -> np.ndarray that
-                takes the coordinates of the vertices in the boundary edges as a
-                (n, 2)-vector and returns a boolean array specifying which points to
-                select. If multiple conditions are given the operator specifies how to
-                merge the conditions.
-            operator: Operator used to merge multiple conditions. The operator AND
-                (np.all) gives the intersection and the operator OR (np.any) gives
-                the union. Default is AND.
-
-        Returns:
-            The selected boundary points.
-        """
-        boundary_edges = self.edge_mesh.get_boundary_edges()
-        return operator(
-            [
-                condition(
-                    self.x[boundary_edges],
-                    self.y[boundary_edges],
-                )
-                for condition in conditions
-            ],
-            axis=0,
-        ).nonzero()[0]
-
-    def get_mesh_index_where(
-        self,
-        *conditions: Callable[[np.ndarray, np.ndarray], Any],
-        operator: Operator = Operator.AND
-    ) -> np.ndarray:
-        """Get the indices for the mesh vertices that fulfill the conditions.
-
-        Args:
-            conditions: A function (x: np.ndarray, y: np.ndarray) -> np.ndarray that
-                takes the coordinates of the boundary vertices and returns a boolean
-                array specifying which points to select. If multiple conditions are
-                given the operator specifies how to merge the conditions.
-            operator: Operator used to merge multiple conditions. The operator AND
-                (np.all) gives the intersection and the operator OR (np.any)
-                gives the union. Default is AND.
-
-        Returns:
-            The selected boundary points.
-        """
-        return operator(
-            [condition(self.x, self.y) for condition in conditions], axis=0
-        ).nonzero()[0]
-
     def get_observable_on_site(
         self, observable_on_edge: np.ndarray, vector: bool = True
     ) -> np.ndarray:
@@ -271,10 +189,9 @@ class Mesh:
 
         Args:
             observable_on_edge: Observable on the edges.
-            mesh: The corresponding mesh.
 
         Returns:
-            The observable vector at each site.
+            The observable vector or scalar at each site.
         """
         # Normalize the edge direction
         directions = self.edge_mesh.directions
@@ -301,27 +218,6 @@ class Mesh:
         if vector:
             return vector_val
         return vector_val[:, 0]
-
-    def get_flow_edges(self) -> Tuple[np.ndarray, np.ndarray]:
-        input_edge = np.zeros_like(self.input_edge)
-
-        # Make sure order is correct. Sometimes the order is not
-        # correct in data files.
-        input_edge[0] = np.minimum(self.input_edge[0], self.input_edge[1])
-        input_edge[1] = np.maximum(self.input_edge[0], self.input_edge[1])
-        input_edge[2] = np.minimum(self.input_edge[2], self.input_edge[3])
-        input_edge[3] = np.maximum(self.input_edge[2], self.input_edge[3])
-
-        output_edge = np.zeros_like(self.output_edge)
-
-        # Make sure order is correct. Sometimes the order is not
-        # correct in data files.
-        output_edge[0] = np.minimum(self.output_edge[0], self.output_edge[1])
-        output_edge[1] = np.maximum(self.output_edge[0], self.output_edge[1])
-        output_edge[2] = np.minimum(self.output_edge[2], self.output_edge[3])
-        output_edge[3] = np.maximum(self.output_edge[2], self.output_edge[3])
-
-        return input_edge, output_edge
 
     def save_to_hdf5(self, h5group: h5py.Group, compress: bool = True) -> None:
         h5group["x"] = self.x
@@ -360,7 +256,7 @@ class Mesh:
             return default
 
         # Check if the mesh can be restored
-        if cls.is_restorable(h5group):
+        if Mesh.is_restorable(h5group):
             # Restore the mesh with the data
             return Mesh(
                 x=h5group["x"],
@@ -384,8 +280,8 @@ class Mesh:
             output_edge=get("output_edge"),
         )
 
-    @classmethod
-    def is_restorable(cls, h5group: h5py.Group) -> bool:
+    @staticmethod
+    def is_restorable(h5group: h5py.Group) -> bool:
         return (
             "x" in h5group
             and "y" in h5group

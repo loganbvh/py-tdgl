@@ -613,6 +613,7 @@ class Device:
         exclude: Optional[Union[str, List[str]]] = None,
     ) -> Tuple[plt.Figure, Union[plt.Axes, np.ndarray]]:
         """Draws all polygons in the device as matplotlib patches.
+
         Args:
             ax: matplotlib axis on which to plot. If None, a new figure is created.
             legend: Whether to add a legend.
@@ -620,6 +621,7 @@ class Device:
             alpha: The alpha (opacity) value for the patches (0 <= alpha <= 1).
             exclude: A polygon name or list of polygon names to exclude
                 from the figure.
+
         Returns:
             Matplotlib Figre and Axes.
         """

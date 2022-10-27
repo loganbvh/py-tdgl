@@ -552,8 +552,8 @@ def plot_order_parameter(
 
 
 def plot_vorticity(
-    solution,
-    cmap="coolwarm",
+    solution: Solution,
+    cmap: str = "coolwarm",
     units: Optional[str] = None,
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
     symmetric_color_scale: bool = True,
@@ -622,8 +622,8 @@ def plot_vorticity(
 
 
 def plot_scalar_potential(
-    solution,
-    cmap="magma",
+    solution: Solution,
+    cmap: str = "magma",
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,

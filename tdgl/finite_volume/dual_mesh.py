@@ -9,7 +9,7 @@ from .util import generate_voronoi_vertices
 class DualMesh:
     """A dual Voronoi mesh.
 
-    NOTE: use the factory method from_mesh to create the dual from an
+    **Note**: Use :meth:`DualMesh.from_mesh` to create the dual from an
     existing mesh.
 
     Args:

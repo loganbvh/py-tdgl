@@ -3,18 +3,26 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to pyTDGL's documentation!
-==================================
+pyTDGL: 2D time-dependent Ginzburg Landau in Python
+===================================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
 
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference
 
-Indices and tables
-==================
+   api/device.rst
+   api/solver.rst
+   api/finite-volume.rst
+   api/visualization.rst
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. Indices and tables
+.. ==================
+
+.. * :ref:`genindex`
+.. * :ref:`modindex`
+.. * :ref:`search`

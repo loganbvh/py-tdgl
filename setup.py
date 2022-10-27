@@ -43,6 +43,8 @@ EXTRAS_REQUIRE = {
         "sphinx-autodoc-typehints",
         "nbsphinx",
         "pillow",  # required for image scaling in RTD
+        "sphinx_toolbox",
+        "enum_tools",
     ],
     "jax": [
         "jax[cpu]",

@@ -1,8 +1,6 @@
 from enum import Enum
 from typing import Sequence
 
-import numpy as np
-
 
 class Observable(Enum):
     COMPLEX_FIELD = "Complex field"
@@ -28,14 +26,6 @@ class Observable(Enum):
 class SparseFormat(Enum):
     CSC = "csc"
     CSR = "csr"
-
-
-class Operator(Enum):
-    AND = np.all
-    OR = np.any
-
-    def __call__(self, *args, **kwargs) -> np.ndarray:
-        return self.value(*args, **kwargs)
 
 
 class MatrixType(Enum):
