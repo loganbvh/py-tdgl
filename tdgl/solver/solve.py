@@ -18,8 +18,8 @@ from ..finite_volume.matrices import MatrixBuilder
 from ..finite_volume.util import get_supercurrent
 from ..parameter import Parameter
 from ..solution import Solution
-from .data import DataHandler
-from .runner import Runner, SolverOptions
+from .options import SolverOptions
+from .runner import DataHandler, Runner
 
 logger = logging.getLogger(__name__)
 
