@@ -1,42 +1,187 @@
 import itertools
 import logging
+import os
 import time
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
+import h5py
+import numpy as np
 from tqdm import tqdm
 
-from .data import DataHandler, RunningState
+from ..finite_volume.mesh import Mesh
+from .options import SolverOptions
 
 
-@dataclass
-class SolverOptions:
-    dt_min: float = 1e-4
-    dt_max: Optional[float] = None
-    total_time: Optional[float] = None
-    min_steps: Optional[int] = None
-    max_steps: Optional[int] = None
-    adaptive_window: int = 10
-    save_every: int = 100
-    skip_steps: Optional[int] = None
-    skip_time: Optional[float] = None
-    progress_interval: int = 0
-    rtol: float = 0.0
+class DataHandler:
+    """The data handler is responsible for reading from and writing to disk.
 
-    def __post_init__(self):
-        if self.total_time is not None and self.min_steps is not None:
-            raise ValueError(
-                "Options 'total_time' and 'min_steps' are mutually exclusive."
-            )
-        if self.total_time is not None and self.max_steps is not None:
-            raise ValueError(
-                "Options 'total_time' and 'max_steps' are mutually exclusive."
-            )
-        if self.skip_steps and self.skip_time:
-            raise ValueError(
-                "Options 'skip_steps' and 'skip_time' are mutually exclusive."
-                " Only one of these options can be nonzero."
-            )
+    Args:
+        input_file: File to use as input for the simulation.
+        output_file: File to use as output for simulation data.
+        save_mesh: Whether to save the mesh.
+        logger: Logger used to inform about errors.
+    """
+
+    def __init__(
+        self,
+        input_value: Union[Mesh, str],
+        output_file: str,
+        save_mesh: bool = True,
+        logger: Optional[logging.Logger] = None,
+    ):
+        if isinstance(input_value, str):
+            path = os.path.join(os.getcwd(), input_value)
+            with h5py.File(path, "r", libver="latest") as f:
+                self.mesh = Mesh.load_from_hdf5(f)
+        else:
+            self.mesh = input_value
+
+        self.output_file = None
+        self.mesh_group = None
+        self.time_step_group = None
+        self.save_number = 0
+        self.logger = logger if logger is not None else logging.getLogger()
+
+        self.output_file, self.output_path = self.__create_output_file(
+            output_file, self.logger
+        )
+        self.time_step_group = self.output_file.create_group("data")
+        if save_mesh:
+            self.mesh_group = self.output_file.create_group("mesh")
+            self.mesh.save_to_hdf5(self.mesh_group)
+        else:
+            self.mesh_group = None
+
+    @classmethod
+    def __create_output_file(
+        cls, output: str, logger: logging.Logger
+    ) -> Tuple[h5py.File, str]:
+        """Create an output file.
+
+        Args:
+            output: The output file path.
+            logger: Logger output logs.
+
+        Returns:
+            A file handle.
+        """
+
+        # Make sure the directory exists
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+
+        # Split the output into file name and suffix
+        name_parts = output.split(".")
+        name = ".".join(name_parts[:-1])
+        suffix = name_parts[-1]
+
+        # Number to be added to the end of file name
+        # If this is None do not add the number
+        serial_number = None
+
+        while True:
+            # Create a new file name
+            name_suffix = f"-{serial_number}" if serial_number is not None else ""
+            file_name = f"{name}{name_suffix}.{suffix}"
+            file_path = os.path.join(os.getcwd(), file_name)
+
+            try:
+                file = h5py.File(file_path, "x", libver="latest")
+            except (OSError, FileExistsError):
+                if serial_number is None:
+                    serial_number = 1
+                else:
+                    serial_number += 1
+                continue
+            else:
+                if serial_number is not None:
+                    logger.warning(
+                        f"Output file already exists. Renaming to {file_name}."
+                    )
+            return file, file_path
+
+    @classmethod
+    def __get_save_number_stored(cls, h5group: h5py.Group) -> int:
+        keys = np.asarray(list(int(key) for key in h5group))
+        return np.max(keys)
+
+    def close(self):
+        self.output_file.close()
+
+    def get_last_step(self) -> h5py.Group:
+        last_save_number = self.__get_save_number_stored(self.time_step_group)
+        return self.time_step_group[f"{last_save_number}"]
+
+    def get_mesh(self) -> Mesh:
+        return self.mesh
+
+    def get_voltage_points(self) -> np.ndarray:
+        return self.mesh.voltage_points
+
+    def save_time_step(self, state: Dict[str, float], data: Dict[str, np.ndarray]):
+        group = self.time_step_group.create_group(f"{self.save_number}")
+        group.attrs["timestamp"] = datetime.now().isoformat()
+        self.save_number += 1
+        # Set an attribute to specify for which values this data was recorded
+        for key, value in state.items():
+            group.attrs[key] = value
+        # Save the data
+        for key, value in data.items():
+            group[key] = value
+
+
+class RunningState:
+    """Storage class for saving data that should be saved each time step.
+    Used for IV curves or similar.
+
+    Args:
+        names: Names of the parameters to be saved.
+        buffer: Size of the buffer.
+    """
+
+    def __init__(self, names: Sequence[str], buffer: int):
+        self.step = 0
+        self.buffer = buffer
+        self.values = dict((name, np.zeros(buffer)) for name in names)
+
+    def next(self) -> None:
+        """Go to the next step."""
+        self.step += 1
+
+    def set_step(self, step: int) -> None:
+        """Set the current step.
+
+        Args:
+            step: Step to go to.
+        """
+        self.step = step
+
+    def clear(self) -> None:
+        """Clear the buffer."""
+
+        self.step = 0
+        for key in self.values:
+            self.values[key] = np.zeros(self.buffer)
+
+    def append(self, name: str, value: Union[float, int]) -> None:
+        """Append data to the buffer.
+
+        Args:
+            name: Data to append.
+            value: Value of the data.
+        """
+
+        self.values[name][self.step] = value
+
+    def export(self) -> Dict[str, np.ndarray]:
+        """Export data to save to disk.
+
+        Returns:
+            A dict with the data.
+        """
+
+        return self.values
 
 
 class Runner:
@@ -91,6 +236,7 @@ class Runner:
     def run(self) -> None:
         """Run the simulation loop."""
         # Set the initial data.
+        self.time = 0
         self.state["step"] = 0
         self.state["time"] = self.time
         self.state["dt"] = self.dt
@@ -105,14 +251,15 @@ class Runner:
                 save=False,
             )
             self.running_state.clear()
+        self.time = 0
         self.state["step"] = 0
-        self.state["time"] = 0
+        self.state["time"] = self.time
         self.state["dt"] = self.dt
         # Run simulation.
         self._run_stage_(
             "Simulating",
             start_step=0,
-            start_time=0,
+            start_time=self.time,
             end_step=self.options.min_steps,
             end_time=self.options.total_time,
             save=True,
@@ -217,7 +364,7 @@ class Runner:
                 function_result = self.function(
                     self.state, self.running_state, *self.values, self.dt
                 )
-                converged, *self.values, new_dt = function_result
+                *self.values, new_dt = function_result
 
                 if end_step is None:
                     # tqdm will spit out a warning if you try to update past "total"
@@ -230,12 +377,6 @@ class Runner:
 
                 if self.options.dt_max is not None:
                     self.dt = max(self.options.dt_min, min(self.options.dt_max, new_dt))
-
-                if converged and i > self.min_steps:
-                    if save and not saved_this_iteration:
-                        save_step(i)
-                    self.logger.warning(f"\nSimulation converged at step {i}.")
-                    break
 
                 if self.time >= end_time:
                     if save and not saved_this_iteration:

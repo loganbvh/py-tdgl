@@ -74,11 +74,6 @@ def solve(
     if rng_seed is None:
         rng_seed = np.random.SeedSequence().entropy
 
-    if not (0 <= options.rtol <= 1):
-        raise ValueError(
-            f"Relative tolerance must be in [0, 1], got {options.rtol:.2e}."
-        )
-
     ureg = device.ureg
     mesh = device.mesh
     sites = device.points
@@ -300,8 +295,6 @@ def solve(
         psi_val = w - z * new_sq_psi
 
         running_state.append("dt", dt_val)
-
-        old_current = supercurrent_val + normal_current_val
         # Get the supercurrent
         supercurrent_val = get_supercurrent(psi_val, psi_gradient, mesh.edge_mesh.edges)
         supercurrent_divergence = divergence @ supercurrent_val
@@ -326,13 +319,6 @@ def solve(
                 einsum("jk, ijk -> ik", J_site, inv_rho)
             )
 
-        new_current = supercurrent_val + normal_current_val
-        max_current = np.max(np.abs(old_current))
-        converged = (
-            max_current > 0
-            and np.max(np.abs(new_current - old_current)) / max_current < options.rtol
-        )
-
         d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
         d_psi_sq_vals.append(d_psi_sq)
         if step > options.adaptive_window:
@@ -342,7 +328,6 @@ def solve(
             dt_val = max(options.dt_min, min(options.dt_max, new_dt))
 
         return (
-            converged,
             psi_val,
             mu_val,
             supercurrent_val,
