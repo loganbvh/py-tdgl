@@ -1,6 +1,7 @@
 cloudpickle
 h5py
 joblib
+jupyter
 matplotlib
 meshpy
 numpy

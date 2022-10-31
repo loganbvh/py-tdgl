@@ -20,6 +20,7 @@ INSTALL_REQUIRES = [
     "cloudpickle",
     "h5py",
     "joblib",
+    "jupyter",
     "matplotlib",
     "meshpy",
     "numpy",

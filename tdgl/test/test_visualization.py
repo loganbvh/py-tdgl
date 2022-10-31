@@ -90,3 +90,32 @@ def test_plot_field_at_positions(
         auto_range_cutoff=auto_range_cutoff,
     )
     plt.close(fig)
+
+
+@pytest.mark.parametrize("vmin, vmax", [(None, None), (-5, 5), (-5, None)])
+@pytest.mark.parametrize("auto_range_cutoff", [None, 1, (5, 95)])
+@pytest.mark.parametrize("units", [None, "uA/um**2"])
+@pytest.mark.parametrize("symmetric_color_scale", [False, True])
+def test_plot_vorticity(
+    transport_device_solution,
+    vmin,
+    vmax,
+    auto_range_cutoff,
+    units,
+    symmetric_color_scale,
+):
+    solution = transport_device_solution
+    kwargs = dict(
+        vmin=vmin,
+        vmax=vmax,
+        units=units,
+        auto_range_cutoff=auto_range_cutoff,
+        symmetric_color_scale=symmetric_color_scale,
+    )
+
+    if vmax is None and vmin is not None:
+        with pytest.raises(ValueError):
+            _ = solution.plot_vorticity(**kwargs)
+    else:
+        fig, ax = solution.plot_vorticity(**kwargs)
+    plt.close("all")
