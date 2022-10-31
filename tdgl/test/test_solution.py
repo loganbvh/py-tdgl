@@ -1,6 +1,7 @@
 import os
 import tempfile
 
+import pint
 import pytest
 
 import tdgl
@@ -47,3 +48,19 @@ def test_save_and_load_solution(solution):
     solution.to_hdf5()
     loaded_solution = tdgl.Solution.from_hdf5(solution.path)
     assert loaded_solution == solution
+
+
+@pytest.mark.parametrize("hole", ["hole1", "hole2", "invalid"])
+@pytest.mark.parametrize("with_units", [False, True])
+@pytest.mark.parametrize("units", ["Phi_0", "mT * um**2"])
+def test_hole_fluxoid(solution, hole, with_units, units):
+    if hole == "invalid":
+        with pytest.raises(KeyError):
+            _ = solution.hole_fluxoid(hole, units=units, with_units=with_units)
+    else:
+        fluxoid = solution.hole_fluxoid(hole, units=units, with_units=with_units)
+        assert isinstance(fluxoid, tdgl.solution.Fluxoid)
+        if with_units:
+            assert isinstance(sum(fluxoid), pint.Quantity)
+        else:
+            assert isinstance(sum(fluxoid), float)
