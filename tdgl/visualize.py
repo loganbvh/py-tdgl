@@ -1,13 +1,12 @@
-#!/usr/bin/env python
 import argparse
 import logging
 
-from ..enums import Observable
-from .animate import Animate, MultiAnimate
-from .ic_dist import IcDist
-from .ic_vs_b import IcVsB
-from .interactive_plot import InteractivePlot, MultiInteractivePlot
-from .iv_plot import IvPlot
+from .enums import Observable
+from .visualization.animate import Animate, MultiAnimate
+from .visualization.ic_dist import IcDist
+from .visualization.ic_vs_b import IcVsB
+from .visualization.interactive_plot import InteractivePlot, MultiInteractivePlot
+from .visualization.iv_plot import IvPlot
 
 
 class Visualize:

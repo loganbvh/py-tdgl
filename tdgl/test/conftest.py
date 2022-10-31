@@ -27,7 +27,7 @@ def transport_device():
         source_terminal=source,
         drain_terminal=drain,
     )
-    device.make_mesh(min_points=2000, optimesh_steps=40, max_edge_length=xi / 2)
+    device.make_mesh(min_points=1000, optimesh_steps=40, max_edge_length=xi / 2)
     return device
 
 

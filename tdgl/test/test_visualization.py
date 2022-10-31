@@ -119,3 +119,26 @@ def test_plot_vorticity(
     else:
         fig, ax = solution.plot_vorticity(**kwargs)
     plt.close("all")
+
+
+@pytest.mark.parametrize("vmin, vmax", [(None, None), (0, 5), (0, None)])
+@pytest.mark.parametrize("auto_range_cutoff", [None, 1, (5, 95)])
+def test_plot_scalar_potential(
+    transport_device_solution,
+    vmin,
+    vmax,
+    auto_range_cutoff,
+):
+    solution = transport_device_solution
+    kwargs = dict(
+        vmin=vmin,
+        vmax=vmax,
+        auto_range_cutoff=auto_range_cutoff,
+    )
+
+    if vmax is None and vmin is not None:
+        with pytest.raises(ValueError):
+            _ = solution.plot_scalar_potential(**kwargs)
+    else:
+        fig, ax = solution.plot_scalar_potential(**kwargs)
+    plt.close("all")
