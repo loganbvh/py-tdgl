@@ -307,6 +307,7 @@ def plot_currents(
         )
         for i, (coord, path, cross) in enumerate(zip(coords, paths, cross_sections)):
             color = f"C{i % 10}"
+            cross[~device.contains_points(coord)] = np.nan
             ax.plot(*coord.T, "--", color=color, lw=2)
             ax.plot(*coord[0], "o", color=color)
             ax.plot(*coord[-1], "s", color=color)

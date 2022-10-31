@@ -1,9 +1,9 @@
-from typing import Sequence, Union
+from typing import Sequence, Tuple, Union
 
 import numpy as np
 import scipy.sparse as sp
 
-from ..enums import MatrixType, SparseFormat
+from ..enums import MatrixType
 from .mesh import Mesh
 
 
@@ -73,9 +73,9 @@ def build_laplacian(
     mesh: Mesh,
     link_exponents: Union[np.ndarray, None] = None,
     fixed_sites: Union[np.ndarray, None] = None,
+    free_rows: Union[np.ndarray, None] = None,
     fixed_sites_eigenvalues: float = 1,
-    sparse_format: SparseFormat = SparseFormat.CSR,
-) -> sp.spmatrix:
+) -> Tuple[sp.spmatrix, np.ndarray]:
     """Build a Laplacian matrix on a given mesh.
 
     The default boundary condition is homogenous Neumann conditions. To get
@@ -88,10 +88,9 @@ def build_laplacian(
             link variable.
         fixed_sites: The sites to hold fixed.
         fixed_sites_eigenvalues: The eigenvalues for the fixed sites.
-        sparse_format: Sparse format used to save the data.
 
     Returns:
-        The Laplacian matrix.
+        The Laplacian matrix and indices of non-fixed rows.
     """
     if fixed_sites is None:
         fixed_sites = np.array([], dtype=int)
@@ -122,18 +121,18 @@ def build_laplacian(
     )
     # Exclude all edges connected to fixed sites and set the
     # fixed site diagonal elements separately.
-    not_fixed = np.isin(rows, fixed_sites, invert=True)
-    rows = rows[not_fixed]
-    cols = cols[not_fixed]
-    values = values[not_fixed]
+    if free_rows is None:
+        free_rows = np.isin(rows, fixed_sites, invert=True)
+    rows = rows[free_rows]
+    cols = cols[free_rows]
+    values = values[free_rows]
     rows = np.concatenate([rows, fixed_sites])
     cols = np.concatenate([cols, fixed_sites])
     values = np.concatenate(
         [values, fixed_sites_eigenvalues * np.ones(len(fixed_sites))]
     )
-    # Build the Laplacian
     laplacian = sp.csc_matrix((values, (rows, cols)), shape=(len(mesh.x), len(mesh.x)))
-    return laplacian.asformat(sparse_format.value, copy=False)
+    return laplacian, free_rows
 
 
 def build_neumann_boundary_laplacian(
@@ -225,13 +224,14 @@ class MatrixBuilder:
         return self
 
     def build(
-        self, matrix_type: MatrixType, sparse_format: SparseFormat = SparseFormat.CSR
+        self,
+        matrix_type: MatrixType,
+        free_rows: Union[np.ndarray, None] = None,
     ) -> sp.spmatrix:
         """Build a matrix.
 
         Args:
             matrix_type: The type of matrix to build.
-            sparse_format: The matrix format to return.
 
         Returns:
             The matrix
@@ -239,10 +239,10 @@ class MatrixBuilder:
         if matrix_type is MatrixType.LAPLACIAN:
             return build_laplacian(
                 self.mesh,
-                self.link_exponents,
-                self.fixed_sites,
-                self.fixed_sites_eigenvalue,
-                sparse_format,
+                link_exponents=self.link_exponents,
+                fixed_sites=self.fixed_sites,
+                fixed_sites_eigenvalues=self.fixed_sites_eigenvalue,
+                free_rows=free_rows,
             )
 
         if matrix_type is MatrixType.NEUMANN_BOUNDARY_LAPLACIAN:

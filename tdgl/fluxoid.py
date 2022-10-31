@@ -24,7 +24,7 @@ def make_fluxoid_polygons(
     Returns:
         A dict of ``{hole_name: fluxoid_polygon}``.
     """
-    device_polygons = (device.film,) + device.holes
+    device_polygons = [device.film] + device.holes
     device_holes = {hole.name: hole for hole in device.holes}
     if holes is None:
         holes = list(device_holes)

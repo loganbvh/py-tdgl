@@ -5,3 +5,4 @@ from .solution import Solution
 from .solver.options import SolverOptions
 from .solver.solve import solve
 from .units import ureg
+from .version import __version__

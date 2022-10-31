@@ -1,8 +1,9 @@
 import inspect
 import operator
+import pickle
 from typing import Callable, Optional, Union
 
-import dill
+import cloudpickle
 import numpy as np
 
 
@@ -313,13 +314,13 @@ class CompositeParameter(Parameter):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state["left"] = dill.dumps(state["left"])
-        state["right"] = dill.dumps(state["right"])
+        state["left"] = cloudpickle.dumps(state["left"])
+        state["right"] = cloudpickle.dumps(state["right"])
         return state
 
     def __setstate__(self, state):
-        state["left"] = dill.loads(state["left"])
-        state["right"] = dill.loads(state["right"])
+        state["left"] = pickle.loads(state["left"])
+        state["right"] = pickle.loads(state["right"])
         self.__dict__.update(state)
 
 

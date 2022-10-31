@@ -292,6 +292,18 @@ class Polygon:
         )
         return points, triangles
 
+    def rename(self, name: str) -> "Polygon":
+        """Rename the Polygon.
+
+        Args:
+            name: The new name.
+
+        Returns:
+            ``self``
+        """
+        self.name = str(name)
+        return self
+
     def rotate(
         self,
         degrees: float,

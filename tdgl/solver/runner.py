@@ -260,7 +260,7 @@ class Runner:
             "Simulating",
             start_step=0,
             start_time=self.time,
-            end_step=self.options.min_steps,
+            end_step=self.options.steps,
             end_time=self.options.total_time,
             save=True,
         )

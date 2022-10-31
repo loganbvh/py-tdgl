@@ -1,10 +1,11 @@
 import dataclasses
 import logging
 import os
+import pickle
 from datetime import datetime
-from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Union
 
-import dill
+import cloudpickle
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,9 +13,8 @@ import pint
 from scipy import interpolate
 from scipy.spatial import distance
 
+from .about import version_dict
 from .device.components import Polygon
-
-# from .about import version_dict
 from .device.device import Device
 from .em import biot_savart_2d, convert_field
 from .finite_volume.matrices import build_gradient
@@ -55,6 +55,13 @@ class Fluxoid(NamedTuple):
 
 
 class BiotSavartField(NamedTuple):
+    """The magnetic field due to a sheet current.
+
+    Args:
+        supercurrent: An array of sheet supercurrent densities.
+        normal_current: An array of sheey normal current densities.
+    """
+
     supercurrent: np.ndarray
     normal_current: np.ndarray
 
@@ -65,16 +72,14 @@ class Solution:
 
     Args:
         device: The ``Device`` that was solved
-        streams: A dict of ``{layer_name: stream_function}``
-        current_densities: A dict of ``{layer_name: current_density}``
-        fields: A dict of ``{layer_name: total_field}``
-        screening_fields: A dict of ``{layer_name: screening_field}``
-        applied_field: The function defining the applied field
+        filename: Path to the HDF5 file corresponding to the solution.
+        options: ``SolverOptions`` instance.
+        applied_vector_potential: The ``Parameter`` defining the applied vector potential.
+        source_drain_current: A scalar or function with signature func(time) -> current
+            representing the source-drain current in units of ``current_units``.
         field_units: Units of the applied field
         current_units: Units used for current quantities.
-        circulating_currents: A dict of ``{hole_name: circulating_current}``.
-        terminal_currents: A dict of ``{terminal_name: terminal_current}``.
-        vortices: A list of ``Vortex`` objects located in the ``Device``.
+        total_seconds: The total wall time in seconds.
         solver: The solver method that generated the solution.
     """
 
@@ -85,7 +90,7 @@ class Solution:
         filename: os.PathLike,
         options: SolverOptions,
         applied_vector_potential: Parameter,
-        source_drain_current: Union[float, str, pint.Quantity],
+        source_drain_current: Union[float, Callable],
         field_units: str,
         current_units: str,
         total_seconds: float,
@@ -104,8 +109,8 @@ class Solution:
 
         # Make field_units and current_units "read-only" attributes.
         # The should never be changed after instantiation.
-        self._field_units = field_units
-        self._current_units = current_units
+        self._field_units = str(field_units)
+        self._current_units = str(current_units)
         self._solver = solver
         self._time_created = datetime.now()
         self.total_seconds = total_seconds
@@ -115,7 +120,7 @@ class Solution:
         self._solve_step: int = -1
         self.load_tdgl_data(self._solve_step)
 
-        # self._version_info = version_dict()
+        self._version_info = version_dict()
 
     @property
     def solve_step(self) -> int:
@@ -200,10 +205,10 @@ class Solution:
         """The time at which the solution was originally created."""
         return self._time_created
 
-    # @property
-    # def version_info(self) -> Dict[str, str]:
-    #     """A dictionary of dependency versions."""
-    #     return self._version_info
+    @property
+    def version_info(self) -> Dict[str, str]:
+        """A dictionary of dependency versions."""
+        return self._version_info
 
     def grid_current_density(
         self,
@@ -324,6 +329,7 @@ class Solution:
         J_interp = interpolator(xy, J.to(units).magnitude, **interp_kwargs)
         J = J_interp(positions)
         J[~np.isfinite(J)] = 0
+        J[~self.device.contains_points(positions)] = 0
         if with_units:
             J = J * self.device.ureg(units)
         return J
@@ -446,7 +452,6 @@ class Solution:
         Lambda = device.layer.Lambda
         psi_poly = self.interp_order_parameter(points, method=interp_method)
         ns = np.abs(psi_poly) ** 2
-        # ns = np.ones(dl.shape[0])
         Lambda = Lambda / ns * ureg(device.length_units)
         int_J = np.trapz((Lambda[:, np.newaxis] * J_poly * dl).sum(axis=1))
         supercurrent_part = (ureg("mu_0") * int_J).to(units)
@@ -483,7 +488,8 @@ class Solution:
             from .fluxoid import make_fluxoid_polygons
 
             points = make_fluxoid_polygons(self.device, holes=hole_name)[hole_name]
-        hole = self.device.holes[hole_name]
+        holes = {hole.name: hole for hole in self.device.holes}
+        hole = holes[hole_name]
         if not Polygon(points=points).contains_points(hole.points).all():
             raise ValueError(
                 f"Hole {hole_name} is not completely enclosed by the given polygon."
@@ -696,6 +702,22 @@ class Solution:
         Args:
             save_mesh: Whether to save the Device's mesh.
         """
+
+        def serialize_func(func, name, h5group, h5path):
+            try:
+                # See: https://docs.h5py.org/en/2.8.0/strings.html
+                h5group.attrs[name] = np.void(cloudpickle.dumps(func))
+            except RuntimeError as e:
+                dirname = os.path.dirname(h5path)
+                fname = os.path.basename(h5path).replace(".h5", "")
+                pickle_path = os.path.join(dirname, f"{name}-{fname}.pickle")
+                logger.warning(
+                    f"Unable to serialize {name} to HDF5: {e}. "
+                    f"Saving {name} to {pickle!r} instead."
+                )
+                with open(pickle_path, "wb") as f:
+                    cloudpickle.dump(func, f)
+
         with h5py.File(self.path, "r+", libver="latest") as f:
             if "mesh" in f:
                 del f["mesh"]
@@ -707,25 +729,21 @@ class Solution:
             group.attrs["time_created"] = self.time_created.isoformat()
             group.attrs["current_units"] = self.current_units
             group.attrs["field_units"] = self.field_units
-            try:
-                # See: https://docs.h5py.org/en/2.8.0/strings.html
-                group.attrs["applied_vector_potential"] = np.void(
-                    dill.dumps(self.applied_vector_potential)
+            serialize_func(
+                self.applied_vector_potential,
+                "applied_vector_potential",
+                group,
+                self.path,
+            )
+            if callable(self.source_drain_current):
+                serialize_func(
+                    self.source_drain_current,
+                    "source_drain_current",
+                    group,
+                    self.path,
                 )
-            except RuntimeError as e:
-                dirname = os.path.dirname(self.path)
-                fname = os.path.basename(self.path).replace(".h5", "")
-                dill_path = os.path.join(
-                    dirname,
-                    f"applied_vector_potential-{fname}.dill",
-                )
-                logger.warning(
-                    f"Unable to serialize the applied vector potential to HDF5: {e}. "
-                    f"Saving the applied vector potential to {dill_path!r} instead."
-                )
-                with open(dill_path, "wb") as f:
-                    dill.dump(self.applied_vector_potential, f)
-            group.attrs["source_drain_current"] = self.source_drain_current
+            else:
+                group.attrs["source_drain_current"] = self.source_drain_current
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
 
@@ -741,7 +759,7 @@ class Solution:
         """
         with h5py.File(path, "r", libver="latest") as f:
             fname = os.path.basename(path).replace(".h5", "")
-            dill_path = f"applied_vector_potential-{fname}.dill"
+            pickle_path = f"applied_vector_potential-{fname}.pickle"
             data_grp = f["data"]
             options_kwargs = dict()
             for k, v in data_grp.attrs.items():
@@ -751,17 +769,30 @@ class Solution:
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             current_units = grp.attrs["current_units"]
             field_units = grp.attrs["field_units"]
+            # Load applied vector potential
+            pickle_path = f"applied_vector_potential-{fname}.pickle"
             if "applied_vector_potential" in grp.attrs:
                 # See: https://docs.h5py.org/en/2.8.0/strings.html
-                vector_potential = dill.loads(
+                vector_potential = pickle.loads(
                     grp.attrs["applied_vector_potential"].tostring()
                 )
-            elif dill_path in os.listdir(os.path.dirname(path)):
-                with open(dill_path, "rb") as f:
-                    vector_potential = dill.load(f)
+            elif pickle_path in os.listdir(os.path.dirname(path)):
+                with open(pickle_path, "rb") as f:
+                    vector_potential = pickle.load(f)
             else:
                 raise IOError(f"Unable to load applied vector potential from {path!r}.")
-            current = grp.attrs["source_drain_current"]
+            # Load source-drain current
+            pickle_path = f"source_drain_current-{fname}.pickle"
+            if "source_drain_current" in grp.attrs:
+                source_drain_current = grp.attrs["source_drain_current"]
+                if not isinstance(source_drain_current, (int, float)):
+                    # See: https://docs.h5py.org/en/2.8.0/strings.html
+                    source_drain_current = pickle.loads(source_drain_current.tostring())
+            elif pickle_path in os.listdir(os.path.dirname(path)):
+                with open(pickle_path, "rb") as f:
+                    source_drain_current = pickle.load(f)
+            else:
+                raise IOError(f"Unable to load applied vector potential from {path!r}.")
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])
 
@@ -770,7 +801,7 @@ class Solution:
             filename=path,
             options=options,
             applied_vector_potential=vector_potential,
-            source_drain_current=current,
+            source_drain_current=source_drain_current,
             current_units=current_units,
             field_units=field_units,
             total_seconds=total_seconds,

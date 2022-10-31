@@ -16,6 +16,8 @@ Solve
 .. autoclass:: tdgl.solver.runner.SolverOptions
     :members:
 
+.. autoclass:: tdgl.parameter.Parameter
+
 
 Solution
 --------

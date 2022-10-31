@@ -1,5 +1,6 @@
-dill
+cloudpickle
 h5py
+joblib
 matplotlib
 meshpy
 numpy

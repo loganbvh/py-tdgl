@@ -17,8 +17,9 @@ LICENSE = "MIT"
 PYTHON_VERSION = ">=3.7, <=3.10"
 
 INSTALL_REQUIRES = [
-    "dill",
+    "cloudpickle",
     "h5py",
+    "joblib",
     "matplotlib",
     "meshpy",
     "numpy",
