@@ -10,7 +10,7 @@ from shapely.geometry import MultiLineString
 from shapely.geometry.polygon import Polygon, orient
 from shapely.ops import polygonize
 
-from ..finite_volume.fem import edge_lengths
+from ..finite_volume.util import get_edge_lengths
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +104,12 @@ def generate_mesh(
         min_points = 0
     if max_edge_length is None or max_edge_length <= 0:
         max_edge_length = np.inf
-    max_length = edge_lengths(points, triangles).max()
+    max_length = get_edge_lengths(points, triangles).max()
     while (points.shape[0] < min_points) or (max_length > max_edge_length):
         mesh = triangle.build(mesh_info=mesh_info, **kwargs)
         points = np.array(mesh.points)
         triangles = np.array(mesh.elements)
-        max_length = edge_lengths(points, triangles).max()
+        max_length = get_edge_lengths(points, triangles).max()
         logger.debug(
             f"Iteration {i}: Made mesh with {points.shape[0]} points and "
             f"{triangles.shape[0]} triangles with maximum edge length: "

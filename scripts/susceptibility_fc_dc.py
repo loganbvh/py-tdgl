@@ -36,8 +36,8 @@ def make_device(
 def make_pickup_loop(radius, z0):
     pl = tdgl.Polygon(points=tdgl.geometry.circle(radius, points=201))
     pl_points, pl_triangles = pl.make_mesh(min_points=1000, optimesh_steps=50)
-    pl_centroids = tdgl.fem.centroids(pl_points, pl_triangles)
-    pl_areas = tdgl.fem.triangle_areas(pl_points, pl_triangles)
+    pl_centroids = tdgl.finite_volume.util.centroids(pl_points, pl_triangles)
+    pl_areas = tdgl.finite_volume.util.triangle_areas(pl_points, pl_triangles)
     pl_centroids = np.append(
         pl_centroids, z0 * np.ones_like(pl_centroids[:, :1]), axis=1
     )

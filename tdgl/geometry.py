@@ -1,30 +1,6 @@
 from typing import Optional, Tuple
 
 import numpy as np
-import scipy.linalg as la
-
-
-def unit_vector(vector: np.ndarray) -> np.ndarray:
-    """Normalizes ``vector``."""
-    return vector / la.norm(vector, axis=-1)[:, np.newaxis]
-
-
-def path_vectors(path: np.ndarray) -> Tuple[float, np.ndarray]:
-    """Computes the total length and the unit normals for a path.
-
-    Args:
-        path: Shape ``(n, 2)`` array of coordinates representing a continuous path.
-
-    Returns:
-        The total path length and an array of of unit vectors normal to
-        each edge in the path.
-    """
-    dr = np.diff(path, axis=0)
-    normals = np.cross(dr, [0, 0, 1])
-    unit_normals = unit_vector(normals)
-    total_length = np.sum(la.norm(dr, axis=1))
-    unit_normals = np.concatenate([unit_normals, unit_normals[-1:]], axis=0)
-    return total_length, unit_normals[:, :2]
 
 
 def rotation_matrix(angle_radians: float) -> np.ndarray:

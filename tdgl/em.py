@@ -5,7 +5,7 @@ import pint
 from scipy import spatial, special
 from scipy.constants import mu_0
 
-from .finite_volume.fem import mass_matrix
+from .finite_volume.util import mass_matrix
 
 ureg = pint.UnitRegistry()
 
