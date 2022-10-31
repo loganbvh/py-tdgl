@@ -1,5 +1,6 @@
 import dataclasses
 import logging
+import operator
 import os
 import pickle
 from datetime import datetime
@@ -774,7 +775,7 @@ class Solution:
             if "applied_vector_potential" in grp.attrs:
                 # See: https://docs.h5py.org/en/2.8.0/strings.html
                 vector_potential = pickle.loads(
-                    grp.attrs["applied_vector_potential"].tostring()
+                    grp.attrs["applied_vector_potential"].tobytes()
                 )
             elif pickle_path in os.listdir(os.path.dirname(path)):
                 with open(pickle_path, "rb") as f:
@@ -787,7 +788,7 @@ class Solution:
                 source_drain_current = grp.attrs["source_drain_current"]
                 if not isinstance(source_drain_current, (int, float)):
                     # See: https://docs.h5py.org/en/2.8.0/strings.html
-                    source_drain_current = pickle.loads(source_drain_current.tostring())
+                    source_drain_current = pickle.loads(source_drain_current.tobytes())
             elif pickle_path in os.listdir(os.path.dirname(path)):
                 with open(pickle_path, "rb") as f:
                     source_drain_current = pickle.load(f)
@@ -833,11 +834,21 @@ class Solution:
         if not isinstance(other, Solution):
             return False
 
+        if callable(self.source_drain_current):
+            if not callable(other.source_drain_current):
+                return False
+            get_code = operator.attrgetter("co_code", "co_consts")
+            if get_code(self.source_drain_current.__code__) != get_code(
+                other.source_drain_current.__code__
+            ):
+                return False
+        elif self.source_drain_current != other.source_drain_current:
+            return False
+
         if not (
             (self.device == other.device)
             and (self.field_units == other.field_units)
             and (self.current_units == other.current_units)
-            and (self.source_drain_current == other.source_drain_current)
             and (self.path == other.path)
             and (self.solve_step == other.solve_step)
             and (self.applied_vector_potential == other.applied_vector_potential)

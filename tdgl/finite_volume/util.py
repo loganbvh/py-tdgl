@@ -2,8 +2,7 @@ from typing import Dict, Tuple, Union
 
 import numpy as np
 import scipy.sparse as sp
-from scipy.spatial import ConvexHull
-from scipy.spatial.qhull import QhullError
+from scipy.spatial import ConvexHull, QhullError
 
 
 def get_edge_lengths(points: np.ndarray, elements: np.ndarray) -> np.ndarray:
