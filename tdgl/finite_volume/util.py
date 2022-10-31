@@ -69,7 +69,7 @@ def get_dual_edge_lengths(
     # corresponding to the triangles
     edge_to_element = {}
     # Iterate over all elements to create the edge_to_element dict
-    edge_element_indices = [(0, 1), (1, 2), (2, 0)]
+    edge_element_indices = [[0, 1], [1, 2], [2, 0]]
     for i, element in enumerate(elements):
         for idx in edge_element_indices:
             # Hash the array by converting it to a string

@@ -1,6 +1,24 @@
-# py-tdgl
+# pyTDGL
 Time-dependent Ginzburg-Landau in Python
 
+
+## Motivation
+pyTDGL solves a 2D generalized time-dependent Ginzburg-Landau (TDGL) equation.
+
+## Installation
+From this [GitHub repository](https://github.com/loganbvh/py-tdgl/):
+
+```bash
+pip install git+https://github.com/loganbvh/py-tdgl.git
+```
+
+### Developer installation
+
+```bash
+git clone https://github.com/loganbvh/py-tdgl.git
+cd py-tdgl
+pip install -e .
+```
 
 ## Acknowledgments
 
