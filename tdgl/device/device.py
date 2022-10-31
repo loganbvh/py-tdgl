@@ -12,8 +12,8 @@ import pint
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
+from ..em import ureg
 from ..finite_volume.mesh import Mesh
-from ..units import ureg
 from . import mesh
 from .components import Layer, Polygon
 

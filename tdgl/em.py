@@ -6,7 +6,8 @@ from scipy import spatial, special
 from scipy.constants import mu_0
 
 from .finite_volume.fem import mass_matrix
-from .units import ureg
+
+ureg = pint.UnitRegistry()
 
 
 def convert_field(
