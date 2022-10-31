@@ -10,12 +10,22 @@ Visualization
 Plot Solutions
 --------------
 
-.. autofunction:: tdgl.visualization.visualization.plot_currents
+.. autofunction:: tdgl.plot_solution.plot_currents
 
-.. autofunction:: tdgl.visualization.visualization.plot_order_parameter
+.. autofunction:: tdgl.plot_solution.plot_order_parameter
 
-.. autofunction:: tdgl.visualization.visualization.plot_field_at_positions
+.. autofunction:: tdgl.plot_solution.plot_field_at_positions
 
-.. autofunction:: tdgl.visualization.visualization.plot_vorticity
+.. autofunction:: tdgl.plot_solution.plot_vorticity
 
-.. autofunction:: tdgl.visualization.visualization.plot_scalar_potential
+.. autofunction:: tdgl.plot_solution.plot_scalar_potential
+
+CLI Tool
+--------
+
+The ``tdgl.visualize`` module provides a command line interface (CLI) for animating and exploring TDGL data.
+
+.. argparse::
+    :module: tdgl.visualize
+    :func: make_parser
+    :prog: python -m tdgl.visualize

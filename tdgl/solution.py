@@ -863,13 +863,13 @@ class Solution:
 
     def plot_currents(self, **kwargs) -> Tuple[plt.Figure, np.ndarray]:
         """Alias for :func:`tdgl.visualization.plot_currents`."""
-        from .visualization.visualization import plot_currents
+        from .plot_solution import plot_currents
 
         return plot_currents(self, **kwargs)
 
     def plot_order_parameter(self, **kwargs) -> Tuple[plt.Figure, np.ndarray]:
         """Alias for :func:`tdgl.visualization.plot_order_parameter`."""
-        from .visualization.visualization import plot_order_parameter
+        from .plot_solution import plot_order_parameter
 
         return plot_order_parameter(self, **kwargs)
 
@@ -877,18 +877,18 @@ class Solution:
         self, points: np.ndarray, **kwargs
     ) -> Tuple[plt.Figure, np.ndarray]:
         """Alias for :func:`tdgl.visualization.plot_field_at_positions`."""
-        from .visualization.visualization import plot_field_at_positions
+        from .plot_solution import plot_field_at_positions
 
         return plot_field_at_positions(self, points, **kwargs)
 
     def plot_vorticity(self, **kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """Alias for :func:`tdgl.visualization.plot_vorticity`."""
-        from .visualization.visualization import plot_vorticity
+        from .plot_solution import plot_vorticity
 
         return plot_vorticity(self, **kwargs)
 
     def plot_scalar_potential(self, **kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """Alis for :func:`tdgl.visualization.plot_scalar_potential`."""
-        from .visualization.visualization import plot_scalar_potential
+        from .plot_solution import plot_scalar_potential
 
         return plot_scalar_potential(self, **kwargs)

@@ -11,27 +11,24 @@ The ``tdgl.solver`` module is the entrypoint for running a TDGL simulation.
 Solve
 -----
 
-.. autofunction:: tdgl.solver.solve.solve
+.. autofunction:: tdgl.solve
 
-.. autoclass:: tdgl.solver.runner.SolverOptions
+.. autoclass:: tdgl.SolverOptions
     :members:
 
-.. autoclass:: tdgl.parameter.Parameter
+.. autoclass:: tdgl.Parameter
 
 
 Solution
 --------
 
-.. autoclass:: tdgl.solution.Solution
+.. autoclass:: tdgl.Solution
     :members:
 
 Fluxoid
 -------
 
-.. autoclass:: tdgl.solution.Fluxoid
-    :show-inheritance:
-
-.. autoclass:: tdgl.solution.BiotSavartField
+.. autoclass:: tdgl.Fluxoid
     :show-inheritance:
 
 .. autofunction:: tdgl.fluxoid.make_fluxoid_polygons

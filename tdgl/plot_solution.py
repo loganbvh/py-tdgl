@@ -9,7 +9,7 @@ import numpy as np
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from scipy import interpolate
 
-from ..solution import Solution
+from .solution import Solution
 
 
 @contextmanager
@@ -74,21 +74,6 @@ def auto_range_iqr(
         vmin = min(vmin, pmin)
         vmax = max(vmax, pmax)
     return vmin, vmax
-
-
-def grids_to_vecs(
-    xgrid: np.ndarray, ygrid: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Extracts coordinate vectors from 2D meshgrids.
-
-    Args:
-        xgrid: meshgrid of x coordinates
-        ygrid: meshgrid of y coordinates
-
-    Returns:
-        vector of x coordinates, vector of y coordinates
-    """
-    return xgrid[0, :], ygrid[:, 0]
 
 
 def setup_color_limits(

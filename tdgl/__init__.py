@@ -1,7 +1,7 @@
 from .about import version_dict, version_table
 from .device.components import Layer, Polygon
 from .device.device import Device
-from .device.mesh import generate_mesh
+from .device.mesh import generate_mesh, optimize_mesh
 from .em import ureg
 from .enums import Observable
 from .parameter import Parameter

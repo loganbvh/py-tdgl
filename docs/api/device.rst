@@ -9,22 +9,22 @@ Device Interface
 
 The ``tdgl.device`` subpackage provides the following functionalities:
 
-- Definition of device material properties: :class:`tdgl.device.components.Layer`.
-- Definition of device geometry in terms of :class:`tdgl.device.components.Polygon` instances.
-- Mesh generation for :class:`tdgl.device.components.Polygon` and :class:`tdgl.device.device.Device` instances.
+- Definition of device material properties: :class:`tdgl.Layer`.
+- Definition of device geometry in terms of :class:`tdgl.Polygon` instances.
+- Mesh generation for :class:`tdgl.Polygon` and :class:`tdgl.Device` instances.
 - Translation between physical units (e.g., microns and microamperes) and the dimensionless units used in TDGL.
-- Visualization and serialization of :class:`tdgl.device.device.Device` instances.
+- Visualization and serialization of :class:`tdgl.Device` instances.
 
 Device
 ------
 
-.. autoclass:: tdgl.device.components.Layer
+.. autoclass:: tdgl.Layer
     :members:
 
-.. autoclass:: tdgl.device.components.Polygon
+.. autoclass:: tdgl.Polygon
     :members:
 
-.. autoclass:: tdgl.device.device.Device
+.. autoclass:: tdgl.Device
     :members:
 
 Geometry
@@ -43,6 +43,6 @@ Geometry
 Mesh Generation
 ---------------
 
-.. autofunction:: tdgl.device.mesh.generate_mesh
+.. autofunction:: tdgl.generate_mesh
 
-.. autofunction:: tdgl.device.mesh.optimize_mesh
+.. autofunction:: tdgl.optimize_mesh

@@ -10,19 +10,19 @@ Finite Volume Methods
 Finite Volume Meshes
 --------------------
 
-.. autoclass:: tdgl.finite_volume.mesh.Mesh
+.. autoclass:: tdgl.finite_volume.Mesh
     :members:
 
-.. autoclass:: tdgl.finite_volume.edge_mesh.EdgeMesh
+.. autoclass:: tdgl.finite_volume.EdgeMesh
     :members:
 
-.. autoclass:: tdgl.finite_volume.dual_mesh.DualMesh
+.. autoclass:: tdgl.finite_volume.DualMesh
     :members:
 
 Matrices
 --------
 
-.. autoclass:: tdgl.finite_volume.matrices.MatrixBuilder
+.. autoclass:: tdgl.finite_volume.MatrixBuilder
     :members:
 
 .. autofunction:: tdgl.finite_volume.matrices.build_divergence
