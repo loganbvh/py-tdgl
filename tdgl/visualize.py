@@ -44,7 +44,7 @@ def make_parser():
         "-o",
         "--observables",
         type=lambda s: str(s).upper(),
-        choices=Observable.get_keys(),
+        choices=Observable.get_keys() + ["ALL"],
         nargs="*",
         help="Name(s) of the observable(s) to show.",
     )
@@ -69,7 +69,7 @@ def make_parser():
         "-o",
         "--observables",
         type=lambda s: str(s).upper(),
-        choices=Observable.get_keys(),
+        choices=Observable.get_keys() + ["ALL"],
         nargs="*",
         help="Name(s) of the observable(s) to show.",
     )
@@ -211,11 +211,11 @@ def animate_tdgl(args):
         gpu=args.gpu,
         skip=args.skip,
     )
-    if args.observables is None:
-        kwargs["observable"] = Observable.from_key(args.observable)
+    if len(kwargs["observables"]) == 1 and "ALL" not in kwargs["observables"][0]:
+        kwargs["observable"] = Observable.from_key(args.observables[0])
         Animate(**kwargs).build()
         return
-    if "all" not in args.observables:
+    if "ALL" not in args.observables:
         kwargs["observables"] = args.observables
     MultiAnimate(**kwargs).build()
 
@@ -232,7 +232,7 @@ def visualize_tdgl(args):
         input_file=args.input,
         logger=logger,
     )
-    if "all" not in args.observables:
+    if "ALL" not in args.observables:
         kwargs["observables"] = args.observables
     MultiInteractivePlot(**kwargs).show()
 
@@ -266,12 +266,11 @@ def visualize_tdgl(args):
 #     ).show()
 
 
-def main():
-    args = make_parser().parse_args()
+def main(args):
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
     logger.disabled = args.silent
     args.func(args)
 
 
 if __name__ == "__main__":
-    main()
+    main(make_parser().parse_args())

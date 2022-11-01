@@ -12,7 +12,7 @@ From this [GitHub repository](https://github.com/loganbvh/py-tdgl/):
 pip install git+https://github.com/loganbvh/py-tdgl.git
 ```
 
-### Developer installation
+### Editable installation
 
 ```bash
 git clone https://github.com/loganbvh/py-tdgl.git
