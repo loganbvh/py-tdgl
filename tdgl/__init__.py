@@ -1,4 +1,3 @@
-from . import visualize
 from .about import version_dict, version_table
 from .device.components import Layer, Polygon
 from .device.device import Device

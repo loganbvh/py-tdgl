@@ -362,21 +362,6 @@ class Device:
             polygon.rotate(degrees, origin=origin, inplace=True)
         return device
 
-    def mirror_layer(self, about_z: float = 0.0) -> "Device":
-        """Returns a new device with its layers mirrored about the plane
-        ``z = about_z``.
-
-        Args:
-            about_z: The z-position of the plane (parallel to the x-y plane)
-                about which to mirror the layers.
-
-        Returns:
-            The mirrored ``Device``.
-        """
-        device = self.copy()
-        device.layer.z0 = about_z - device.layer.z0
-        return device
-
     def translate(
         self,
         dx: float = 0,
@@ -567,7 +552,7 @@ class Device:
             length_units=self.length_units,
         )
 
-    def mesh_stats(self, precision: int = 4) -> HTML:
+    def mesh_stats(self, precision: int = 3) -> HTML:
         """When called with in Jupyter notebook, displays
         a table of information about the mesh.
 
@@ -581,7 +566,7 @@ class Device:
         html = ["<table>"]
         for key, value in stats.items():
             if isinstance(value, float):
-                value = f"{value:.{precision}f}"
+                value = f"{value:.{precision}e}"
             html.append(f"<tr><td><b>{key}</b></td><td>{value}</td></tr>")
         html.append("</table>")
         return HTML("".join(html))
@@ -626,6 +611,8 @@ class Device:
             ax.triplot(x, y, tri, **mesh_kwargs)
         for polygon in self.polygons:
             ax = polygon.plot(ax=ax, **kwargs)
+        if self.mesh is None and self.voltage_points is not None:
+            ax.plot(*self.voltage_points.T, "ko", label="Voltage points")
         if self.mesh is not None and self.mesh.voltage_points is not None:
             ax.plot(*points[self.mesh.voltage_points].T, "ko", label="Voltage points")
         if legend:
@@ -716,6 +703,10 @@ class Device:
             ax.add_artist(patch)
             labels.append(name)
             handles.append(patch)
+        if self.mesh is None and self.voltage_points is not None:
+            (line,) = ax.plot(*self.voltage_points.T, "ko", label="Voltage points")
+            handles.append(line)
+            labels.append("Voltage points")
         if self.mesh is not None and self.mesh.voltage_points is not None:
             (line,) = ax.plot(*self.points[self.mesh.voltage_points].T, "ko")
             handles.append(line)

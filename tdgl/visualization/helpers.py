@@ -31,10 +31,42 @@ class DynamicsData:
     def __post_init__(self):
         self.time = np.cumsum(self.dt)
 
-    def mean_voltage(self, indices: Union[np.ndarray, slice, None] = None) -> float:
+    def mean_voltage(self, indices: Union[Sequence[int], slice, None] = None) -> float:
         if indices is None:
             indices = slice(None)
         return np.average(self.voltage[indices], weights=self.dt[indices])
+
+    def plot(
+        self,
+        t_min: float = -np.inf,
+        t_max: float = +np.inf,
+        ax: Union[plt.Axes, None] = None,
+        grid: bool = True,
+        mean: bool = True,
+        labels: Union[bool, None] = True,
+        legend: bool = False,
+    ) -> plt.Axes:
+        if ax is None:
+            _, ax = plt.subplots()
+        ts = self.time
+        vs = self.voltage
+        (indices,) = np.where((ts > t_min) & (ts < t_max))
+        ax.plot(ts[indices], vs[indices])
+        if mean:
+            ax.axhline(
+                self.mean_voltage(indices),
+                label="Mean voltage",
+                color="k",
+                ls="--",
+            )
+        if labels:
+            ax.set_xlabel("Time, $t/\\tau$")
+            ax.set_ylabel("Voltage, $V/V_0$")
+        if legend:
+            ax.legend(loc=0)
+        if grid is not None:
+            ax.grid(grid)
+        return ax
 
 
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:
