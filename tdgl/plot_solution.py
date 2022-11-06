@@ -12,6 +12,37 @@ from scipy import interpolate
 from .solution import Solution
 
 
+def auto_grid(
+    num_plots: int,
+    max_cols: int = 3,
+    delaxes: bool = True,
+    **kwargs,
+) -> Tuple[plt.Figure, np.ndarray]:
+    """Creates a grid of at least ``num_plots`` subplots
+    with at most ``max_cols`` columns.
+
+    Additional keyword arguments are passed to plt.subplots().
+
+    Args:
+        num_plots: Total number of plots that will be populated.
+        max_cols: Maximum number of columns in the grid.
+
+    Returns:
+        matplotlib figure and axes
+    """
+    ncols = min(max_cols, num_plots)
+    nrows = int(np.ceil(num_plots / ncols))
+    fig, axes = plt.subplots(nrows, ncols, **kwargs)
+    if not isinstance(axes, (list, np.ndarray)):
+        axes = np.array([axes])
+    axes = np.asarray(axes)
+    if delaxes:
+        flat_axes = list(axes.flat)
+        for ax in flat_axes[num_plots:]:
+            fig.delaxes(ax)
+    return fig, axes
+
+
 @contextmanager
 def non_gui_backend():
     """A contextmanager that temporarily uses a non-GUI backend for matplotlib."""
@@ -198,6 +229,7 @@ def cross_section(
 
 def plot_currents(
     solution: Solution,
+    ax: Union[plt.Axes, None] = None,
     dataset: Optional[str] = None,
     units: Optional[str] = None,
     grid_shape: Union[int, Tuple[int, int]] = (200, 200),
@@ -219,6 +251,7 @@ def plot_currents(
 
     Args:
         solution: The Solution from which to extract sheet current.
+        ax: Matplotlib axes on which to plot.
         units: Units in which to plot the current density. Defaults to
             solution.current_units / solution.device.length_units.
         grid_shape: Shape of the desired rectangular grid. If a single integer n
@@ -256,7 +289,10 @@ def plot_currents(
         J = solution.normal_current_density
     else:
         raise ValueError(f"Unexpected dataset: {dataset}.")
-    fig, ax = plt.subplots(**kwargs)
+    if ax is None:
+        fig, ax = plt.subplots(**kwargs)
+    else:
+        fig = ax.get_figure()
 
     J = J.to(units).magnitude
     Jx = J[:, 0]
@@ -539,6 +575,7 @@ def plot_order_parameter(
 
 def plot_vorticity(
     solution: Solution,
+    ax: Union[plt.Axes, None] = None,
     cmap: str = "coolwarm",
     units: Optional[str] = None,
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
@@ -553,6 +590,7 @@ def plot_vorticity(
 
     Args:
         solution: The solution for which to plot the vorticity.
+        ax: Matplotlib axes on which to plot.
         cmap: Name of the matplotlib colormap to use.
         units: The units in which to plot the vorticity. Must have dimensions of
             [current] / [length]^2.
@@ -565,8 +603,11 @@ def plot_vorticity(
     Returns:
         matplotlib Figure and and Axes.
     """
-    kwargs.setdefault("constrained_layout", True)
-    fig, ax = plt.subplots(**kwargs)
+    if ax is None:
+        kwargs.setdefault("constrained_layout", True)
+        fig, ax = plt.subplots(**kwargs)
+    else:
+        fig = ax.get_figure()
     ax.set_aspect("equal")
     device = solution.device
     points = device.points
@@ -609,6 +650,7 @@ def plot_vorticity(
 
 def plot_scalar_potential(
     solution: Solution,
+    ax: Union[plt.Axes, None] = None,
     cmap: str = "magma",
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
     vmin: Optional[float] = None,
@@ -620,6 +662,7 @@ def plot_scalar_potential(
 
     Args:
         solution: The solution for which to plot the vorticity.
+        ax: Matplotlib axes on which to plot.
         cmap: Name of the matplotlib colormap to use.
         auto_range_cutoff: Cutoff percentile for ``auto_range_iqr``.
         vmin: Color scale minimum.
@@ -629,8 +672,11 @@ def plot_scalar_potential(
     Returns:
         matplotlib Figure and and Axes.
     """
-    kwargs.setdefault("constrained_layout", True)
-    fig, ax = plt.subplots(**kwargs)
+    if ax is None:
+        kwargs.setdefault("constrained_layout", True)
+        fig, ax = plt.subplots(**kwargs)
+    else:
+        fig = ax.get_figure()
     ax.set_aspect("equal")
     device = solution.device
     points = device.points

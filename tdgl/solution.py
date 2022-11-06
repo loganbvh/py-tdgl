@@ -19,17 +19,15 @@ from .device.components import Polygon
 from .device.device import Device
 from .em import biot_savart_2d, convert_field
 from .finite_volume.matrices import build_gradient
-from .parameter import Parameter
-from .solver.runner import SolverOptions
-from .visualization.helpers import (
+from .io import (
     DynamicsData,
     TDGLData,
     get_data_range,
     get_edge_observable_data,
-    load_running_state_data,
     load_state_data,
-    load_tdgl_data,
 )
+from .parameter import Parameter
+from .solver.runner import SolverOptions
 
 logger = logging.getLogger(__name__)
 
@@ -145,9 +143,9 @@ class Solution:
                 step = step_max + 1 + solve_step
             else:
                 step = solve_step
-            self.tdgl_data = load_tdgl_data(f, step)
+            self.tdgl_data = TDGLData.from_hdf5(f, step)
             self.state = load_state_data(f, step)
-            self.dynamics = load_running_state_data(f, step_min, step_max)
+            self.dynamics = DynamicsData.from_hdf5(f, step_min, step_max)
         mesh = self.device.mesh
         device = self.device
         self._solve_step = step

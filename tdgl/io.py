@@ -1,17 +1,17 @@
-from dataclasses import dataclass, field
-from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple, Union
+from dataclasses import dataclass, field, fields
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..enums import Observable
-from ..finite_volume.matrices import build_gradient
-from ..finite_volume.mesh import Mesh
-from ..finite_volume.util import sum_contributions
+from .enums import Observable
+from .finite_volume.matrices import build_gradient
+from .finite_volume.mesh import Mesh
 
 
-class TDGLData(NamedTuple):
+@dataclass
+class TDGLData:
     step: int
     psi: np.ndarray
     mu: np.ndarray
@@ -19,6 +19,19 @@ class TDGLData(NamedTuple):
     induced_vector_potential: np.ndarray
     supercurrent: np.ndarray
     normal_current: np.ndarray
+
+    @staticmethod
+    def from_hdf5(h5file: h5py.File, step: int) -> "TDGLData":
+        step = str(step)
+
+        def get(key, default=None):
+            if key in ["step"]:
+                return int(step)
+            if key in h5file["data"][step]:
+                return np.asarray(h5file["data"][step][key])
+            return default
+
+        return TDGLData(**{field.name: get(field.name) for field in fields(TDGLData)})
 
 
 @dataclass
@@ -68,6 +81,30 @@ class DynamicsData:
             ax.grid(grid)
         return ax
 
+    @staticmethod
+    def from_hdf5(
+        h5file: h5py.File,
+        step_min: Optional[int] = None,
+        step_max: Optional[int] = None,
+    ) -> "DynamicsData":
+        dts = []
+        currents = []
+        voltages = []
+        if step_min is None:
+            step_min, step_max = get_data_range(h5file)
+        for i in range(step_min, step_max + 1):
+            grp = h5file[f"data/{i}"]
+            if "dt" in grp:
+                dts.append(np.asarray(grp["dt"]))
+                currents.append(np.asarray(grp["total_current"]))
+                voltages.append(np.asarray(grp["voltage"]))
+        dt = np.concatenate(dts)
+        mask = dt > 0
+        dt = dt[mask]
+        current = np.concatenate(currents)[mask]
+        voltage = np.concatenate(voltages)[mask]
+        return DynamicsData(dt, current, voltage)
+
 
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:
     keys = np.asarray([int(key) for key in h5file["data"]])
@@ -76,44 +113,6 @@ def get_data_range(h5file: h5py.File) -> Tuple[int, int]:
 
 def has_voltage_data(h5file: h5py.File) -> bool:
     return "voltage" in h5file["data"]["1"] and "total_current" in h5file["data"]["1"]
-
-
-def load_tdgl_data(
-    h5file: h5py.File, step: int
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-
-    step = str(step)
-
-    def get(key, default=None):
-        if key in ["step"]:
-            return int(step)
-        if key in h5file["data"][step]:
-            return np.asarray(h5file["data"][step][key])
-        return default
-
-    return TDGLData(*map(get, TDGLData._fields))
-
-
-def load_running_state_data(
-    h5file: h5py.File, step_min: Optional[int] = None, step_max: Optional[int] = None
-):
-    dts = []
-    currents = []
-    voltages = []
-    if step_min is None:
-        step_min, step_max = get_data_range(h5file)
-    for i in range(step_min, step_max + 1):
-        grp = h5file[f"data/{i}"]
-        if "dt" in grp:
-            dts.append(np.asarray(grp["dt"]))
-            currents.append(np.asarray(grp["total_current"]))
-            voltages.append(np.asarray(grp["voltage"]))
-    dt = np.concatenate(dts)
-    mask = dt > 0
-    dt = dt[mask]
-    current = np.concatenate(currents)[mask]
-    voltage = np.concatenate(voltages)[mask]
-    return DynamicsData(dt, current, voltage)
 
 
 def load_state_data(h5file: h5py.File, step: int) -> Dict[str, Any]:
@@ -138,20 +137,25 @@ def get_alpha(h5file: h5py.File) -> Optional[np.ndarray]:
 def get_plot_data(
     h5file: h5py.File, mesh: Mesh, observable: Observable, frame: int
 ) -> Tuple[np.ndarray, np.ndarray, Sequence[float]]:
-    """
-    Get data to plot.
-    :param h5file: The data file.
-    :param mesh: The mesh used in the simulation.
-    :param observable: The observable to return.
-    :param frame: The current frame.
-    :return: A tuple of the values for the color plot, the directions for the
-    quiver plot and the limits for the
-    color plot.
-    """
+    """Get data to plot.
 
-    # Get the tdgl fields
-    tdgl_data = load_tdgl_data(h5file, frame)
-    _, psi, mu, a_applied, a_induced, supercurrent, normal_current = tdgl_data
+    Args:
+        h5file: The data file.
+        mesh: The mesh used in the simulation.
+        observable: The observable to return.
+        frame: The current frame.
+
+    Returns:
+        A tuple of the values for the color plot, the directions for the
+        quiver plot and the limits for the color plot.
+    """
+    tdgl_data = TDGLData.from_hdf5(h5file, frame)
+    psi = tdgl_data.psi
+    mu = tdgl_data.mu
+    a_applied = tdgl_data.applied_vector_potential
+    a_induced = tdgl_data.induced_vector_potential
+    supercurrent = tdgl_data.supercurrent
+    normal_current = tdgl_data.normal_current
 
     if observable is Observable.COMPLEX_FIELD and psi is not None:
         return np.abs(psi), np.zeros((len(mesh.x), 2)), [0, 1]
@@ -240,108 +244,3 @@ def get_state_string(h5file: h5py.File, frame: int, max_frame: int) -> str:
         i += 1
 
     return state_string[:-1]
-
-
-def find_voltage_points(mesh: Mesh, h5file: h5py.File, frame: int) -> np.ndarray:
-    # Get psi on the boundary
-    psi_boundary = np.asarray(h5file["data"]["0"]["psi"])[mesh.boundary_indices]
-
-    # Select boundary points where the complex field is small on the first frame
-    metal_boundary = mesh.boundary_indices[np.where(np.abs(psi_boundary) < 1e-7)[0]]
-
-    # Get the scalar potential on the boundary
-    scalar_metal_boundary = np.asarray(h5file["data"][str(frame)]["mu"])[metal_boundary]
-
-    # Find the max and the min
-    minimum = np.argmin(scalar_metal_boundary)
-    maximum = np.argmax(scalar_metal_boundary)
-
-    # Return the indices
-    return metal_boundary[[minimum, maximum]]
-
-
-def get_mean_voltage(input_path: str) -> Tuple[np.ndarray, np.ndarray]:
-
-    # Open the file
-    with h5py.File(input_path, "r", libver="latest") as h5file:
-
-        min_frame, max_frame = get_data_range(h5file)
-
-        current_arr = []
-        voltage_arr = []
-
-        # Check if the old or the new approach should be used
-        if not has_voltage_data(h5file):
-
-            # Compute mean voltage from flow in the state
-            current = h5file["data"][str(min_frame)].attrs["total_current"]
-            old_flow = h5file["data"][str(min_frame)].attrs["flow"]
-            old_time = h5file["data"][str(min_frame)].attrs["time"]
-            flow = old_flow
-            time = old_time
-
-            for i, frame in enumerate(range(min_frame + 1, max_frame + 1)):
-                tmp_current = h5file["data"][str(frame)].attrs["total_current"]
-                tmp_flow = h5file["data"][str(frame)].attrs["flow"]
-                tmp_time = h5file["data"][str(frame)].attrs["time"]
-
-                if tmp_current > current:
-                    current_arr.append(current)
-                    voltage_arr.append((flow - old_flow) / (time - old_time))
-                    current = tmp_current
-                    old_time = tmp_time
-                    old_flow = tmp_flow
-
-                time = tmp_time
-                flow = tmp_flow
-
-            # Add last point
-            current_arr.append(current)
-            voltage_arr.append((flow - old_flow) / (time - old_time))
-
-        else:
-
-            # Compute the mean voltage from the voltage
-            for i in range(1, max_frame + 1):
-                current_arr = np.concatenate(
-                    [current_arr, h5file["data"][str(i)]["total_current"]]
-                )
-
-                voltage_arr = np.concatenate(
-                    [voltage_arr, h5file["data"][str(i)]["voltage"]]
-                )
-
-            current_arr, voltage_arr, counts = sum_contributions(
-                current_arr, voltage_arr
-            )
-            voltage_arr /= counts
-
-    return np.asarray(current_arr), np.asarray(voltage_arr)
-
-
-def get_magnetic_field(input_path: str, frame: int) -> float:
-    # Open the file
-    with h5py.File(input_path, "r", libver="latest") as h5file:
-        return h5file["data"][str(frame)].attrs["magnetic field"]
-
-
-def auto_grid(
-    num_plots: int,
-    max_cols: int = 3,
-    **kwargs,
-) -> Tuple[plt.Figure, np.ndarray]:
-    """Creates a grid of at least ``num_plots`` subplots
-    with at most ``max_cols`` columns.
-    Additional keyword arguments are passed to plt.subplots().
-    Args:
-        num_plots: Total number of plots that will be populated.
-        max_cols: Maximum number of columns in the grid.
-    Returns:
-        matplotlib figure and axes
-    """
-    ncols = min(max_cols, num_plots)
-    nrows = int(np.ceil(num_plots / ncols))
-    fig, axes = plt.subplots(nrows, ncols, **kwargs)
-    if not isinstance(axes, (list, np.ndarray)):
-        axes = np.array([axes])
-    return fig, axes
