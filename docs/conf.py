@@ -36,6 +36,11 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+html_logo = "images/logo-transparent-small.png"
+html_theme_options = {
+    "logo_only": False,
+    "display_version": False,
+}
 
 napoleon_use_param = True
 
@@ -45,10 +50,13 @@ autodoc_member_order = "bysource"
 
 autodoc_typehints = "description"
 
-nbsphinx_execute = "always"
+nbsphinx_execute = "never"
 
 nbsphinx_execute_arguments = [
     "--InlineBackend.figure_formats={'retina', 'png'}",
+    "import matplotlib.pyplot as plt",
+    "plt.rcParams['figure.figsize'] = (6, 4)",
+    "plt.rcParams['font.size'] = 10",
 ]
 
 math_eqref_format = "Eq. {number}"

@@ -1,6 +1,6 @@
-notebooks/
-notebooks/**/*.h5
-notebooks/**/*.json
+# ./notebooks/
+./notebooks/**/*.h5
+./notebooks/**/*.json
 results/
 videos/
 .DS_Store

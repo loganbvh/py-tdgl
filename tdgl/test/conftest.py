@@ -60,3 +60,71 @@ def transport_device_solution(transport_device):
         )
 
     return solution
+
+
+@pytest.fixture(scope="package")
+def box_device():
+    london_lambda = 5
+    xi = 1.5
+    d = 0.1
+    layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
+    film = tdgl.Polygon("film", points=box(10))
+    device = tdgl.Device("film", layer=layer, film=film)
+    device.make_mesh(min_points=2000, optimesh_steps=40, max_edge_length=xi / 2)
+    return device
+
+
+@pytest.fixture(scope="package")
+def box_device_solution_no_screening(box_device):
+    device = box_device
+    dt = 1e-3
+    total_time = 20
+
+    options = tdgl.SolverOptions(
+        dt_min=dt,
+        dt_max=10 * dt,
+        skip_time=0 * total_time / 2,
+        total_time=total_time,
+        adaptive_window=1,
+        save_every=100,
+    )
+    solution = tdgl.solve(
+        device,
+        "output1.h5",
+        options,
+        applied_vector_potential=tdgl.sources.ConstantField(50),
+        field_units="uT",
+        gamma=10,
+        source_drain_current=0,
+        current_units="uA",
+        include_screening=False,
+    )
+    return solution
+
+
+@pytest.fixture(scope="package")
+def box_device_solution_with_screening(box_device):
+    device = box_device
+    dt = 1e-3
+    total_time = 20
+
+    options = tdgl.SolverOptions(
+        dt_min=dt,
+        dt_max=10 * dt,
+        skip_time=0 * total_time / 2,
+        total_time=total_time,
+        adaptive_window=1,
+        save_every=100,
+    )
+    solution = tdgl.solve(
+        device,
+        "output1.h5",
+        options,
+        applied_vector_potential=tdgl.sources.ConstantField(50),
+        field_units="uT",
+        gamma=10,
+        source_drain_current=0,
+        current_units="uA",
+        include_screening=True,
+    )
+    return solution

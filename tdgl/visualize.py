@@ -75,7 +75,7 @@ def make_parser():
     )
 
     animate_parser.add_argument(
-        "-f", "--fps", type=int, default=10, help="Frame rate of the animation."
+        "-f", "--fps", type=int, default=30, help="Frame rate of the animation."
     )
 
     animate_parser.add_argument(
@@ -211,7 +211,7 @@ def animate_tdgl(args):
         gpu=args.gpu,
         skip=args.skip,
     )
-    if len(kwargs["observables"]) == 1 and "ALL" not in kwargs["observables"][0]:
+    if len(args.observables) == 1 and "ALL" not in args.observables[0]:
         kwargs["observable"] = Observable.from_key(args.observables[0])
         Animate(**kwargs).build()
         return

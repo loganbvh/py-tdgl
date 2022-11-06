@@ -260,8 +260,8 @@ def solve(
         step = state["step"]
         time = state["time"]
         current = current_density_scale * current_func(time)
-        running_state.append("current", current)
-        state["current"] = current
+        running_state.append("total_current", current)
+        state["total_current"] = current
 
         mu_boundary[input_edges_index] = current
         mu_boundary[output_edges_index] = -current
@@ -361,14 +361,14 @@ def solve(
         fixed_values=(vector_potential,),
         fixed_names=("applied_vector_potential",),
         state={
-            "current": current_density_scale * current_func(0),
+            "total_current": current_density_scale * current_func(0),
             "flow": 0,
             "u": u,
             "gamma": gamma,
         },
         running_names=(
             "voltage",
-            "current",
+            "total_current",
             "dt",
         ),
         logger=logger,

@@ -481,7 +481,7 @@ def plot_order_parameter(
     shading: str = "gouraud",
     **kwargs,
 ) -> Tuple[plt.Figure, np.ndarray]:
-    """Plots the magnitude squared and the phase of the complex order parameter,
+    """Plots the magnitude and phase of the complex order parameter,
     :math:`\\psi=|\\psi|e^{i\\theta}`.
 
     Args:
@@ -497,7 +497,7 @@ def plot_order_parameter(
     kwargs.setdefault("constrained_layout", True)
     device = solution.device
     psi = solution.tdgl_data.psi
-    ns = np.abs(psi) ** 2
+    ns = np.abs(psi)
     phase = np.angle(psi) / np.pi
     points = device.points
     triangles = device.triangles
@@ -513,7 +513,7 @@ def plot_order_parameter(
         shading=shading,
     )
     cbar = fig.colorbar(im, ax=axes[0])
-    cbar.set_label("$|\\psi|^2$")
+    cbar.set_label("$|\\psi|$")
 
     im = axes[1].tripcolor(
         points[:, 0],

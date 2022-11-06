@@ -52,7 +52,10 @@ class Animate:
             self.logger.info("NVIDIA GPU acceleration is enabled.")
 
         # Open the file
-        with h5py.File(self.input_file, "r", libver="latest") as h5file:
+        with (
+            h5py.File(self.input_file, "r", libver="latest") as h5file,
+            plt.ioff(),
+        ):
 
             # Get the mesh
             if "mesh" in h5file:
@@ -70,6 +73,7 @@ class Animate:
             temp_value[1] = 0.5
 
             fig, ax = plt.subplots()
+
             fig.subplots_adjust(top=0.8)
             triplot = ax.tripcolor(
                 mesh.x,
@@ -85,6 +89,8 @@ class Animate:
             ax.set_aspect("equal")
 
             def update(frame):
+                if not h5file:
+                    return
                 value, direction, limits = get_plot_data(
                     h5file, mesh, self.observable, frame
                 )
@@ -124,6 +130,8 @@ class MultiAnimate:
         max_cols: int = 4,
         skip: int = 0,
         gpu: bool = False,
+        quiver: bool = False,
+        full_title: bool = True,
         logger: Optional[Logger] = None,
         silent: bool = False,
         figure_kwargs: Optional[Dict[str, Any]] = None,
@@ -140,6 +148,8 @@ class MultiAnimate:
         self.dpi = dpi
         self.skip = skip
         self.gpu = gpu
+        self.quiver = quiver
+        self.full_title = full_title
         self.silent = silent
         self.logger = logger if logger is not None else logging.getLogger()
         self.figure_kwargs = figure_kwargs or dict()
@@ -163,7 +173,10 @@ class MultiAnimate:
             self.logger.info("NVIDIA GPU acceleration is enabled.")
 
         # Open the file
-        with h5py.File(self.input_file, "r", libver="latest") as h5file:
+        with (
+            h5py.File(self.input_file, "r", libver="latest") as h5file,
+            plt.ioff(),
+        ):
 
             # Get the mesh
             if "mesh" in h5file:
@@ -197,9 +210,15 @@ class MultiAnimate:
                     shading="gouraud",
                     cmap=opts.cmap,
                 )
-                # quiver = ax.quiver(
-                #     mesh.x, mesh.y, temp_value, temp_value, scale=0.05, units="dots"
-                # )
+                if self.quiver:
+                    quiver = ax.quiver(
+                        mesh.x,
+                        mesh.y,
+                        temp_value,
+                        temp_value,
+                        scale=0.05,
+                        units="dots",
+                    )
                 cbar = fig.colorbar(
                     collection, ax=ax, format=FuncFormatter("{:.2f}".format)
                 )
@@ -212,7 +231,11 @@ class MultiAnimate:
             vmaxs = [-np.inf for _ in self.observables]
 
             def update(frame):
+                if not h5file:
+                    return
                 state = get_state_string(h5file, frame, max_frame)
+                if not self.full_title:
+                    state = state.split(",")[0]
                 fig.suptitle(state)
                 for i, (observable, collection) in enumerate(
                     zip(self.observables, collections)
@@ -224,7 +247,8 @@ class MultiAnimate:
                     vmaxs[i] = max(vmaxs[i], limits[1])
                     collection.set_array(value)
                     collection.set_clim(vmins[i], vmaxs[i])
-                # quiver.set_UVC(direction[:, 0], direction[:, 1])
+                if self.quiver:
+                    quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 
             with tqdm(

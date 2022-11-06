@@ -9,6 +9,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pint
+from IPython.display import HTML
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
@@ -90,6 +91,7 @@ class Device:
         self.solve_dtype = solve_dtype
 
         self.mesh = None
+        self.mesh_info = None
 
     @property
     def length_units(self) -> str:
@@ -132,7 +134,7 @@ class Device:
         points = self.points
         triangles = self.triangles
         self.layer._coherence_length = value
-        self.mesh = self._create_dimensionless_mesh(points, triangles)
+        self._create_dimensionless_mesh(points, triangles)
 
     @property
     def kappa(self) -> float:
@@ -215,6 +217,13 @@ class Device:
         if self.mesh is None:
             return None
         return self.mesh.edge_mesh.edge_lengths * self.coherence_length
+
+    @property
+    def areas(self) -> Optional[np.ndarray]:
+        """An array of the mesh triangle areas."""
+        if self.mesh is None:
+            return None
+        return self.mesh.areas * self.coherence_length**2
 
     def contains_points(
         self,
@@ -397,7 +406,7 @@ class Device:
         if device.mesh is not None:
             points = device.points
             points += np.array([[dx, dy]])
-            device.mesh = device._create_dimensionless_mesh(points, device.triangles)
+            device._create_dimensionless_mesh(points, device.triangles)
         if dz:
             device.layer.z0 += dz
         return device
@@ -480,7 +489,7 @@ class Device:
             f"Finished generating mesh with {points.shape[0]} points and "
             f"{triangles.shape[0]} triangles."
         )
-        self.mesh = self._create_dimensionless_mesh(points, triangles)
+        self._create_dimensionless_mesh(points, triangles)
 
     def _create_dimensionless_mesh(
         self, points: np.ndarray, triangles: np.ndarray
@@ -519,7 +528,7 @@ class Device:
             ]
             voltage_points = np.array(voltage_points)
 
-        return Mesh.from_triangulation(
+        self.mesh = Mesh.from_triangulation(
             points[:, 0] / self.coherence_length,
             points[:, 1] / self.coherence_length,
             triangles,
@@ -527,6 +536,55 @@ class Device:
             output_edge=output_edge,
             voltage_points=voltage_points,
         )
+
+    def mesh_stats_dict(self) -> Dict[str, Union[int, float, str]]:
+        """Returns a dictionary of information about the mesh."""
+        edge_lengths = self.edge_lengths
+        areas = self.areas
+
+        def _min(arr):
+            if arr is not None:
+                return arr.min()
+
+        def _max(arr):
+            if arr is not None:
+                return arr.max()
+
+        def _mean(arr):
+            if arr is not None:
+                return arr.mean()
+
+        return dict(
+            num_sites=len(self.mesh.x) if self.mesh else None,
+            num_elements=len(self.mesh.elements) if self.mesh else None,
+            min_edge_length=_min(edge_lengths),
+            max_edge_length=_max(edge_lengths),
+            mean_edge_length=_mean(edge_lengths),
+            min_area=_min(areas),
+            max_area=_max(areas),
+            mean_area=_mean(areas),
+            coherence_length=self.coherence_length,
+            length_units=self.length_units,
+        )
+
+    def mesh_stats(self, precision: int = 4) -> HTML:
+        """When called with in Jupyter notebook, displays
+        a table of information about the mesh.
+
+        Args:
+            precision: Number of digits after the decimal for float values.
+
+        Returns:
+            An HTML table of mesh statistics.
+        """
+        stats = self.mesh_stats_dict()
+        html = ["<table>"]
+        for key, value in stats.items():
+            if isinstance(value, float):
+                value = f"{value:.{precision}f}"
+            html.append(f"<tr><td><b>{key}</b></td><td>{value}</td></tr>")
+        html.append("</table>")
+        return HTML("".join(html))
 
     def plot(
         self,

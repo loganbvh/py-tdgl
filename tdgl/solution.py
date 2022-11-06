@@ -22,9 +22,11 @@ from .finite_volume.matrices import build_gradient
 from .parameter import Parameter
 from .solver.runner import SolverOptions
 from .visualization.helpers import (
+    DynamicsData,
     TDGLData,
     get_data_range,
     get_edge_observable_data,
+    load_running_state_data,
     load_state_data,
     load_tdgl_data,
 )
@@ -117,6 +119,7 @@ class Solution:
         self.total_seconds = total_seconds
 
         self.tdgl_data: Optional[TDGLData] = None
+        self.dynamics: Optional[DynamicsData] = None
         self.state: Optional[dict[str, Any]] = None
         self._solve_step: int = -1
         self.load_tdgl_data(self._solve_step)
@@ -144,6 +147,7 @@ class Solution:
                 step = solve_step
             self.tdgl_data = load_tdgl_data(f, step)
             self.state = load_state_data(f, step)
+            self.dynamics = load_running_state_data(f, step_min, step_max)
         mesh = self.device.mesh
         device = self.device
         self._solve_step = step

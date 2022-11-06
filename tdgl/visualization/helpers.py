@@ -1,4 +1,5 @@
-from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
@@ -20,17 +21,29 @@ class TDGLData(NamedTuple):
     normal_current: np.ndarray
 
 
+@dataclass
+class DynamicsData:
+    dt: np.ndarray
+    time: np.ndarray = field(init=False)
+    current: np.ndarray
+    voltage: np.ndarray
+
+    def __post_init__(self):
+        self.time = np.cumsum(self.dt)
+
+    def mean_voltage(self, indices: Union[np.ndarray, slice, None] = None) -> float:
+        if indices is None:
+            indices = slice(None)
+        return np.average(self.voltage[indices], weights=self.dt[indices])
+
+
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:
-    keys = np.asarray(list(int(key) for key in h5file["data"]))
-
-    minimum = np.min(keys)
-    maximum = np.max(keys)
-
-    return minimum, maximum
+    keys = np.asarray([int(key) for key in h5file["data"]])
+    return np.min(keys), np.max(keys)
 
 
 def has_voltage_data(h5file: h5py.File) -> bool:
-    return "voltage" in h5file["data"]["1"] and "current" in h5file["data"]["1"]
+    return "voltage" in h5file["data"]["1"] and "total_current" in h5file["data"]["1"]
 
 
 def load_tdgl_data(
@@ -47,6 +60,28 @@ def load_tdgl_data(
         return default
 
     return TDGLData(*map(get, TDGLData._fields))
+
+
+def load_running_state_data(
+    h5file: h5py.File, step_min: Optional[int] = None, step_max: Optional[int] = None
+):
+    dts = []
+    currents = []
+    voltages = []
+    if step_min is None:
+        step_min, step_max = get_data_range(h5file)
+    for i in range(step_min, step_max + 1):
+        grp = h5file[f"data/{i}"]
+        if "dt" in grp:
+            dts.append(np.asarray(grp["dt"]))
+            currents.append(np.asarray(grp["total_current"]))
+            voltages.append(np.asarray(grp["voltage"]))
+    dt = np.concatenate(dts)
+    mask = dt > 0
+    dt = dt[mask]
+    current = np.concatenate(currents)[mask]
+    voltage = np.concatenate(voltages)[mask]
+    return DynamicsData(dt, current, voltage)
 
 
 def load_state_data(h5file: h5py.File, step: int) -> Dict[str, Any]:
@@ -207,14 +242,14 @@ def get_mean_voltage(input_path: str) -> Tuple[np.ndarray, np.ndarray]:
         if not has_voltage_data(h5file):
 
             # Compute mean voltage from flow in the state
-            current = h5file["data"][str(min_frame)].attrs["current"]
+            current = h5file["data"][str(min_frame)].attrs["total_current"]
             old_flow = h5file["data"][str(min_frame)].attrs["flow"]
             old_time = h5file["data"][str(min_frame)].attrs["time"]
             flow = old_flow
             time = old_time
 
             for i, frame in enumerate(range(min_frame + 1, max_frame + 1)):
-                tmp_current = h5file["data"][str(frame)].attrs["current"]
+                tmp_current = h5file["data"][str(frame)].attrs["total_current"]
                 tmp_flow = h5file["data"][str(frame)].attrs["flow"]
                 tmp_time = h5file["data"][str(frame)].attrs["time"]
 
@@ -237,7 +272,7 @@ def get_mean_voltage(input_path: str) -> Tuple[np.ndarray, np.ndarray]:
             # Compute the mean voltage from the voltage
             for i in range(1, max_frame + 1):
                 current_arr = np.concatenate(
-                    [current_arr, h5file["data"][str(i)]["current"]]
+                    [current_arr, h5file["data"][str(i)]["total_current"]]
                 )
 
                 voltage_arr = np.concatenate(

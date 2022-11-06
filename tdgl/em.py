@@ -328,7 +328,13 @@ def uniform_Bz_vector_potential(
         Bz = ureg(Bz)
     if isinstance(Bz, float):
         Bz = Bz * ureg("tesla")
-    Ax = -Bz * positions[:, 1] / 2
-    Ay = Bz * positions[:, 0] / 2
+    xs = positions[:, 0]
+    ys = positions[:, 1]
+    dx = np.ptp(xs)
+    dy = np.ptp(ys)
+    xs = xs - (xs.min() + dx / 2)
+    ys = ys - (ys.min() + dy / 2)
+    Ax = -Bz * ys / 2
+    Ay = Bz * xs / 2
     A = np.stack([Ax, Ay, np.zeros_like(Ax)], axis=1)
     return A.to("tesla * meter")
