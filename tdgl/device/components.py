@@ -84,7 +84,7 @@ class Layer:
             coherence_length=h5_group.attrs["coherence_length"],
             thickness=h5_group.attrs["thickness"],
             u=h5_group.attrs["u"],
-            gammga=h5_group.attrs["gamma"],
+            gamma=h5_group.attrs["gamma"],
             z0=h5_group.attrs["z0"],
         )
 
@@ -110,9 +110,10 @@ class Layer:
             f"london_lambda={self.london_lambda:.3f}, "
             f"coherence_length={self.coherence_length:.3f}, "
             f"thickness={self.thickness:.3f}, "
-            f"u={self.u:.3f}, ",
-            f"gamma={self.gamma:.3f}, ",
-            f"z0={self.z0:.3f}" f")",
+            f"u={self.u:.3f}, "
+            f"gamma={self.gamma:.3f}, "
+            f"z0={self.z0:.3f}"
+            f")"
         )
 
 
