@@ -32,7 +32,6 @@ def test_source_drain_current(transport_device, current, field):
             options,
             applied_vector_potential=field,
             field_units="uT",
-            gamma=10,
             source_drain_current=current,
             current_units="uA",
             include_screening=False,

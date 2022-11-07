@@ -212,7 +212,9 @@ def solve(
                 f"Expected pinning sites to be a callable or str, "
                 f"but got {type(pinning_sites)}."
             )
-        pinning_sites_density = ureg(pinning_sites).to(f"{device.length_units}**(-2)")
+        pinning_sites_density = (
+            ureg(pinning_sites).to(f"{device.length_units}**(-2)").magnitude
+        )
         site_areas = xi**2 * mesh.areas[interior_indices]
         total_area = site_areas.sum()
         n_pinning_sites = int(pinning_sites_density * total_area)

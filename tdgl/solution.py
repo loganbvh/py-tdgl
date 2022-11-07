@@ -764,7 +764,7 @@ class Solution:
                 group,
                 self.path,
             )
-            group.attrs["rng_seed"] = self.rng_seed
+            group.attrs["rng_seed"] = str(self.rng_seed)
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
 
@@ -776,7 +776,7 @@ class Solution:
             path: Path to the HDF5 file containing a serialized Solution.
 
         Returns:
-            The loaded Solution instance
+            The loaded Solution instance.
         """
 
         def deserialize_func(name, fname, h5group, path):
@@ -785,7 +785,7 @@ class Solution:
                 return h5group.attrs[name]
             elif f"{name}.pickle" in h5group.attrs:
                 # See: https://docs.h5py.org/en/2.8.0/strings.html
-                return pickle.loads(grp.attrs[name].tobytes())
+                return pickle.loads(grp.attrs[f"{name}.pickle"].tobytes())
             elif pickle_path in os.listdir(os.path.dirname(path)):
                 with open(pickle_path, "rb") as f:
                     return pickle.load(f)
@@ -809,7 +809,7 @@ class Solution:
                 "source_drain_current", fname, grp, path
             )
             pinning_sites = deserialize_func("pinning_sites", fname, grp, path)
-            rng_seed = grp.attrs["rng_seed"]
+            rng_seed = int(grp.attrs["rng_seed"])
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])
 
