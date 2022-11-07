@@ -78,8 +78,10 @@ class Solution:
         applied_vector_potential: The ``Parameter`` defining the applied vector potential.
         source_drain_current: A scalar or function with signature func(time) -> current
             representing the source-drain current in units of ``current_units``.
+        pinning_sites: The string or callable specifying pinning sites.
         field_units: Units of the applied field
         current_units: Units used for current quantities.
+        rng_seed: The RNG seed used for the simulation.
         total_seconds: The total wall time in seconds.
         solver: The solver method that generated the solution.
     """
@@ -92,8 +94,10 @@ class Solution:
         options: SolverOptions,
         applied_vector_potential: Parameter,
         source_drain_current: Union[float, Callable],
+        pinning_sites: Union[str, Callable],
         field_units: str,
         current_units: str,
+        rng_seed: int,
         total_seconds: float,
         solver: str = "tdgl.solve",
     ):
@@ -103,6 +107,7 @@ class Solution:
         self.path = filename
         self.applied_vector_potential = applied_vector_potential
         self.source_drain_current = source_drain_current
+        self.pinning_sites = pinning_sites
 
         self.supercurrent_density: Optional[np.ndarray] = None
         self.normal_current_density: Optional[np.ndarray] = None
@@ -113,6 +118,7 @@ class Solution:
         self._field_units = str(field_units)
         self._current_units = str(current_units)
         self._solver = solver
+        self._rng_seed = rng_seed
         self._time_created = datetime.now()
         self.total_seconds = total_seconds
 
@@ -187,6 +193,11 @@ class Solution:
     @solve_step.setter
     def solve_step(self, step: int) -> None:
         self.load_tdgl_data(solve_step=step)
+
+    @property
+    def rng_seed(self) -> int:
+        """The RNG seed used for the simulation."""
+        return self._rng_seed
 
     @property
     def field_units(self) -> str:
@@ -707,9 +718,12 @@ class Solution:
         """
 
         def serialize_func(func, name, h5group, h5path):
+            if not callable(func):
+                h5group.attrs[name] = func
+                return
             try:
                 # See: https://docs.h5py.org/en/2.8.0/strings.html
-                h5group.attrs[name] = np.void(cloudpickle.dumps(func))
+                h5group.attrs[f"{name}.pickle"] = np.void(cloudpickle.dumps(func))
             except RuntimeError as e:
                 dirname = os.path.dirname(h5path)
                 fname = os.path.basename(h5path).replace(".h5", "")
@@ -738,15 +752,19 @@ class Solution:
                 group,
                 self.path,
             )
-            if callable(self.source_drain_current):
-                serialize_func(
-                    self.source_drain_current,
-                    "source_drain_current",
-                    group,
-                    self.path,
-                )
-            else:
-                group.attrs["source_drain_current"] = self.source_drain_current
+            serialize_func(
+                self.source_drain_current,
+                "source_drain_current",
+                group,
+                self.path,
+            )
+            serialize_func(
+                self.pinning_sites,
+                "pinning_sites",
+                group,
+                self.path,
+            )
+            group.attrs["rng_seed"] = self.rng_seed
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
 
@@ -760,9 +778,21 @@ class Solution:
         Returns:
             The loaded Solution instance
         """
+
+        def deserialize_func(name, fname, h5group, path):
+            pickle_path = f"{name}-{fname}.pickle"
+            if name in h5group.attrs:
+                return h5group.attrs[name]
+            elif f"{name}.pickle" in h5group.attrs:
+                # See: https://docs.h5py.org/en/2.8.0/strings.html
+                return pickle.loads(grp.attrs[name].tobytes())
+            elif pickle_path in os.listdir(os.path.dirname(path)):
+                with open(pickle_path, "rb") as f:
+                    return pickle.load(f)
+            raise IOError(f"Unable to load {name} from {path!r}.")
+
         with h5py.File(path, "r", libver="latest") as f:
             fname = os.path.basename(path).replace(".h5", "")
-            pickle_path = f"applied_vector_potential-{fname}.pickle"
             data_grp = f["data"]
             options_kwargs = dict()
             for k, v in data_grp.attrs.items():
@@ -772,30 +802,14 @@ class Solution:
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             current_units = grp.attrs["current_units"]
             field_units = grp.attrs["field_units"]
-            # Load applied vector potential
-            pickle_path = f"applied_vector_potential-{fname}.pickle"
-            if "applied_vector_potential" in grp.attrs:
-                # See: https://docs.h5py.org/en/2.8.0/strings.html
-                vector_potential = pickle.loads(
-                    grp.attrs["applied_vector_potential"].tobytes()
-                )
-            elif pickle_path in os.listdir(os.path.dirname(path)):
-                with open(pickle_path, "rb") as f:
-                    vector_potential = pickle.load(f)
-            else:
-                raise IOError(f"Unable to load applied vector potential from {path!r}.")
-            # Load source-drain current
-            pickle_path = f"source_drain_current-{fname}.pickle"
-            if "source_drain_current" in grp.attrs:
-                source_drain_current = grp.attrs["source_drain_current"]
-                if not isinstance(source_drain_current, (int, float)):
-                    # See: https://docs.h5py.org/en/2.8.0/strings.html
-                    source_drain_current = pickle.loads(source_drain_current.tobytes())
-            elif pickle_path in os.listdir(os.path.dirname(path)):
-                with open(pickle_path, "rb") as f:
-                    source_drain_current = pickle.load(f)
-            else:
-                raise IOError(f"Unable to load applied vector potential from {path!r}.")
+            vector_potential = deserialize_func(
+                "applied_vector_potential", fname, grp, path
+            )
+            source_drain_current = deserialize_func(
+                "source_drain_current", fname, grp, path
+            )
+            pinning_sites = deserialize_func("pinning_sites", fname, grp, path)
+            rng_seed = grp.attrs["rng_seed"]
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])
 
@@ -805,8 +819,10 @@ class Solution:
             options=options,
             applied_vector_potential=vector_potential,
             source_drain_current=source_drain_current,
+            pinning_sites=pinning_sites,
             current_units=current_units,
             field_units=field_units,
+            rng_seed=rng_seed,
             total_seconds=total_seconds,
         )
 
@@ -836,16 +852,16 @@ class Solution:
         if not isinstance(other, Solution):
             return False
 
-        if callable(self.source_drain_current):
-            if not callable(other.source_drain_current):
+        def compare_callables(first, second):
+            if callable(first):
+                if not callable(second):
+                    return False
+                get_code = operator.attrgetter("co_code", "co_consts")
+                if get_code(first.__code__) != get_code(second.__code__):
+                    return False
+            elif first != second:
                 return False
-            get_code = operator.attrgetter("co_code", "co_consts")
-            if get_code(self.source_drain_current.__code__) != get_code(
-                other.source_drain_current.__code__
-            ):
-                return False
-        elif self.source_drain_current != other.source_drain_current:
-            return False
+            return True
 
         if not (
             (self.device == other.device)
@@ -854,6 +870,9 @@ class Solution:
             and (self.path == other.path)
             and (self.solve_step == other.solve_step)
             and (self.applied_vector_potential == other.applied_vector_potential)
+            and compare_callables(self.source_drain_current, other.source_drain_current)
+            and compare_callables(self.pinning_sites, other.pinning_sites)
+            and (self.rng_seed == other.rng_seed)
         ):
             return False
         if require_same_timestamp and (self.time_created != other.time_created):

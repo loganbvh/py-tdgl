@@ -78,9 +78,9 @@ class DynamicsData:
             )
         bx.plot(ts[indices], phases[indices])
         if labels:
-            ax.set_ylabel("Voltage, $V/V_0$")
+            ax.set_ylabel("Voltage, $\\Delta\\mu/V_0$")
             bx.set_xlabel("Time, $t/\\tau$")
-            bx.set_ylabel("Phase difference / $\\pi$")
+            bx.set_ylabel("Phase difference, $\\Delta\\theta/\\pi$")
         if legend:
             ax.legend(loc=0)
         return fig, axes

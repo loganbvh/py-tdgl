@@ -24,6 +24,9 @@ class Layer:
         coherence_length: The superconducting coherence length of the
             film(s) in the layer.
         thickness: The thickness of the layer.
+        u: The ratio of the relaxation times for the order parameter amplitude
+            and phase. This value is 5.79 for dirty superconductors.
+        gamma: This parameter quantifies the effect of phonon-electron scattering.
         z0: Vertical location of the layer.
     """
 
@@ -33,11 +36,15 @@ class Layer:
         london_lambda: float,
         coherence_length: float,
         thickness: float,
+        u: float = 5.79,
+        gamma: float = 10.0,
         z0: float = 0,
     ):
         self.london_lambda = london_lambda
         self._coherence_length = coherence_length
         self.thickness = thickness
+        self.u = u
+        self.gamma = gamma
         self.z0 = z0
 
     @property
@@ -55,6 +62,8 @@ class Layer:
             london_lambda=self.london_lambda,
             coherence_length=self.coherence_length,
             thickness=self.thickness,
+            u=self.u,
+            gamma=self.gamma,
             z0=self.z0,
         )
 
@@ -63,6 +72,8 @@ class Layer:
         h5_group.attrs["london_lambda"] = self.london_lambda
         h5_group.attrs["coherence_length"] = self.coherence_length
         h5_group.attrs["thickness"] = self.thickness
+        h5_group.attrs["u"] = self.u
+        h5_group.attrs["gamma"] = self.gamma
         h5_group.attrs["z0"] = self.z0
 
     @classmethod
@@ -72,6 +83,8 @@ class Layer:
             london_lambda=h5_group.attrs["london_lambda"],
             coherence_length=h5_group.attrs["coherence_length"],
             thickness=h5_group.attrs["thickness"],
+            u=h5_group.attrs["u"],
+            gammga=h5_group.attrs["gamma"],
             z0=h5_group.attrs["z0"],
         )
 
@@ -86,6 +99,8 @@ class Layer:
             self.london_lambda == other.london_lambda
             and self.coherence_length == other.coherence_length
             and self.thickness == other.thickness
+            and self.u == other.u
+            and self.gamma == other.gamma
             and self.z0 == other.z0
         )
 
@@ -95,8 +110,9 @@ class Layer:
             f"london_lambda={self.london_lambda:.3f}, "
             f"coherence_length={self.coherence_length:.3f}, "
             f"thickness={self.thickness:.3f}, "
-            f"z0={self.z0:.3f}"
-            f")"
+            f"u={self.u:.3f}, ",
+            f"gamma={self.gamma:.3f}, ",
+            f"z0={self.z0:.3f}" f")",
         )
 
 

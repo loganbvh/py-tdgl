@@ -210,7 +210,20 @@ a length :math:`\rho_0`, which is the radial distance away from the field source
 
     \mathbf{A}_\mathrm{induced}(\mathbf{r}, t) = \frac{\mu_0}{4\pi}\int_\mathrm{film}\frac{\mathbf{K}(\mathbf{r}', t)}{|\mathbf{r}-\mathbf{r}'|}\,\mathrm{d}^2\mathbf{r}',
 
-where :math:`\mathbf{K}=\mathbf{K}_s+\mathbf{K}_n=d\mathbf{J}=d(\mathbf{J}_s+\mathbf{J}_n)` is the total sheet current density.  
+where :math:`\mathbf{K}=\mathbf{K}_s+\mathbf{K}_n=d\mathbf{J}=d(\mathbf{J}_s+\mathbf{J}_n)` is the total sheet current density.
+
+Fluxoid quantization provides a simple diagnostic to determine whether neglecting screening is a good approximation for a given model.
+
+.. math::
+    :label: fluxoid
+
+    \begin{split}
+    \Phi_C &= \underbrace{\oint_C\mathbf{A}(\mathbf{r})\cdot\mathrm{d}\mathbf{r}}_{\Phi^f_C=\text{flux part}}
+        +\underbrace{\oint_C\mu_0\Lambda(\mathbf{r})\mathbf{K}_s(\mathbf{r})\cdot\mathrm{d}\mathbf{r}}_{\Phi^s_C=\text{supercurrent part}},
+    \end{split}
+
+where :math:`\Lambda(\mathbf{r})=\Lambda_0/|\psi(\mathbf{r})|^2` is the effective magnetic penetration depth and :math:`\Lambda_0` is the
+zero-field effective magnetic penetration depth.
 
 Adaptive time step
 ------------------

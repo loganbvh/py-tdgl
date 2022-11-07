@@ -12,6 +12,8 @@ import pint
 from IPython.display import HTML
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
+from shapely import affinity
+from shapely.geometry import Point
 
 from ..em import ureg
 from ..finite_volume.mesh import Mesh
@@ -337,6 +339,14 @@ class Device:
         device = self.copy()
         for polygon in device.polygons:
             polygon.scale(xfact=xfact, yfact=yfact, origin=origin, inplace=True)
+        if device.voltage_points is not None:
+            points = [
+                affinity.scale(Point(xy), xfact=xfact, yfact=yfact, origin=origin)
+                for xy in device.voltage_points
+            ]
+            device.voltage_points = np.concatenate(
+                [point.coords for point in points], axis=0
+            )
         return device
 
     def rotate(self, degrees: float, origin: Tuple[float, float] = (0, 0)) -> "Device":
@@ -360,6 +370,14 @@ class Device:
         device = self.copy()
         for polygon in device.polygons:
             polygon.rotate(degrees, origin=origin, inplace=True)
+        if self.voltage_points is not None:
+            points = [
+                affinity.rotate(Point(xy), degrees, origin=origin)
+                for xy in self.voltage_points
+            ]
+            device.voltage_points = np.concatenate(
+                [point.coords for point in points], axis=0
+            )
         return device
 
     def translate(
@@ -388,6 +406,8 @@ class Device:
             device = self.copy()
         for polygon in device.polygons:
             polygon.translate(dx, dy, inplace=True)
+        if self.voltage_points is not None:
+            device.voltage_points = self.voltage_points + np.array([[dx, dy]])
         if device.mesh is not None:
             points = device.points
             points += np.array([[dx, dy]])

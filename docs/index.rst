@@ -24,7 +24,7 @@ pyTDGL: 2D time-dependent Ginzburg Landau in Python
    .. notebooks/io.ipynb
    .. notebooks/gpu.ipynb
    .. notebooks/parallel.ipynb
-   .. notebooks/logo.ipynb
+   notebooks/logo.ipynb
 
 
 .. toctree::

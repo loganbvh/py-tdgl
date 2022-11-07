@@ -1,8 +1,9 @@
 import logging
 from datetime import datetime
-from typing import Callable, Optional, Union
+from typing import Callable, Tuple, Union
 
 import numpy as np
+import scipy.sparse as sp
 from scipy import spatial
 from scipy.sparse.linalg import splu
 
@@ -26,15 +27,15 @@ logger = logging.getLogger(__name__)
 
 
 def _solve_for_psi_squared(
-    psi,
-    abs_sq_psi,
-    alpha,
-    gamma,
-    u,
-    mu,
-    dt,
-    psi_laplacian,
-):
+    psi: np.ndarray,
+    abs_sq_psi: np.ndarray,
+    alpha: np.ndarray,
+    gamma: float,
+    u: float,
+    mu: np.ndarray,
+    dt: float,
+    psi_laplacian: sp.spmatrix,
+) -> Tuple[np.ndarray, np.ndarray, Union[np.ndarray, None]]:
     phase = np.exp(-1j * mu * dt)
     z = phase * gamma**2 / 2 * psi
     w = z * abs_sq_psi + phase * (
@@ -56,19 +57,48 @@ def _solve_for_psi_squared(
 
 def solve(
     device: Device,
-    output: str,
+    output_file: str,
     options: SolverOptions,
-    applied_vector_potential: Optional[Callable] = None,
+    applied_vector_potential: Union[Callable, None] = None,
     source_drain_current: Union[float, Callable] = 0,
-    pinning_sites: Union[float, Callable, None] = None,
-    complex_time_scale: float = 5.79,
-    gamma: float = 10.0,
+    pinning_sites: Union[str, Callable, None] = None,
     field_units: str = "mT",
     current_units: str = "uA",
     include_screening: bool = False,
-    seed_solution: Optional[Solution] = None,
-    rng_seed: Optional[int] = None,
+    seed_solution: Union[Solution, None] = None,
+    rng_seed: Union[int, None] = None,
 ):
+    """Solve a TDGL model.
+
+    Args:
+        device: The :class:`tdgl.Device` to solve.
+        output_file: Path to an HDF5 file in which to save the data.
+            If the file name already exists, a unique name will be generated.
+        applied_vector_potential: A function or :class:`tdgl.Parameter` that computes
+            the applied vector potential as a function of position ``(x, y, z)``.
+        source_drain_current: The applied source-drain current. A constant current can
+            be specified by a float. A time-dependent current can be specified by
+            a callable with signature ``source_drain_current(time: float) -> float``,
+            where ``time`` is the dimensionless time.
+        pinning_sites: Pinning sites are sites in the mesh where the order parameter
+            fixed to :math:`\\psi(\\mathbf{r}, t)=0`. If ``pinning_sites``
+            is given as a pint-parseable string with dimensions of ``length ** (-2)``,
+            the argument represents the areal density of pinning sites. A corresponding
+            number of pinning sites will be chose at random according to ``rng_seed``.
+            If ``pinning_sites`` is a callable, it must have a signature
+            ``pinning_sites(r: Sequence[float, float]) -> bool``, where ``r`` is position
+            in the device (in ``device.length_units``). All sites for which
+            ``pinning_sites`` returns ``True`` will be fixed as pinning sites.
+        field_units: The units for magnetic fields.
+        current_units: The units for currents.
+        include_screening: Whether to include screening in the simulation.
+        seed_solution: A :class:`tdgl.Solution` instance to use as the initial state
+            for the simulation.
+        rng_seed: An integer to used as a seed for the pseudorandom number generator.
+
+    Returns:
+        A :class:`tdgl.Solution` instance.
+    """
 
     start_time = datetime.now()
 
@@ -81,6 +111,8 @@ def solve(
     voltage_points = mesh.voltage_points
     length_units = ureg(device.length_units)
     xi = device.coherence_length
+    u = device.layer.u
+    gamma = device.layer.gamma
     K0 = device.K0
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
@@ -89,6 +121,8 @@ def solve(
     edge_positions = np.array([x, y]).T
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
+    current_density_scale = ((ureg(current_units) / length_units) / K0).to_base_units()
+    current_density_scale = current_density_scale.magnitude
     if applied_vector_potential is None:
         applied_vector_potential = ConstantField(
             0,
@@ -104,9 +138,6 @@ def solve(
     if shape != x.shape + (2,):
         raise ValueError(f"Unexpected shape for vector_potential: {shape}.")
 
-    current_density_scale = ((ureg(current_units) / length_units) / K0).to_base_units()
-    current_density_scale = current_density_scale.magnitude
-
     vector_potential = (
         (vector_potential * ureg(field_units) * length_units)
         / (Bc2 * xi * length_units)
@@ -114,11 +145,9 @@ def solve(
     assert "dimensionless" in str(vector_potential.units)
     vector_potential = vector_potential.magnitude
 
-    u = complex_time_scale
-
     data_handler = DataHandler(
         mesh,
-        output_file=output,
+        output_file=output_file,
         save_mesh=True,
         logger=logger,
     )
@@ -155,13 +184,6 @@ def solve(
             device.drain_terminal.contains_points(sites, index=True),
             mesh.boundary_indices,
         )
-        # edge_lengths = device.edge_lengths[ix_boundary]
-        # input_edge_length = edge_lengths[
-        #     device.source_terminal.contains_points(boundary_edge_positions, index=True)
-        # ].sum()
-        # output_edge_length = edge_lengths[
-        #     device.source_terminal.contains_points(boundary_edge_positions, index=True)
-        # ].sum()
 
     if callable(source_drain_current):
         current_func = source_drain_current
@@ -184,27 +206,32 @@ def solve(
         (pinning_sites,) = np.where(pinning_sites)
     else:
         if pinning_sites is None:
-            pinning_sites = 0
+            pinning_sites = f"0 * {device.length_units}**(-2)"
+        if not isinstance(pinning_sites, str):
+            raise ValueError(
+                f"Expected pinning sites to be a callable or str, "
+                f"but got {type(pinning_sites)}."
+            )
+        pinning_sites_density = ureg(pinning_sites).to(f"{device.length_units}**(-2)")
         site_areas = xi**2 * mesh.areas[interior_indices]
         total_area = site_areas.sum()
-        n_pinning_sites = int(pinning_sites * total_area)
+        n_pinning_sites = int(pinning_sites_density * total_area)
         if n_pinning_sites > len(interior_indices):
-            area_units = (ureg(device.length_units) ** 2).units
             raise ValueError(
                 f"The total number of pinning sites ({n_pinning_sites}) for the requested"
-                f" areal density of pinning sites ({pinning_sites:.2f} / {area_units:~P})"
+                f" areal density of pinning sites ({pinning_sites_density:~P})"
                 f" exceeds the total number of interior sites ({len(interior_indices)})."
                 f" Try setting a smaller density of pinning sites."
             )
         rng = np.random.default_rng(rng_seed)
-        pinning_sites = rng.choice(
+        pinning_sites_indices = rng.choice(
             interior_indices,
             size=n_pinning_sites,
             p=site_areas / total_area,
             replace=False,
         )
 
-    fixed_sites = np.union1d(normal_boundary_index, pinning_sites)
+    fixed_sites = np.union1d(normal_boundary_index, pinning_sites_indices)
 
     # Update the builder and set fixed sites and link variables for
     # the complex field.
@@ -309,7 +336,6 @@ def solve(
             d_theta = np.angle(psi_val[voltage_points[0]]) - np.angle(
                 psi_val[voltage_points[1]]
             )
-        state["flow"] += d_mu * state["dt"]
         running_state.append("voltage", d_mu)
         running_state.append("phase_difference", d_theta)
 
@@ -367,7 +393,6 @@ def solve(
         fixed_names=("applied_vector_potential",),
         state={
             "total_current": current_density_scale * current_func(0),
-            "flow": 0,
             "u": u,
             "gamma": gamma,
         },
@@ -392,6 +417,8 @@ def solve(
         options=options,
         applied_vector_potential=applied_vector_potential,
         source_drain_current=source_drain_current,
+        pinning_sites=pinning_sites,
+        rng_seed=rng_seed,
         total_seconds=(end_time - start_time).total_seconds(),
         field_units=field_units,
         current_units=current_units,
