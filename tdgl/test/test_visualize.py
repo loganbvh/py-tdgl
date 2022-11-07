@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pytest
 
 import tdgl
+from tdgl import visualize
 from tdgl.plot_solution import non_gui_backend
 
 
@@ -77,7 +78,7 @@ def test_bad_input():
 @pytest.mark.parametrize("silent", [False, True])
 @pytest.mark.parametrize("verbose", [False, True])
 def test_interactive(solution, observables, verbose, silent, allow_save):
-    parser = tdgl.visualize.make_parser()
+    parser = visualize.make_parser()
     cmd = ["--input", solution.path, "interactive"]
     if verbose:
         cmd.insert(2, "--verbose")

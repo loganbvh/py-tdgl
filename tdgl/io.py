@@ -40,6 +40,7 @@ class DynamicsData:
     time: np.ndarray = field(init=False)
     current: np.ndarray
     voltage: np.ndarray
+    phase_difference: np.ndarray
 
     def __post_init__(self):
         self.time = np.cumsum(self.dt)
@@ -53,33 +54,36 @@ class DynamicsData:
         self,
         t_min: float = -np.inf,
         t_max: float = +np.inf,
-        ax: Union[plt.Axes, None] = None,
-        grid: bool = True,
-        mean: bool = True,
+        grid: Union[bool, None] = True,
+        mean_voltage: bool = True,
         labels: Union[bool, None] = True,
         legend: bool = False,
-    ) -> plt.Axes:
-        if ax is None:
-            _, ax = plt.subplots()
+    ) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
+        fig, axes = plt.subplots(2, 1, sharex=True)
+        ax, bx = axes
+        if grid is not None:
+            ax.grid(grid)
+            bx.grid(grid)
         ts = self.time
         vs = self.voltage
-        (indices,) = np.where((ts > t_min) & (ts < t_max))
+        phases = np.unwrap(self.phase_difference) / np.pi
+        (indices,) = np.where((ts >= t_min) & (ts <= t_max))
         ax.plot(ts[indices], vs[indices])
-        if mean:
+        if mean_voltage:
             ax.axhline(
                 self.mean_voltage(indices),
                 label="Mean voltage",
                 color="k",
                 ls="--",
             )
+        bx.plot(ts[indices], phases[indices])
         if labels:
-            ax.set_xlabel("Time, $t/\\tau$")
             ax.set_ylabel("Voltage, $V/V_0$")
+            bx.set_xlabel("Time, $t/\\tau$")
+            bx.set_ylabel("Phase difference / $\\pi$")
         if legend:
             ax.legend(loc=0)
-        if grid is not None:
-            ax.grid(grid)
-        return ax
+        return fig, axes
 
     @staticmethod
     def from_hdf5(
@@ -90,6 +94,7 @@ class DynamicsData:
         dts = []
         currents = []
         voltages = []
+        phases = []
         if step_min is None:
             step_min, step_max = get_data_range(h5file)
         for i in range(step_min, step_max + 1):
@@ -98,12 +103,14 @@ class DynamicsData:
                 dts.append(np.asarray(grp["dt"]))
                 currents.append(np.asarray(grp["total_current"]))
                 voltages.append(np.asarray(grp["voltage"]))
+                phases.append(np.asarray(grp["phase_difference"]))
         dt = np.concatenate(dts)
         mask = dt > 0
         dt = dt[mask]
         current = np.concatenate(currents)[mask]
         voltage = np.concatenate(voltages)[mask]
-        return DynamicsData(dt, current, voltage)
+        phase = np.concatenate(phases)[mask]
+        return DynamicsData(dt, current, voltage, phase)
 
 
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:

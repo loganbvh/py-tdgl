@@ -303,10 +303,15 @@ def solve(
         # Update the voltage
         if device.voltage_points is None:
             d_mu = 0
+            d_theta = 0
         else:
             d_mu = mu_val[voltage_points[0]] - mu_val[voltage_points[1]]
+            d_theta = np.angle(psi_val[voltage_points[0]]) - np.angle(
+                psi_val[voltage_points[1]]
+            )
         state["flow"] += d_mu * state["dt"]
         running_state.append("voltage", d_mu)
+        running_state.append("phase_difference", d_theta)
 
         if include_screening:
             # Update the vector potential and link variables.
@@ -368,6 +373,7 @@ def solve(
         },
         running_names=(
             "voltage",
+            "phase_difference",
             "total_current",
             "dt",
         ),
