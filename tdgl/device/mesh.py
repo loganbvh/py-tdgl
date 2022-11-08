@@ -115,7 +115,7 @@ def generate_mesh(
             f"{triangles.shape[0]} triangles with maximum edge length: "
             f"{max_length:.2e}. Target maximum edge length: {max_edge_length:.2e}."
         )
-        kwargs["max_volume"] *= 0.98
+        kwargs["max_volume"] *= 0.95
         i += 1
     return points, triangles
 

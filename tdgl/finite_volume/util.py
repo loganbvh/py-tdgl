@@ -221,38 +221,13 @@ def get_convex_polygon_area(x: np.ndarray, y: np.ndarray) -> Tuple[float, bool]:
         The area of the polygon or the convex hull.
     """
     try:
-        hull = ConvexHull(np.array([x, y]).transpose())
+        hull = ConvexHull(np.array([x, y]).T)
     except QhullError:
-        # Handle error when all points is on a line
+        # Handle error when all points lie on a line
         return 0, True
     else:
         is_convex = len(hull.vertices) == len(x)
         return hull.volume, is_convex
-
-
-def sum_contributions(
-    groups: np.ndarray, values: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Sum all contributions from value over each group.
-
-    Args:
-        groups: The groups to get the summed values for. Must be a one
-            dimensional vector.
-        values: The values for each item. Must be a one dimensional vector.
-
-    Returns:
-        A tuple of groups, group values, and counts.
-    """
-
-    # Get the unique groups and the corresponding indices
-    unique_groups, idx, counts = np.unique(
-        groups, return_inverse=True, return_counts=True
-    )
-
-    # Sum each unique group
-    group_values = np.bincount(idx, weights=values)
-
-    return unique_groups, group_values, counts
 
 
 def get_supercurrent(

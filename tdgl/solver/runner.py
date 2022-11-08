@@ -1,6 +1,7 @@
 import itertools
 import logging
 import os
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -27,7 +28,7 @@ class DataHandler:
     def __init__(
         self,
         input_value: Union[Mesh, str],
-        output_file: str,
+        output_file: Union[str, None],
         save_mesh: bool = True,
         logger: Optional[logging.Logger] = None,
     ):
@@ -39,12 +40,13 @@ class DataHandler:
             self.mesh = input_value
 
         self.output_file = None
+        self.tempdir = None
         self.mesh_group = None
         self.time_step_group = None
         self.save_number = 0
         self.logger = logger if logger is not None else logging.getLogger()
 
-        self.output_file, self.output_path = self.__create_output_file(
+        self.output_file, self.output_path = self._create_output_file(
             output_file, self.logger
         )
         self.time_step_group = self.output_file.create_group("data")
@@ -54,9 +56,8 @@ class DataHandler:
         else:
             self.mesh_group = None
 
-    @classmethod
-    def __create_output_file(
-        cls, output: str, logger: logging.Logger
+    def _create_output_file(
+        self, output: str, logger: logging.Logger
     ) -> Tuple[h5py.File, str]:
         """Create an output file.
 
@@ -68,13 +69,18 @@ class DataHandler:
             A file handle.
         """
 
-        # Make sure the directory exists
-        Path(output).parent.mkdir(parents=True, exist_ok=True)
-
-        # Split the output into file name and suffix
-        name_parts = output.split(".")
-        name = ".".join(name_parts[:-1])
-        suffix = name_parts[-1]
+        if output is None:
+            self.tempdir = directory = tempfile.TemporaryDirectory()
+            name = "output"
+            suffix = "h5"
+        else:
+            # Make sure the directory exists
+            Path(output).parent.mkdir(parents=True, exist_ok=True)
+            # Split the output into file name and suffix
+            name_parts = output.split(".")
+            name = ".".join(name_parts[:-1])
+            suffix = name_parts[-1]
+            directory = os.getcwd()
 
         # Number to be added to the end of file name
         # If this is None do not add the number
@@ -84,7 +90,7 @@ class DataHandler:
             # Create a new file name
             name_suffix = f"-{serial_number}" if serial_number is not None else ""
             file_name = f"{name}{name_suffix}.{suffix}"
-            file_path = os.path.join(os.getcwd(), file_name)
+            file_path = os.path.join(directory, file_name)
 
             try:
                 file = h5py.File(file_path, "x", libver="latest")
@@ -101,23 +107,10 @@ class DataHandler:
                     )
             return file, file_path
 
-    @classmethod
-    def __get_save_number_stored(cls, h5group: h5py.Group) -> int:
-        keys = np.asarray(list(int(key) for key in h5group))
-        return np.max(keys)
-
     def close(self):
         self.output_file.close()
-
-    def get_last_step(self) -> h5py.Group:
-        last_save_number = self.__get_save_number_stored(self.time_step_group)
-        return self.time_step_group[f"{last_save_number}"]
-
-    def get_mesh(self) -> Mesh:
-        return self.mesh
-
-    def get_voltage_points(self) -> np.ndarray:
-        return self.mesh.voltage_points
+        if self.tempdir is not None:
+            self.tempdir.cleanup()
 
     def save_time_step(self, state: Dict[str, float], data: Dict[str, np.ndarray]):
         group = self.time_step_group.create_group(f"{self.save_number}")

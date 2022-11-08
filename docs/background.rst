@@ -52,7 +52,8 @@ is the covariant gradient of :math:`\psi`.
 Boundary conditions
 ===================
 
-Isolating boundary conditions are enforced on superconductor-vacuum interfaces:
+Isolating boundary conditions are enforced on superconductor-vacuum interfaces,
+in form of Neumann boundary conditions for :math:`\psi` and :math:`\mu`:
 
 .. math::
     :label: bc-vacuum
@@ -62,7 +63,8 @@ Isolating boundary conditions are enforced on superconductor-vacuum interfaces:
         \mathbf{n}\cdot\nabla\mu &= 0
     \end{split}
 
-Superconductor-normal metal interfaces can be used to apply a bias current density :math:`J_\mathrm{ext}`. For such interfaces, the boundary conditions are:
+Superconductor-normal metal interfaces can be used to apply a bias current density :math:`J_\mathrm{ext}`.
+For such interfaces, we impose Dirichlet boundary conditions on :math:`\psi` and Neumann boundary conditions on :math:`\mu`:
 
 .. math::
     :label: bc-normal
@@ -118,7 +120,7 @@ Sheet current density is measured in units of :math:`K_0=J_0 d`:
 
 where :math:`\Lambda=\lambda^2/d` is the effective magnetic penetration depth.
 
-Voltage is measured in terms of :math:`V_0=\xi J_0/\sigma`:
+Voltage is measured in units of :math:`V_0=\xi J_0/\sigma`:
 
 .. math::
     :label: V0
@@ -145,9 +147,9 @@ than to any other site in the mesh. The side of the Voronoi region that intersec
   :align: center
 
 A scalar function :math:`f(\mathbf{r}, t)` can be discretized at a given time :math:`t_n`
-as the value of the function on each site, :math:`f_i^n=f(\mathbf{r}_i, t_n)`. A vector function :math:`\mathbf{F}(\mathbf{r}, t)`
-can be discretized at time :math:`t_n` as the flow of the vector field between sites.
-In other words, :math:`F_{ij}^n=\mathbf{F}((\mathbf{r}_i+\mathbf{r}_j)/2, t_n)\cdot\hat{e}_{ij}`, where :math:`(\mathbf{r}_i+\mathbf{r}_j)/2=r_{ij}`
+as the value of the function on each site, :math:`f_{\mathbf{r}_i}^n=f(\mathbf{r}_i, t_n)`.
+A vector function :math:`\mathbf{F}(\mathbf{r}, t)` can be discretized at time :math:`t_n` as the flow of the vector field between sites.
+In other words, :math:`F_{\mathbf{r}_{ij}}^n=\mathbf{F}((\mathbf{r}_i+\mathbf{r}_j)/2, t_n)\cdot\hat{e}_{ij}`, where :math:`(\mathbf{r}_i+\mathbf{r}_j)/2=\mathbf{r}_{ij}`
 is the center of edge :math:`(i, j)`.
 
 To calculate the divergence of a vector field :math:`\mathbf{F}(\mathbf{r})` on the mesh, we assume that

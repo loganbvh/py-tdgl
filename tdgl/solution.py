@@ -73,7 +73,7 @@ class Solution:
 
     Args:
         device: The ``Device`` that was solved
-        filename: Path to the HDF5 file corresponding to the solution.
+        path: Path to the HDF5 file corresponding to the solution.
         options: ``SolverOptions`` instance.
         applied_vector_potential: The ``Parameter`` defining the applied vector potential.
         source_drain_current: A scalar or function with signature func(time) -> current
@@ -90,7 +90,7 @@ class Solution:
         self,
         *,
         device: Device,
-        filename: os.PathLike,
+        path: os.PathLike,
         options: SolverOptions,
         applied_vector_potential: Parameter,
         source_drain_current: Union[float, Callable],
@@ -104,7 +104,7 @@ class Solution:
         self.device = device.copy()
         self.device.mesh = device.mesh
         self.options = options
-        self.path = filename
+        self.path = path
         self.applied_vector_potential = applied_vector_potential
         self.source_drain_current = source_drain_current
         self.pinning_sites = pinning_sites
@@ -129,6 +129,10 @@ class Solution:
         self.load_tdgl_data(self._solve_step)
 
         self._version_info = version_dict()
+
+    @property
+    def saved_on_disk(self) -> bool:
+        return os.path.exists(self.path)
 
     @property
     def solve_step(self) -> int:
@@ -768,6 +772,11 @@ class Solution:
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
 
+    def delete_hdf5(self) -> None:
+        """Delete the HDF5 file accompanying the ``Solution``."""
+        if self.saved_on_disk:
+            os.remove(self.path)
+
     @classmethod
     def from_hdf5(cls, path: os.PathLike) -> "Solution":
         """Loads a Solution from file.
@@ -815,7 +824,7 @@ class Solution:
 
         solution = Solution(
             device=device,
-            filename=path,
+            path=path,
             options=options,
             applied_vector_potential=vector_potential,
             source_drain_current=source_drain_current,

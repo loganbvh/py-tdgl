@@ -583,7 +583,7 @@ class Device:
             An HTML table of mesh statistics.
         """
         stats = self.mesh_stats_dict()
-        html = ["<table>"]
+        html = ["<table>", "<tr><b>Mesh Statistics</b></tr>"]
         for key, value in stats.items():
             if isinstance(value, float):
                 value = f"{value:.{precision}e}"

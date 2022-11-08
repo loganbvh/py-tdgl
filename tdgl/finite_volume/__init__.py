@@ -13,6 +13,5 @@ from .util import (
     get_supercurrent,
     get_surrounding_voronoi_polygons,
     mass_matrix,
-    sum_contributions,
     triangle_areas,
 )

@@ -137,7 +137,6 @@ def solve(
     shape = vector_potential.shape
     if shape != x.shape + (2,):
         raise ValueError(f"Unexpected shape for vector_potential: {shape}.")
-
     vector_potential = (
         (vector_potential * ureg(field_units) * length_units)
         / (Bc2 * xi * length_units)
@@ -151,7 +150,6 @@ def solve(
         save_mesh=True,
         logger=logger,
     )
-
     builder = MatrixBuilder(mesh)
     mu_laplacian, _ = builder.build(MatrixType.LAPLACIAN)
     mu_laplacian = mu_laplacian.asformat("csc", copy=False)
@@ -159,7 +157,7 @@ def solve(
     mu_boundary_laplacian = builder.build(MatrixType.NEUMANN_BOUNDARY_LAPLACIAN)
     mu_gradient = builder.build(MatrixType.GRADIENT)
     divergence = builder.build(MatrixType.DIVERGENCE)
-
+    # Find the source and drain terminal sites.
     if device.source_terminal is None:
         input_edges_index = np.array([], dtype=np.int64)
         output_edges_index = np.array([], dtype=np.int64)
@@ -184,7 +182,14 @@ def solve(
             device.drain_terminal.contains_points(sites, index=True),
             mesh.boundary_indices,
         )
+    normal_boundary_index = np.sort(
+        np.concatenate([input_sites_index, output_sites_index])
+    ).astype(np.int64)
+    interior_indices = np.setdiff1d(
+        np.arange(mesh.x.shape[0], dtype=int), normal_boundary_index
+    )
 
+    # Define the source-drain current.
     if callable(source_drain_current):
         current_func = source_drain_current
     else:
@@ -193,14 +198,7 @@ def solve(
         def current_func(t):
             return source_drain_current
 
-    normal_boundary_index = np.sort(
-        np.concatenate([input_sites_index, output_sites_index])
-    ).astype(np.int64)
-
-    interior_indices = np.setdiff1d(
-        np.arange(mesh.x.shape[0], dtype=int), normal_boundary_index
-    )
-
+    # Define the pinning sites.
     if callable(pinning_sites):
         pinning_sites = np.apply_along_axis(pinning_sites, 1, sites).astype(bool)
         (pinning_sites,) = np.where(pinning_sites)
@@ -234,7 +232,6 @@ def solve(
         )
 
     fixed_sites = np.union1d(normal_boundary_index, pinning_sites_indices)
-
     # Update the builder and set fixed sites and link variables for
     # the complex field.
     builder = builder.with_dirichlet_boundary(
@@ -248,12 +245,12 @@ def solve(
     psi[fixed_sites] = 0
     mu = np.zeros(len(mesh.x))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=np.float64)
-
     # Create the alpha parameter which weakens the complex field if it
-    # is less than unity.
+    # is less than one.
     alpha = np.ones_like(mesh.x, dtype=np.float64)
 
     if include_screening:
+        # Pre-compute the kernel for the screening integral.
         edge_points = np.array([mesh.edge_mesh.x, mesh.edge_mesh.y]).T
         edge_directions = mesh.edge_mesh.directions
         edge_directions = (
@@ -271,11 +268,16 @@ def solve(
         if jax is None:
             einsum = np.einsum
         else:
+            # Even without a GPU, jax.numpy.einsum seems to be much faster
+            # than numpy.einsum.
             einsum = jnp.einsum
             inv_rho = jax.device_put(inv_rho)
 
+    # Running list of the max abs change in |psi|^2 between subsequent solve steps.
+    # This list is used to calculate the adaptive time step.
     d_psi_sq_vals = []
 
+    # This is the function called at each step of the solver.
     def update(
         state,
         running_state,
@@ -288,15 +290,18 @@ def solve(
     ):
         step = state["step"]
         time = state["time"]
+        # Compute the current density for this step
+        # and update the current boundary conditions.
         current = current_density_scale * current_func(time)
         running_state.append("total_current", current)
         state["total_current"] = current
-
         mu_boundary[input_edges_index] = current
         mu_boundary[output_edges_index] = -current
 
+        # If screening is included, update the link variables in the covariant
+        # Laplacian and gradient for psi based on the induced vector potential
+        # from the previous iteration.
         nonlocal psi_laplacian, psi_gradient, free_rows
-
         if include_screening and step > 0:
             builder.link_exponents = vector_potential + induced_vector_potential_val
             psi_laplacian, _ = builder.build(MatrixType.LAPLACIAN, free_rows=free_rows)
@@ -309,6 +314,7 @@ def solve(
         z, w, new_sq_psi = _solve_for_psi_squared(
             psi_val, abs_sq_psi, alpha, gamma, u, mu_val, dt_val, psi_laplacian
         )
+        # Adjust the time step if the calculation failed to converge.
         while new_sq_psi is None:
             old_dt = dt_val
             dt_val = max(options.dt_min, dt_val / 2)
@@ -320,16 +326,14 @@ def solve(
                 psi_val, abs_sq_psi, alpha, gamma, u, mu_val, dt_val, psi_laplacian
             )
         psi_val = w - z * new_sq_psi
-
         running_state.append("dt", dt_val)
-        # Get the supercurrent
+        # Compute the supercurrent and scalar potential
         supercurrent_val = get_supercurrent(psi_val, psi_gradient, mesh.edge_mesh.edges)
         supercurrent_divergence = divergence @ supercurrent_val
-        # Solve for mu
         lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
         mu_val = mu_laplacian_lu.solve(lhs)
-        normal_current_val = -mu_gradient @ mu_val
-        # Update the voltage
+        normal_current_val = -(mu_gradient @ mu_val)
+        # Update the voltage and phase difference
         if device.voltage_points is None:
             d_mu = 0
             d_theta = 0
@@ -341,15 +345,16 @@ def solve(
         running_state.append("voltage", d_mu)
         running_state.append("phase_difference", d_theta)
 
+        # If screening is included, update the vector potential and link variables.
         if include_screening:
-            # Update the vector potential and link variables.
             # 3D current density
             J_site = mesh.get_observable_on_site(supercurrent_val + normal_current_val)
             # i: edges, j: sites, k: spatial dimensions
             induced_vector_potential_val = np.asarray(
                 einsum("jk, ijk -> ik", J_site, inv_rho)
             )
-
+        # Compute the max abs change in |psi|^2, averaged over the adaptive window,
+        # and use it to select a new time step.
         d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
         d_psi_sq_vals.append(d_psi_sq)
         if step > options.adaptive_window:
@@ -367,6 +372,7 @@ def solve(
             dt_val,
         )
 
+    # Set the initial conditions.
     if seed_solution is None:
         parameters = {
             "psi": psi,
@@ -415,7 +421,7 @@ def solve(
 
     solution = Solution(
         device=device,
-        filename=data_handler.output_path,
+        path=data_handler.output_path,
         options=options,
         applied_vector_potential=applied_vector_potential,
         source_drain_current=source_drain_current,
