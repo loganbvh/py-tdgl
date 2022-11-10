@@ -1,8 +1,8 @@
 .. _background:
 
-**********
-Background
-**********
+**********************
+Theoretical Background
+**********************
 
 Here we sketch out the generalized time-dependent Ginzburg-Landau model implemented in ``pyTDGL``, and the numerical methods used to solve it.
 This material is largely based on the following references: [Jonsson-PRA-2022]_, [Jonsson-PHD-2022]_.
