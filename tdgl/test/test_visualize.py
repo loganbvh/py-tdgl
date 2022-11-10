@@ -24,10 +24,8 @@ def solution(transport_device, tempdir):
     total_time = 10
 
     options = tdgl.SolverOptions(
-        dt_min=dt,
-        dt_max=10 * dt,
-        total_time=total_time,
-        adaptive_window=1,
+        dt_init=dt,
+        solve_time=total_time,
         save_every=100,
     )
     field = tdgl.sources.ConstantField(10)

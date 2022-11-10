@@ -38,10 +38,8 @@ def transport_device_solution(transport_device):
     total_time = 100
 
     options = tdgl.SolverOptions(
-        dt_min=dt,
-        dt_max=10 * dt,
-        total_time=total_time,
-        adaptive_window=1,
+        dt_init=dt,
+        solve_time=total_time,
         save_every=100,
     )
     field = tdgl.sources.ConstantField(10)
@@ -80,11 +78,8 @@ def box_device_solution_no_screening(box_device):
     total_time = 20
 
     options = tdgl.SolverOptions(
-        dt_min=dt,
-        dt_max=10 * dt,
-        skip_time=0 * total_time / 2,
-        total_time=total_time,
-        adaptive_window=1,
+        dt_init=dt,
+        solve_time=total_time,
         save_every=100,
     )
     solution = tdgl.solve(
@@ -107,11 +102,8 @@ def box_device_solution_with_screening(box_device):
     total_time = 20
 
     options = tdgl.SolverOptions(
-        dt_min=dt,
-        dt_max=10 * dt,
-        skip_time=0 * total_time / 2,
-        total_time=total_time,
-        adaptive_window=1,
+        dt_init=dt,
+        solve_time=total_time,
         save_every=100,
     )
     solution = tdgl.solve(

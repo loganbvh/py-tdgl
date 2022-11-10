@@ -47,22 +47,17 @@ def build_gradient(mesh: Mesh, link_exponents: Union[np.ndarray, None] = None):
     Returns:
         The gradient matrix.
     """
-
     edge_mesh = mesh.edge_mesh
-    # Indices for each edge
     edge_indices = np.arange(len(edge_mesh.edges))
-    # Compute the weights for each edge
     weights = 1 / edge_mesh.edge_lengths
-    # Compute the link variable weights
-    link_variable_weights = (
-        np.exp(-1j * (np.asarray(link_exponents) * edge_mesh.directions).sum(axis=1))
-        if link_exponents is not None
-        else np.ones(len(weights))
-    )
-    # Rows and cols to update
+    if link_exponents is None:
+        link_variable_weights = np.ones(len(weights))
+    else:
+        link_variable_weights = np.exp(
+            -1j * (np.asarray(link_exponents) * edge_mesh.directions).sum(axis=1)
+        )
     rows = np.concatenate([edge_indices, edge_indices])
     cols = np.concatenate([edge_mesh.edges[:, 1], edge_mesh.edges[:, 0]])
-    # The values
     values = np.concatenate([link_variable_weights * weights, -weights])
     return sp.csr_matrix(
         (values, (rows, cols)), shape=(len(edge_mesh.edges), len(mesh.x))
@@ -96,15 +91,13 @@ def build_laplacian(
         fixed_sites = np.array([], dtype=int)
 
     edge_mesh = mesh.edge_mesh
-    # Compute the weights for each edge
     weights = edge_mesh.dual_edge_lengths / edge_mesh.edge_lengths
-    # Compute the link variable weights
-    link_variable_weights = (
-        np.exp(-1j * (link_exponents * edge_mesh.directions).sum(axis=1))
-        if link_exponents is not None
-        else np.ones(len(weights))
-    )
-
+    if link_exponents is None:
+        link_variable_weights = np.ones(len(weights))
+    else:
+        link_variable_weights = np.exp(
+            -1j * (np.asarray(link_exponents) * edge_mesh.directions).sum(axis=1)
+        )
     edges0 = edge_mesh.edges[:, 0]
     edges1 = edge_mesh.edges[:, 1]
     rows = np.concatenate([edges0, edges1, edges0, edges1])

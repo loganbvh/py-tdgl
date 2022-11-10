@@ -35,23 +35,27 @@ def _solve_for_psi_squared(
     mu: np.ndarray,
     dt: float,
     psi_laplacian: sp.spmatrix,
-) -> Tuple[np.ndarray, np.ndarray, Union[np.ndarray, None]]:
+) -> Tuple[Union[np.ndarray, None], Union[np.ndarray, None], Union[np.ndarray, None]]:
     phase = np.exp(-1j * mu * dt)
     z = phase * gamma**2 / 2 * psi
-    w = z * abs_sq_psi + phase * (
-        psi
-        + (dt / u)
-        * np.sqrt(1 + gamma**2 * abs_sq_psi)
-        * ((alpha - abs_sq_psi) * psi + psi_laplacian @ psi)
-    )
-    c = w.real * z.real + w.imag * z.imag
-    # Find the modulus squared for the next time step
-    two_c_1 = 2 * c + 1
-    w2 = np.abs(w) ** 2
-    sqrt_arg = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
-    if np.any(sqrt_arg < 0):
-        return z, w, None
-    new_sq_psi = (2 * w2) / (two_c_1 + np.sqrt(sqrt_arg))
+    with np.errstate(all="raise"):
+        try:
+            w = z * abs_sq_psi + phase * (
+                psi
+                + (dt / u)
+                * np.sqrt(1 + gamma**2 * abs_sq_psi)
+                * ((alpha - abs_sq_psi) * psi + psi_laplacian @ psi)
+            )
+            c = w.real * z.real + w.imag * z.imag
+            # Find the modulus squared for the next time step
+            two_c_1 = 2 * c + 1
+            w2 = np.abs(w) ** 2
+            discriminant = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
+        except FloatingPointError:
+            return None, None, None
+    if np.any(discriminant < 0):
+        return None, None, None
+    new_sq_psi = (2 * w2) / (two_c_1 + np.sqrt(discriminant))
     return z, w, new_sq_psi
 
 
@@ -105,6 +109,8 @@ def solve(
     if rng_seed is None:
         rng_seed = np.random.SeedSequence().entropy
 
+    options.validate()
+
     ureg = device.ureg
     mesh = device.mesh
     sites = device.points
@@ -143,6 +149,13 @@ def solve(
     ).to_base_units()
     assert "dimensionless" in str(vector_potential.units)
     vector_potential = vector_potential.magnitude
+
+    if options.adaptive:
+        dt_max = options.dt_max
+        max_solve_retries = options.max_solve_retries
+    else:
+        dt_max = options.dt_init
+        max_solve_retries = 0
 
     data_handler = DataHandler(
         mesh,
@@ -190,6 +203,10 @@ def solve(
     )
 
     # Define the source-drain current.
+    if source_drain_current and device.voltage_points is None:
+        logger.warning(
+            "The source-drain current is non-null, but the device has no voltage points."
+        )
     if callable(source_drain_current):
         current_func = source_drain_current
     else:
@@ -200,8 +217,8 @@ def solve(
 
     # Define the pinning sites.
     if callable(pinning_sites):
-        pinning_sites = np.apply_along_axis(pinning_sites, 1, sites).astype(bool)
-        (pinning_sites,) = np.where(pinning_sites)
+        pinning_sites_indices = np.apply_along_axis(pinning_sites, 1, sites)
+        (pinning_sites_indices,) = np.where(pinning_sites_indices.astype(bool))
     else:
         if pinning_sites is None:
             pinning_sites = f"0 * {device.length_units}**(-2)"
@@ -315,9 +332,17 @@ def solve(
             psi_val, abs_sq_psi, alpha, gamma, u, mu_val, dt_val, psi_laplacian
         )
         # Adjust the time step if the calculation failed to converge.
+        retries = 0
         while new_sq_psi is None:
+            retries += 1
+            if retries > max_solve_retries:
+                raise RuntimeError(
+                    f"Solver failed to converge in {options.max_solve_retries} retries at"
+                    f" step {step} with dt = {dt_val:.3e}."
+                    f" Try using a smaller dt_init."
+                )
             old_dt = dt_val
-            dt_val = max(options.dt_min, dt_val / 2)
+            dt_val = dt_val / 2
             logger.debug(
                 f"\nFailed to converge at step {step} with dt = {old_dt:.3e}."
                 f" Retrying with dt = {dt_val:.3e}."
@@ -353,15 +378,16 @@ def solve(
             induced_vector_potential_val = np.asarray(
                 einsum("jk, ijk -> ik", J_site, inv_rho)
             )
-        # Compute the max abs change in |psi|^2, averaged over the adaptive window,
-        # and use it to select a new time step.
-        d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
-        d_psi_sq_vals.append(d_psi_sq)
-        if step > options.adaptive_window:
-            new_dt = options.dt_min / max(
-                1e-10, 1e3 * np.mean(d_psi_sq_vals[-options.adaptive_window :])
-            )
-            dt_val = max(options.dt_min, min(options.dt_max, new_dt))
+        if options.adaptive:
+            # Compute the max abs change in |psi|^2, averaged over the adaptive window,
+            # and use it to select a new time step.
+            d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
+            d_psi_sq_vals.append(d_psi_sq)
+            if step > options.adaptive_window:
+                new_dt = options.dt_init / max(
+                    1e-10, np.mean(d_psi_sq_vals[-options.adaptive_window :])
+                )
+                dt_val = np.clip(new_dt, 0, dt_max)
 
         return (
             psi_val,

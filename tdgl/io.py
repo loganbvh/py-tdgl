@@ -54,16 +54,15 @@ class DynamicsData:
         self,
         t_min: float = -np.inf,
         t_max: float = +np.inf,
-        grid: Union[bool, None] = True,
+        grid: bool = True,
         mean_voltage: bool = True,
-        labels: Union[bool, None] = True,
+        labels: bool = True,
         legend: bool = False,
     ) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
         fig, axes = plt.subplots(2, 1, sharex=True)
         ax, bx = axes
-        if grid is not None:
-            ax.grid(grid)
-            bx.grid(grid)
+        ax.grid(grid)
+        bx.grid(grid)
         ts = self.time
         vs = self.voltage
         phases = np.unwrap(self.phase_difference) / np.pi
@@ -78,12 +77,29 @@ class DynamicsData:
             )
         bx.plot(ts[indices], phases[indices])
         if labels:
-            ax.set_ylabel("Voltage, $\\Delta\\mu/V_0$")
-            bx.set_xlabel("Time, $t/\\tau$")
-            bx.set_ylabel("Phase difference, $\\Delta\\theta/\\pi$")
+            ax.set_ylabel("Voltage\n$\\Delta\\mu/V_0$")
+            bx.set_xlabel("Time, $t/\\tau_0$")
+            bx.set_ylabel("Phase difference\n$\\Delta\\theta/\\pi$")
         if legend:
             ax.legend(loc=0)
         return fig, axes
+
+    def plot_dt(
+        self,
+        t_min: float = -np.inf,
+        t_max: float = +np.inf,
+        grid: bool = True,
+        labels: bool = True,
+    ) -> Tuple[plt.Figure, plt.Axes]:
+        fig, ax = plt.subplots()
+        ax.grid(grid)
+        ts = self.time
+        (indices,) = np.where((ts >= t_min) & (ts <= t_max))
+        ax.plot(ts[indices], self.dt[indices])
+        if labels:
+            ax.set_xlabel("Time, $t/\\tau_0$")
+            ax.set_ylabel("Time step, $\\Delta t/\\tau_0$")
+        return fig, ax
 
     @staticmethod
     def from_hdf5(

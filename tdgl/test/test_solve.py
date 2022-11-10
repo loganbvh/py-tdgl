@@ -16,10 +16,8 @@ def test_source_drain_current(transport_device, current, field):
     total_time = 100
 
     options = tdgl.SolverOptions(
-        dt_min=dt,
-        dt_max=10 * dt,
-        total_time=total_time,
-        adaptive_window=1,
+        dt_init=dt,
+        solve_time=total_time,
         save_every=100,
     )
     if field is not None:

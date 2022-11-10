@@ -212,7 +212,7 @@ class Runner:
         # Set the initial data.
         self.time = 0
         self.options = options
-        self.dt = self.options.dt_min
+        self.dt = self.options.dt_init
         self.function = function
         self.values = initial_values
         self.names = names
@@ -234,12 +234,10 @@ class Runner:
         self.state["time"] = self.time
         self.state["dt"] = self.dt
         # Thermalize if enabled.
-        if self.options.skip_steps or self.options.skip_time:
+        if self.options.skip_time:
             self._run_stage_(
                 "Thermalizing",
-                start_step=0,
                 start_time=self.time,
-                end_step=self.options.skip_steps,
                 end_time=self.options.skip_time,
                 save=False,
             )
@@ -251,28 +249,22 @@ class Runner:
         # Run simulation.
         self._run_stage_(
             "Simulating",
-            start_step=0,
             start_time=self.time,
-            end_step=self.options.steps,
-            end_time=self.options.total_time,
+            end_time=self.options.solve_time,
             save=True,
         )
 
     def _run_stage_(
         self,
         name: str,
-        start_step: Optional[int] = None,
-        end_step: Optional[int] = None,
-        start_time: Optional[float] = None,
-        end_time: Optional[float] = None,
+        start_time: float,
+        end_time: float,
         save: bool = True,
     ) -> None:
         """Run a stage of the simulation.
 
         Args:
             name: Name of the solver stage.
-            start_step: Start step.
-            end_step: End step.
             start_time: Start time.
             end_time: End time.
             save: If the data should be saved.
@@ -283,27 +275,12 @@ class Runner:
             and self.options.progress_interval > 0
         )
         now = None
-        if end_step is None and end_time is None:
-            raise ValueError("Either 'end_step' or 'end_time' must be specified.")
-        if end_step is not None and end_time is not None:
-            raise ValueError(
-                "Either 'end_step' or 'end_time' must be specified (but not both)."
-            )
-        if end_step is not None:
-            initial = start_step
-            total = end_step + 1
-            bar_format = None
-            unit = "it"
-            it = range(start_step, end_step + 1)
-        else:
-            initial = start_time
-            total = end_time
-            r_bar = (
-                "| {n:.0f}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt} {postfix}]"
-            )
-            unit = "tau"
-            bar_format = "{l_bar}{bar}" + r_bar
-            it = itertools.count()
+        initial = start_time
+        total = end_time
+        r_bar = "| {n:.0f}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt} {postfix}]"
+        unit = "tau"
+        bar_format = "{l_bar}{bar}" + r_bar
+        it = itertools.count()
 
         def save_step(step):
             data = dict(zip(self.names, self.values))
@@ -336,16 +313,10 @@ class Runner:
                         speed = 0
                     else:
                         speed = self.options.progress_interval / (now - then)
-                    if end_step is None:
-                        self.logger.info(
-                            f"{name}: Time {self.time}/{end_time}, "
-                            f"dt={self.dt:.2e}, {speed:.2f} it/s"
-                        )
-                    else:
-                        self.logger.info(
-                            f"{name}: Iteration {i}/{end_step + 1}, "
-                            f"dt={self.dt:.2e}, {speed:.2f} it/s"
-                        )
+                    self.logger.info(
+                        f"{name}: Time {self.time}/{end_time}, "
+                        f"dt={self.dt:.2e}, {speed:.2f} it/s"
+                    )
                 # Save data
                 if i % self.options.save_every == 0:
                     if save:
@@ -359,18 +330,13 @@ class Runner:
                 )
                 *self.values, new_dt = function_result
 
-                if end_step is None:
-                    # tqdm will spit out a warning if you try to update past "total"
-                    if self.time + self.dt < end_time:
-                        pbar.update(self.dt)
-                    else:
-                        pbar.update(end_time - self.time)
+                # tqdm will spit out a warning if you try to update past "total"
+                if self.time + self.dt < end_time:
+                    pbar.update(self.dt)
                 else:
-                    pbar.update(1)
+                    pbar.update(end_time - self.time)
 
-                if self.options.dt_max is not None:
-                    self.dt = max(self.options.dt_min, min(self.options.dt_max, new_dt))
-
+                self.dt = new_dt
                 if self.time >= end_time:
                     if save and not saved_this_iteration:
                         save_step(i)
