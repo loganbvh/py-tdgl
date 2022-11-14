@@ -26,8 +26,6 @@ class Mesh:
         dual_mesh: The dual mesh.
         edge_mesh: The edge mesh.
         voltage_points: Points to use when measuring voltage.
-        input_edge: Location for the current input.
-        output_edge: Location for the current output.
     """
 
     def __init__(
@@ -40,8 +38,6 @@ class Mesh:
         dual_mesh: DualMesh,
         edge_mesh: EdgeMesh,
         voltage_points: Optional[np.ndarray] = None,
-        input_edge: Optional[np.ndarray] = None,
-        output_edge: Optional[np.ndarray] = None,
     ):
         # Store the data
         self.x = np.asarray(x)
@@ -55,8 +51,6 @@ class Mesh:
         self.edge_mesh = edge_mesh
         self.areas = np.asarray(areas)
         self.voltage_points = voltage_points
-        self.input_edge = input_edge
-        self.output_edge = output_edge
 
     @classmethod
     def from_triangulation(
@@ -65,8 +59,6 @@ class Mesh:
         y: Sequence[float],
         elements: Sequence[Tuple[int, int, int]],
         voltage_points: Optional[np.ndarray] = None,
-        input_edge: Optional[np.ndarray] = None,
-        output_edge: Optional[np.ndarray] = None,
     ) -> "Mesh":
         """Create a triangular mesh from the coordinates of the triangle vertices
         and a list of indices corresponding to the vertices that connect to triangles.
@@ -79,8 +71,6 @@ class Mesh:
                 triangle connecting vertices 0, 1, and 2 and another triangle
                 connecting vertices 0, 1, and 3.
             voltage_points: Points to use when measuring voltage.
-            input_edge: Location for the current input.
-            output_edge: Location for the current output
         """
         # Store the data
         x = np.asarray(x)
@@ -129,8 +119,6 @@ class Mesh:
             dual_mesh=dual_mesh,
             areas=areas,
             voltage_points=voltage_points,
-            input_edge=input_edge,
-            output_edge=output_edge,
         )
 
     @staticmethod
@@ -225,11 +213,6 @@ class Mesh:
         h5group["elements"] = self.elements
         if self.voltage_points is not None:
             h5group["voltage_points"] = self.voltage_points
-        if self.input_edge is not None:
-            h5group["input_edge"] = self.input_edge
-        if self.output_edge is not None:
-            h5group["output_edge"] = self.output_edge
-
         if not compress:
             h5group["boundary_indices"] = self.boundary_indices
             h5group["areas"] = self.areas
@@ -267,8 +250,6 @@ class Mesh:
                 dual_mesh=DualMesh.load_from_hdf5(h5group["dual_mesh"]),
                 edge_mesh=EdgeMesh.load_from_hdf5(h5group["edge_mesh"]),
                 voltage_points=get("voltage_points"),
-                input_edge=get("input_edge"),
-                output_edge=get("output_edge"),
             )
         # Recreate mesh from triangulation data if not all data is available
         return Mesh.from_triangulation(
@@ -276,8 +257,6 @@ class Mesh:
             y=np.asarray(h5group["y"]).flatten(),
             elements=h5group["elements"],
             voltage_points=get("voltage_points"),
-            input_edge=get("input_edge"),
-            output_edge=get("output_edge"),
         )
 
     @staticmethod

@@ -27,13 +27,17 @@ def solution(transport_device, tempdir):
     )
     field = tdgl.sources.ConstantField(10)
     fname = os.path.join(tempdir, "output.h5")
+
+    def terminal_currents(time):
+        return dict(source=10, drain=-10)
+
     solution = tdgl.solve(
         device,
         fname,
         options,
         applied_vector_potential=field,
         field_units="uT",
-        source_drain_current=lambda t: 10,
+        terminal_currents=terminal_currents,
         current_units="uA",
         include_screening=False,
     )

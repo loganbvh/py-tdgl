@@ -38,7 +38,6 @@ class TDGLData:
 class DynamicsData:
     dt: np.ndarray
     time: np.ndarray = field(init=False)
-    current: np.ndarray
     voltage: np.ndarray
     phase_difference: np.ndarray
 
@@ -108,7 +107,6 @@ class DynamicsData:
         step_max: Optional[int] = None,
     ) -> "DynamicsData":
         dts = []
-        currents = []
         voltages = []
         phases = []
         if step_min is None:
@@ -117,16 +115,14 @@ class DynamicsData:
             grp = h5file[f"data/{i}"]
             if "dt" in grp:
                 dts.append(np.asarray(grp["dt"]))
-                currents.append(np.asarray(grp["total_current"]))
                 voltages.append(np.asarray(grp["voltage"]))
                 phases.append(np.asarray(grp["phase_difference"]))
         dt = np.concatenate(dts)
         mask = dt > 0
         dt = dt[mask]
-        current = np.concatenate(currents)[mask]
         voltage = np.concatenate(voltages)[mask]
         phase = np.concatenate(phases)[mask]
-        return DynamicsData(dt, current, voltage, phase)
+        return DynamicsData(dt, voltage, phase)
 
 
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:

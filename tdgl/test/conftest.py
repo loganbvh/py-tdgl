@@ -14,20 +14,19 @@ def transport_device():
     d = 0.5
 
     layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
-    film = tdgl.Polygon("film", points=box(10)).union(box(30, 4))
+    film = tdgl.Polygon("film", points=box(10)).union(box(30, 4, points_per_side=101))
     hole = tdgl.Polygon("hole1", points=circle(1.5, center=(2, 2)))
-    source = tdgl.Polygon(points=box(1e-2, 4, center=(-15, 0)))
-    drain = source.scale(xfact=-1)
+    source = tdgl.Polygon(points=box(1e-2, 4, center=(-15, 0))).set_name("source")
+    drain = source.scale(xfact=-1).set_name("drain")
 
     device = tdgl.Device(
         "film",
         layer=layer,
         film=film,
         holes=[hole, hole.scale(xfact=-1, yfact=-1).rename("hole2")],
-        source_terminal=source,
-        drain_terminal=drain,
+        terminals=[source, drain],
     )
-    device.make_mesh(min_points=1000, optimesh_steps=40, max_edge_length=xi / 2)
+    device.make_mesh(min_points=2000, optimesh_steps=100, max_edge_length=xi / 2)
     return device
 
 
@@ -51,7 +50,7 @@ def transport_device_solution(transport_device):
             options,
             applied_vector_potential=field,
             field_units="uT",
-            source_drain_current=10,
+            terminal_currents=dict(source=10, drain=-10),
             current_units="uA",
             include_screening=False,
         )
@@ -88,7 +87,7 @@ def box_device_solution_no_screening(box_device):
         options,
         applied_vector_potential=tdgl.sources.ConstantField(50),
         field_units="uT",
-        source_drain_current=0,
+        terminal_currents=None,
         current_units="uA",
         include_screening=False,
     )
@@ -112,7 +111,7 @@ def box_device_solution_with_screening(box_device):
         options,
         applied_vector_potential=tdgl.sources.ConstantField(50),
         field_units="uT",
-        source_drain_current=0,
+        terminal_currents=None,
         current_units="uA",
         include_screening=True,
     )

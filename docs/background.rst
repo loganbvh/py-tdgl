@@ -185,7 +185,7 @@ at position :math:`\mathbf{r}_{ij}` (i.e., the center of edge :math:`(i, j)`) is
 .. math::
     :label: gradient
 
-    (\nabla g)_{ij}=\left.(\nabla g)\right|_{\mathbf{r}_{ij}}\approx\frac{g_j-g_i}{e_{ij}}
+    (\nabla g)_{ij}=\left.(\nabla g)\right|_{\mathbf{r}_{ij}}\approx\frac{g_j-g_i}{e_{ij}}\hat{e}_{ij}
 
 The Laplacian of a scalar function :math:`g` is given by :math:`\nabla^2 g=\nabla\cdot\nabla g`, so combining :eq:`divergence` and :eq:`gradient` we have
 
@@ -352,7 +352,7 @@ in the equilibrium behavior of a system. The dynamics may initially be quite fas
 Using an adaptive time step dramatically reduces the wall-clock time needed to model equilibrium behavior in such instances, without
 sacrificing solution accuracy.
 
-There are three parameters that control the adaptive time step algorithm:
+There are three parameters that control the adaptive time step algorithm, which are defined in :class:`tdgl.SolverOptions`:
 :math:`\Delta t_\mathrm{init}` (``SolverOptions.dt_init``, default: :math:`10^{-4}\tau_0`),
 :math:`\Delta t_\mathrm{max}` (``SolverOptions.dt_max``, default: :math:`10^{-1}\tau_0`),
 and :math:`N_\mathrm{window}` (``SolverOptions.adaptive_window``, default: :math:`10`).

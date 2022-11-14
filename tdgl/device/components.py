@@ -625,6 +625,11 @@ class Polygon:
             mesh=self.mesh,
         )
 
+    def set_name(self, name: Union[str, None]) -> "Polygon":
+        """Sets the ``Poygon``'s name and returns self."""
+        self.name = name
+        return self
+
     def plot(self, ax: Optional[plt.Axes] = None, **kwargs) -> plt.Axes:
         """Plots the Polygon's vertices.
 

@@ -36,7 +36,7 @@ def solution(transport_device, tempdir):
         options,
         applied_vector_potential=field,
         field_units="uT",
-        source_drain_current=lambda t: 10,
+        terminal_currents=dict(source=10, drain=-10),
         current_units="uA",
         include_screening=False,
     )

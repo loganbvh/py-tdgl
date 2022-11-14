@@ -23,6 +23,13 @@ def test_source_drain_current(transport_device, current, field):
     )
     if field is not None:
         field = tdgl.sources.ConstantField(field)
+    if callable(current):
+
+        def terminal_currents(t):
+            return dict(source=current(0), drain=-current(0))
+
+    else:
+        terminal_currents = dict(source=current, drain=-current)
     with tempfile.TemporaryDirectory() as directory:
         fname = os.path.join(directory, "output.h5")
         solution = tdgl.solve(
@@ -31,7 +38,7 @@ def test_source_drain_current(transport_device, current, field):
             options,
             applied_vector_potential=field,
             field_units="uT",
-            source_drain_current=current,
+            terminal_currents=terminal_currents,
             current_units="uA",
             include_screening=False,
         )
@@ -40,10 +47,11 @@ def test_source_drain_current(transport_device, current, field):
         current = current(0)
 
     ys = np.linspace(-5, 5, 501)
+    measured_currents = []
     for x0 in [-8, -2, 0, 2, 8]:
         coords = np.array([x0 * np.ones_like(ys), ys]).T
-        measured_current = np.sum(
-            solution.interp_current_density(coords, units="uA/um")[:, 0]
-            * np.diff(ys, prepend=0)
+        measured_currents.append(
+            solution.current_through_path(coords, with_units=False)
         )
-        assert np.isclose(measured_current, current, rtol=0.1)
+    measured_currents = np.array(measured_currents)
+    assert np.allclose(measured_currents, current, rtol=0.1)

@@ -2,8 +2,8 @@ import logging
 import os
 import warnings
 from contextlib import contextmanager, nullcontext
-from operator import itemgetter
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from operator import attrgetter, itemgetter
+from typing import Any, Dict, List, NamedTuple, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
@@ -23,6 +23,25 @@ from .components import Layer, Polygon
 logger = logging.getLogger(__name__)
 
 
+class TerminalInfo(NamedTuple):
+    """A containter for information about a single current terminal.
+
+    Args:
+        name: The terminal's name.
+        site_indices: An array of indices for mesh sites making up the terminal.
+        edge_indices: An array of indices for mesh edges making up the terminal.
+        boundary_edge_indices: An array of indices of mesh boundary edges making
+            up the terminal.
+        length: The length of the terminal in physical units.
+    """
+
+    name: str
+    site_indices: Sequence[int]
+    edge_indices: Sequence[int]
+    boundary_edge_indices: Sequence[int]
+    length: float
+
+
 class Device:
     """An object representing a device composed of multiple layers of
     thin film superconductor.
@@ -35,16 +54,12 @@ class Device:
         abstract_regions: ``Polygons`` representing abstract regions in a device.
             Abstract regions are areas that can be meshed, but need not correspond
             to any physical structres in the device.
-        source_terminal: A ``Polygon`` representing the current source terminal.
-            Any points that are on the boundary of the mesh and lie inside the
-            source terminal will have current source boundary conditions.
-        drain_terminal: A ``Polygon`` representing the current drain terminal.
-            Any points that are on the boundary of the mesh and lie inside the
-            drain terminal will have current drain boundary conditions.
+        terminals: A sequence of ``Polygosn`` representing the current terminals.
+            Any points that are on the boundary of the mesh and lie inside a
+            terminal will have current source/sink boundary conditions.
         voltage_points: A shape ``(2, 2)`` sequence of floats, with each row
             representing the ``(x, y)`` position of a voltage probe.
         length_units: Distance units for the coordinate system.
-        solve_dtype: The floating point data type to use when solving the device.
     """
 
     ureg = ureg
@@ -55,21 +70,18 @@ class Device:
         *,
         layer: Layer,
         film: Polygon,
-        holes: Optional[List[Polygon]] = None,
-        abstract_regions: Optional[List[Polygon]] = None,
-        source_terminal: Optional[Polygon] = None,
-        drain_terminal: Optional[Polygon] = None,
+        holes: Union[List[Polygon], None] = None,
+        abstract_regions: Union[List[Polygon], None] = None,
+        terminals: Union[List[Polygon], None] = None,
         voltage_points: Sequence[float] = None,
         length_units: str = "um",
-        solve_dtype: Union[str, np.dtype] = "float64",
     ):
         self.name = name
         self.layer = layer
         self.film = film
         self.holes = holes or []
         self.abstract_regions = abstract_regions or []
-        self.source_terminal = source_terminal
-        self.drain_terminal = drain_terminal
+        self.terminals = tuple(terminals or [])
         if voltage_points is not None:
             voltage_points = np.asarray(voltage_points).squeeze()
             if voltage_points.shape != (2, 2):
@@ -79,18 +91,16 @@ class Device:
                 )
         self.voltage_points = voltage_points
 
-        if self.source_terminal is not None:
-            for terminal in [self.source_terminal, self.drain_terminal]:
-                terminal.mesh = False
-            if self.source_terminal.name is None:
-                self.source_terminal.name = "source"
-            if self.drain_terminal.name is None:
-                self.drain_terminal.name = "drain"
+        names = set()
+        for terminal in self.terminals:
+            terminal.mesh = False
+            if terminal.name is None or terminal.name in names:
+                raise ValueError("All terminals must have a unique name")
+            names.add(terminal.name)
 
         # Make units a "read-only" attribute.
         # It should never be changed after instantiation.
         self._length_units = length_units
-        self.solve_dtype = solve_dtype
 
         self.mesh = None
         self.mesh_info = None
@@ -99,19 +109,6 @@ class Device:
     def length_units(self) -> str:
         """Length units used for the device geometry."""
         return self._length_units
-
-    @property
-    def solve_dtype(self) -> np.dtype:
-        """Numpy dtype to use for floating point numbers."""
-        return self._solve_dtype
-
-    @solve_dtype.setter
-    def solve_dtype(self, dtype) -> None:
-        try:
-            _ = np.finfo(dtype)
-        except ValueError as e:
-            raise ValueError(f"Invalid float dtype: {dtype}") from e
-        self._solve_dtype = np.dtype(dtype)
 
     @property
     def coherence_length(self) -> float:
@@ -164,21 +161,46 @@ class Device:
         length_units = ureg(self.length_units)
         xi = self.coherence_length * length_units
         Lambda = self.layer.Lambda * length_units
-        # e = ureg("elementary_charge")
-        # Phi_0 = ureg("Phi_0")
         mu_0 = ureg("mu_0")
         K0 = 4 * xi * self.Bc2 / (mu_0 * Lambda)
-        # K0 = 4 * ureg("hbar") / (2 * mu_0 * e * xi * lambda_**2 / d)
-        # K0 = 4 * Phi_0 / (2 * np.pi * mu_0 * xi * lambda_**2 / d)
-        # K0 = 4 * np.pi * Phi_0 / (2 * np.pi * mu_0 * xi * lambda_**2 / d)
         return K0.to_base_units()
 
-    @property
-    def terminals(self) -> Tuple[Polygon, ...]:
-        """Tuple of ``(source_terminal, drain_terminal)``."""
-        if self.source_terminal is None:
-            return tuple()
-        return (self.source_terminal, self.drain_terminal)
+    def terminal_info(self) -> Tuple[TerminalInfo, ...]:
+        """Returns a tuple of ``TerminalInfo`` objects,
+        one for each current terminal in the device.
+        """
+        xi = self.layer.coherence_length
+        mesh = self.mesh
+        sites = self.points
+        edge_positions = xi * np.array([mesh.edge_mesh.x, mesh.edge_mesh.y]).T
+        ix_boundary = mesh.edge_mesh.boundary_edge_indices
+        edge_lengths = self.edge_lengths[ix_boundary]
+        boundary_edge_positions = edge_positions[ix_boundary]
+        info = []
+        for terminal in self.terminals:
+            # Index into self.points
+            sites_index = np.intersect1d(
+                terminal.contains_points(sites, index=True), mesh.boundary_indices
+            )
+            # Index into self.edges
+            edges_index = np.intersect1d(
+                terminal.contains_points(edge_positions, index=True), ix_boundary
+            )
+            # Index into self.edges[mesh.edge_mesh.boundary_edge_indices]
+            boundary_edges_index = terminal.contains_points(
+                boundary_edge_positions, index=True
+            )
+            length = edge_lengths[boundary_edges_index].sum()
+            info.append(
+                TerminalInfo(
+                    terminal.name,
+                    sites_index,
+                    edges_index,
+                    boundary_edges_index,
+                    length,
+                )
+            )
+        return tuple(sorted(info, key=attrgetter("length")))
 
     @property
     def polygons(self) -> Tuple[Polygon, ...]:
@@ -191,7 +213,7 @@ class Device:
         )
 
     @property
-    def points(self) -> Optional[np.ndarray]:
+    def points(self) -> Union[np.ndarray, None]:
         """The mesh vertex coordinates in ``length_units``
         (shape ``(n, 2)``, type ``float``).
         """
@@ -200,28 +222,28 @@ class Device:
         return self.coherence_length * np.array([self.mesh.x, self.mesh.y]).T
 
     @property
-    def triangles(self) -> Optional[np.ndarray]:
+    def triangles(self) -> Union[np.ndarray, None]:
         """Mesh triangle indices (shape ``(m, 3)``, type ``int``)."""
         if self.mesh is None:
             return None
         return self.mesh.elements
 
     @property
-    def edges(self) -> Optional[np.ndarray]:
+    def edges(self) -> Union[np.ndarray, None]:
         """Mesh edge indices (shape ``(p, 2)``, type ``int``)."""
         if self.mesh is None:
             return None
         return self.mesh.edge_mesh.edges
 
     @property
-    def edge_lengths(self) -> Optional[np.ndarray]:
+    def edge_lengths(self) -> Union[np.ndarray, None]:
         """An array of the mesh vertex-to-vertex distances."""
         if self.mesh is None:
             return None
         return self.mesh.edge_mesh.edge_lengths * self.coherence_length
 
     @property
-    def areas(self) -> Optional[np.ndarray]:
+    def areas(self) -> Union[np.ndarray, None]:
         """An array of the mesh triangle areas."""
         if self.mesh is None:
             return None
@@ -250,7 +272,7 @@ class Device:
         """
         mask = self.film.contains_points(points, radius=radius)
         mask = mask & ~np.logical_or.reduce(
-            [hole.contains_points(points) for hole in self.holes]
+            [hole.contains_points(points, radius=-radius) for hole in self.holes]
         )
         if index:
             return np.where(mask)[0]
@@ -280,11 +302,7 @@ class Device:
         """
         holes = [hole.copy() for hole in self.holes]
         abstract_regions = [region.copy() for region in self.abstract_regions]
-        if self.source_terminal is None:
-            source = drain = None
-        else:
-            source = self.source_terminal.copy()
-            drain = self.drain_terminal.copy()
+        terminals = [term.copy() for term in self.terminals]
         if self.voltage_points is None:
             voltage_points = None
         else:
@@ -296,11 +314,9 @@ class Device:
             film=self.film.copy(),
             holes=holes,
             abstract_regions=abstract_regions,
-            source_terminal=source,
-            drain_terminal=drain,
+            terminals=terminals,
             voltage_points=voltage_points,
             length_units=self.length_units,
-            solve_dtype=self.solve_dtype,
         )
         return device
 
@@ -434,9 +450,9 @@ class Device:
 
     def make_mesh(
         self,
-        max_edge_length: Optional[float] = None,
-        min_points: Optional[float] = None,
-        optimesh_steps: Optional[int] = None,
+        max_edge_length: Union[float, None] = None,
+        min_points: Union[float, None] = None,
+        optimesh_steps: Union[int, None] = None,
         optimesh_method: str = "cvt-block-diagonal",
         optimesh_tolerance: float = 1e-3,
         optimesh_verbose: bool = False,
@@ -508,22 +524,6 @@ class Device:
         Returns:
             The dimensionless ``Mesh`` object.
         """
-        if self.source_terminal is None:
-            if self.drain_terminal is not None:
-                raise ValueError(
-                    "If source_terminal is None, drain_terminal must also be None."
-                )
-            input_edge = None
-            output_edge = None
-        else:
-            if self.drain_terminal is None:
-                raise ValueError(
-                    "If source_terminal is not None, drain_terminal must also be"
-                    " not None."
-                )
-            input_edge = self.source_terminal.contains_points(points, index=True)
-            output_edge = self.drain_terminal.contains_points(points, index=True)
-
         if self.voltage_points is None:
             voltage_points = None
         else:
@@ -537,8 +537,6 @@ class Device:
             points[:, 0] / self.coherence_length,
             points[:, 1] / self.coherence_length,
             triangles,
-            input_edge=input_edge,
-            output_edge=output_edge,
             voltage_points=voltage_points,
         )
 
@@ -593,9 +591,9 @@ class Device:
 
     def plot(
         self,
-        ax: Optional[plt.Axes] = None,
+        ax: Union[plt.Axes, None] = None,
         legend: bool = True,
-        figsize: Optional[Tuple[float, float]] = None,
+        figsize: Union[Tuple[float, float], None] = None,
         mesh: bool = False,
         mesh_kwargs: Dict[str, Any] = dict(color="k", lw=0.5),
         **kwargs,
@@ -644,7 +642,7 @@ class Device:
         return fig, ax
 
     def patches(self) -> Dict[str, PathPatch]:
-        """Returns a dict of ``{film_name: PathPatch}``
+        """Returns a dict of ``{polygon_name: PathPatch}``
         for visualizing the device.
         """
         abstract_regions = self.abstract_regions
@@ -671,11 +669,11 @@ class Device:
 
     def draw(
         self,
-        ax: Optional[plt.Axes] = None,
+        ax: Union[plt.Axes, None] = None,
         legend: bool = True,
-        figsize: Optional[Tuple[float, float]] = None,
+        figsize: Union[Tuple[float, float], None] = None,
         alpha: float = 0.5,
-        exclude: Optional[Union[str, List[str]]] = None,
+        exclude: Union[Union[str, List[str]], None] = None,
     ) -> Tuple[plt.Figure, Union[plt.Axes, np.ndarray]]:
         """Draws all polygons in the device as matplotlib patches.
 
@@ -763,10 +761,9 @@ class Device:
             f.attrs["length_units"] = self.length_units
             self.layer.to_hdf5(f.create_group("layer"))
             self.film.to_hdf5(f.create_group("film"))
-            if self.source_terminal is not None:
-                self.source_terminal.to_hdf5(f.create_group("source_terminal"))
-            if self.drain_terminal is not None:
-                self.drain_terminal.to_hdf5(f.create_group("drain_terminal"))
+            for terminal in self.terminals:
+                terminals_grp = f.require_group("terminals")
+                terminal.to_hdf5(terminals_grp.create_group(terminal.name))
             if self.voltage_points is not None:
                 f["voltage_points"] = self.voltage_points
             for label, polygons in dict(
@@ -799,17 +796,17 @@ class Device:
                     f"{type(path_or_group)}."
                 )
             h5_context = nullcontext(path_or_group)
-        source_terminal = drain_terminal = voltage_points = None
+        terminals = voltage_points = None
         holes = abstract_regions = mesh = None
         with h5_context as f:
             name = f.attrs["name"]
             length_units = f.attrs["length_units"]
             layer = Layer.from_hdf5(f["layer"])
             film = Polygon.from_hdf5(f["film"])
-            if "source_terminal" in f:
-                source_terminal = Polygon.from_hdf5(f["source_terminal"])
-            if "drain_terminal" in f:
-                drain_terminal = Polygon.from_hdf5(f["drain_terminal"])
+            if "terminals" in f:
+                terminals = []
+                for grp in f["terminals"].values():
+                    terminals.append(Polygon.from_hdf5(grp))
             if "holes" in f:
                 holes = [
                     Polygon.from_hdf5(grp)
@@ -833,8 +830,7 @@ class Device:
             film=film,
             holes=holes,
             abstract_regions=abstract_regions,
-            source_terminal=source_terminal,
-            drain_terminal=drain_terminal,
+            terminals=terminals,
             voltage_points=voltage_points,
             length_units=length_units,
         )
@@ -856,11 +852,9 @@ class Device:
             f"film={self.film!r}",
             f"holes={self.holes!r}",
             f"abstract_regions={self.abstract_regions!r}",
-            f"source_terminal={self.source_terminal!r}",
-            f"drain_terminal={self.drain_terminal!r}",
+            f"terminals={self.terminals!r}",
             f"voltage_points={self.voltage_points!r}",
             f"length_units={self.length_units!r}",
-            f"solve_dtype={self.solve_dtype!r}",
         ]
 
         return f"{self.__class__.__name__}(" + nt + (", " + nt).join(args) + ",\n)"
@@ -872,12 +866,16 @@ class Device:
         if not isinstance(other, Device):
             return False
 
+        def compare(seq1, seq2, key="name"):
+            key = attrgetter(key)
+            return sorted(seq1, key=key) == sorted(seq2, key=key)
+
         return (
             self.name == other.name
             and self.layer == other.layer
             and self.film == other.film
-            and self.holes == other.holes
-            and self.abstract_regions == other.abstract_regions
-            and self.terminals == other.terminals
+            and compare(self.holes, other.holes)
+            and compare(self.abstract_regions, other.abstract_regions)
+            and compare(self.terminals, other.terminals)
             and self.length_units == other.length_units
         )

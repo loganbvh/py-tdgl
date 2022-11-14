@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Callable, Tuple, Union
+from typing import Callable, Dict, Sequence, Tuple, Union
 
 import numpy as np
 import scipy.sparse as sp
@@ -13,7 +13,7 @@ try:
 except (ModuleNotFoundError, ImportError):
     jax = None
 
-from ..device.device import Device
+from ..device.device import Device, TerminalInfo
 from ..enums import MatrixType
 from ..finite_volume.matrices import MatrixBuilder
 from ..finite_volume.util import get_supercurrent
@@ -24,6 +24,36 @@ from .options import SolverOptions
 from .runner import DataHandler, Runner
 
 logger = logging.getLogger(__name__)
+
+
+def validate_terminal_currents(
+    terminal_currents: Union[Callable, Dict[str, float]],
+    terminal_info: Sequence[TerminalInfo],
+    solver_options: SolverOptions,
+    num_evals: int = 100,
+):
+    def check_total_current(currents: Dict[str, float]):
+        names = set([t.name for t in terminal_info])
+        if unknown := set(currents).difference(names):
+            raise ValueError(
+                f"Unknown terminal(s) in terminal currents: {list(unknown)}."
+            )
+        if missing := names.difference(set(currents)):
+            raise ValueError(
+                f"Missing terminal(s) in terminal currents: {list(missing)}."
+            )
+        total_current = sum(currents.values())
+        if total_current:
+            raise ValueError(
+                f"The sum of all terminal currents must be 0 (got {total_current:.2e})."
+            )
+
+    if callable(terminal_currents):
+        times = np.random.default_rng().random(num_evals) * solver_options.solve_time
+        for t in times:
+            check_total_current(terminal_currents(t))
+    else:
+        check_total_current(terminal_currents)
 
 
 def _solve_for_psi_squared(
@@ -51,7 +81,8 @@ def _solve_for_psi_squared(
             two_c_1 = 2 * c + 1
             w2 = np.abs(w) ** 2
             discriminant = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
-        except FloatingPointError:
+        except Exception as e:
+            logger.debug(e.with_traceback())
             return None, None, None
     if np.any(discriminant < 0):
         return None, None, None
@@ -64,7 +95,7 @@ def solve(
     output_file: str,
     options: SolverOptions,
     applied_vector_potential: Union[Callable, None] = None,
-    source_drain_current: Union[float, Callable] = 0,
+    terminal_currents: Union[Callable, Dict[str, float], None] = None,
     pinning_sites: Union[str, Callable, None] = None,
     field_units: str = "mT",
     current_units: str = "uA",
@@ -124,10 +155,12 @@ def solve(
     # where the edge coordinates are in dimensionful units.
     x = mesh.edge_mesh.x * xi
     y = mesh.edge_mesh.y * xi
-    edge_positions = np.array([x, y]).T
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
-    current_density_scale = ((ureg(current_units) / length_units) / K0).to_base_units()
+    current_density_scale = (
+        4 * ((ureg(current_units) / length_units) / K0).to_base_units()
+    )
+    assert "dimensionless" in str(current_density_scale.units)
     current_density_scale = current_density_scale.magnitude
     if applied_vector_potential is None:
         applied_vector_potential = ConstantField(
@@ -170,50 +203,30 @@ def solve(
     mu_boundary_laplacian = builder.build(MatrixType.NEUMANN_BOUNDARY_LAPLACIAN)
     mu_gradient = builder.build(MatrixType.GRADIENT)
     divergence = builder.build(MatrixType.DIVERGENCE)
-    # Find the source and drain terminal sites.
-    if device.source_terminal is None:
-        input_edges_index = np.array([], dtype=np.int64)
-        output_edges_index = np.array([], dtype=np.int64)
-        input_sites_index = np.array([], dtype=np.int64)
-        output_sites_index = np.array([], dtype=np.int64)
-    else:
-        ix_boundary = mesh.edge_mesh.boundary_edge_indices
-        boundary_edge_positions = edge_positions[ix_boundary]
-        input_edges_index = device.source_terminal.contains_points(
-            boundary_edge_positions,
-            index=True,
-        )
-        output_edges_index = device.drain_terminal.contains_points(
-            boundary_edge_positions,
-            index=True,
-        )
-        input_sites_index = np.intersect1d(
-            device.source_terminal.contains_points(sites, index=True),
-            mesh.boundary_indices,
-        )
-        output_sites_index = np.intersect1d(
-            device.drain_terminal.contains_points(sites, index=True),
-            mesh.boundary_indices,
-        )
-    normal_boundary_index = np.sort(
-        np.concatenate([input_sites_index, output_sites_index])
+    # Find the current terminal sites.
+    terminal_info = device.terminal_info()
+    normal_boundary_index = np.concatenate(
+        [t.site_indices for t in terminal_info]
     ).astype(np.int64)
     interior_indices = np.setdiff1d(
         np.arange(mesh.x.shape[0], dtype=int), normal_boundary_index
     )
-
     # Define the source-drain current.
-    if source_drain_current and device.voltage_points is None:
+    if terminal_currents and device.voltage_points is None:
         logger.warning(
-            "The source-drain current is non-null, but the device has no voltage points."
+            "The terminal currents are non-null, but the device has no voltage points."
         )
-    if callable(source_drain_current):
-        current_func = source_drain_current
+    if terminal_currents is None:
+        terminal_currents = {t.name: 0 for t in device.terminals}
+    if callable(terminal_currents):
+        current_func = terminal_currents
     else:
-        source_drain_current = float(source_drain_current)
+        terminal_currents = {k: float(v) for k, v in terminal_currents.items()}
 
         def current_func(t):
-            return source_drain_current
+            return terminal_currents
+
+    validate_terminal_currents(current_func, terminal_info, options)
 
     # Define the pinning sites.
     if callable(pinning_sites):
@@ -309,11 +322,14 @@ def solve(
         time = state["time"]
         # Compute the current density for this step
         # and update the current boundary conditions.
-        current = current_density_scale * current_func(time)
-        running_state.append("total_current", current)
-        state["total_current"] = current
-        mu_boundary[input_edges_index] = current
-        mu_boundary[output_edges_index] = -current
+        currents = current_func(time)
+        for term in terminal_info:
+            current_density = (-1 / term.length) * sum(
+                current for name, current in currents.items() if name != term.name
+            )
+            mu_boundary[term.boundary_edge_indices] = (
+                current_density_scale * current_density
+            )
 
         # If screening is included, update the link variables in the covariant
         # Laplacian and gradient for psi based on the induced vector potential
@@ -358,6 +374,7 @@ def solve(
         lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
         mu_val = mu_laplacian_lu.solve(lhs)
         normal_current_val = -(mu_gradient @ mu_val)
+
         # Update the voltage and phase difference
         if device.voltage_points is None:
             d_mu = 0
@@ -426,14 +443,12 @@ def solve(
         fixed_values=(vector_potential,),
         fixed_names=("applied_vector_potential",),
         state={
-            "total_current": current_density_scale * current_func(0),
             "u": u,
             "gamma": gamma,
         },
         running_names=(
             "voltage",
             "phase_difference",
-            "total_current",
             "dt",
         ),
         logger=logger,
@@ -450,7 +465,7 @@ def solve(
         path=data_handler.output_path,
         options=options,
         applied_vector_potential=applied_vector_potential,
-        source_drain_current=source_drain_current,
+        terminal_currents=terminal_currents,
         pinning_sites=pinning_sites,
         rng_seed=rng_seed,
         total_seconds=(end_time - start_time).total_seconds(),

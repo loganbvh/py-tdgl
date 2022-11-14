@@ -28,23 +28,6 @@ def rotate(coords: np.ndarray, angle_degrees: float) -> np.ndarray:
     return (R @ coords.T).T
 
 
-def translate(coords: np.ndarray, dx: float, dy: float) -> np.ndarray:
-    """Translates the given (x, y) coordinates in the palne by ``(dx, dy)``.
-
-    Args:
-        coords: Shape (n, 2) array of (x, y) coordinates.
-        dx: Amount by which to translate in the x direction.
-        dy: Amount by which to translate in the y direction.
-
-    Returns:
-        Shape (n, 2) array of translated coordinates (x', y')
-    """
-    coords = np.asarray(coords)
-    assert coords.ndim == 2
-    assert coords.shape[1] == 2
-    return coords + np.array([[dx, dy]])
-
-
 def ellipse(
     a: float,
     b: float,
@@ -61,7 +44,7 @@ def ellipse(
         points: Number of points in the circle
         center: Coordinates of the center of the circle
         angle: Angle (in degrees) by which to rotate counterclockwise about (0, 0)
-            **before** translating to the specified center.
+            **after** translating to the specified center.
 
     Returns:
         A shape ``(points, 2)`` array of (x, y) coordinates
@@ -116,7 +99,7 @@ def box(
         points_per_side: Number of points on each side of the box.
         center: Coordinates of the center of the rectangle.
         angle: Angle (in degrees) by which to rotate counterclockwise about (0, 0)
-            **before** translating to the specified center.
+            **after** translating to the specified center.
 
     Returns:
         A shape ``(4 * points_per_side, 2)`` array of (x, y) coordinates
@@ -162,3 +145,25 @@ def close_curve(points: np.ndarray) -> np.ndarray:
     if not np.allclose(points[0], points[-1]):
         points = np.concatenate([points, points[:1]], axis=0)
     return points
+
+
+def unit_vector(vector: np.ndarray) -> np.ndarray:
+    """Normalizes ``vector``."""
+    return vector / np.linalg.norm(vector, axis=-1)[:, np.newaxis]
+
+
+def path_vectors(path: np.ndarray) -> Tuple[float, np.ndarray]:
+    """Computes the total length and the unit normals for a path.
+
+    Args:
+        path: Shape ``(n, 2)`` array of coordinates representing a continuous path.
+
+    Returns:
+        A shape ``(n-1, 2)`` array of edge lengths and a shape ``(n-1, 2)`` array of
+        unit vectors normal to each edge in the path.
+    """
+    dr = np.diff(path, axis=0)
+    normals = np.cross(dr, [0, 0, 1])
+    unit_normals = unit_vector(normals)
+    edge_lengths = np.linalg.norm(dr, axis=1)
+    return edge_lengths, unit_normals[:, :2]

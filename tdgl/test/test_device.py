@@ -53,9 +53,7 @@ def test_polygon_on_boundary(radius=1):
 def test_polygon_join():
 
     square1 = tdgl.Polygon(points=tdgl.geometry.box(1))
-    square2 = tdgl.Polygon(
-        points=tdgl.geometry.translate(tdgl.geometry.box(1), 0.5, 0.5)
-    )
+    square2 = tdgl.Polygon(points=tdgl.geometry.box(1)).translate(dx=0.5, dy=0.5)
     square3 = tdgl.geometry.box(1, center=(-0.25, 0.25))
     name = "name"
     for items in (
@@ -153,9 +151,6 @@ def device():
         holes=[hole],
         abstract_regions=abstract_regions,
     )
-
-    with pytest.raises(ValueError):
-        device.solve_dtype = "int64"
 
     with pytest.raises(TypeError):
         device.scale(xfact=-1, origin="center")

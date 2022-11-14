@@ -19,6 +19,7 @@ from .device.components import Polygon
 from .device.device import Device
 from .em import biot_savart_2d, convert_field
 from .finite_volume.matrices import build_gradient
+from .geometry import path_vectors
 from .io import (
     DynamicsData,
     TDGLData,
@@ -93,7 +94,7 @@ class Solution:
         path: os.PathLike,
         options: SolverOptions,
         applied_vector_potential: Parameter,
-        source_drain_current: Union[float, Callable],
+        terminal_currents: Union[float, Callable],
         pinning_sites: Union[str, Callable],
         field_units: str,
         current_units: str,
@@ -106,7 +107,7 @@ class Solution:
         self.options = options
         self.path = path
         self.applied_vector_potential = applied_vector_potential
-        self.source_drain_current = source_drain_current
+        self.terminal_currents = terminal_currents
         self.pinning_sites = pinning_sites
 
         self.supercurrent_density: Optional[np.ndarray] = None
@@ -519,6 +520,48 @@ class Solution:
             with_units=with_units,
         )
 
+    def current_through_path(
+        self,
+        path_coords: np.ndarray,
+        dataset: Union[str, None] = None,
+        method: str = "linear",
+        units: Union[str, None] = None,
+        with_units: bool = True,
+    ) -> Union[float, pint.Quantity]:
+        """Calculates the total current crossing a given path.
+
+        Args:
+            path_coords: An ``(n, 2)`` array of ``(x, y)`` coordinates defining
+                the path.
+            dataset: ``None``, "supercurrent", or "normal_current".
+                ``None`` indicates the total current.
+            method: Interpolation method: either "linear" or "cubic".
+            units: The current units to return.
+            with_units: Whether to return a pint.Quantity with units attached.
+
+        Returns:
+            The total current crossing the path as either a float or a pint.Quantity.
+        """
+        device = self.device
+        if units is None:
+            units = self.current_units
+        J = self.interp_current_density(
+            path_coords,
+            dataset=dataset,
+            method=method,
+            with_units=True,
+        )
+        edge_positions = (path_coords[:-1] + path_coords[1:]) / 2
+        J_edge = (J[:-1] + J[1:]) / 2
+        edge_lengths, unit_normals = path_vectors(path_coords)
+        edge_lengths = edge_lengths * device.ureg(device.length_units)
+        J_dot_n = (J_edge * unit_normals).sum(axis=1)
+        in_device = self.device.contains_points(edge_positions)
+        total_current = np.trapz((J_dot_n * edge_lengths)[in_device]).to(units)
+        if not with_units:
+            total_current = total_current.magnitude
+        return total_current
+
     def field_at_position(
         self,
         positions: np.ndarray,
@@ -556,9 +599,8 @@ class Solution:
             shape ``(m, )`` if vector is False, or shape ``(m, 3)`` if ``vector`` is True.
         """
         device = self.device
-        dtype = device.solve_dtype
         ureg = device.ureg
-        points = device.points.astype(dtype, copy=False)
+        points = device.points
         units = units or self.field_units
         # In case something like a list [x, y] or [x, y, z] is given
         positions = np.atleast_2d(positions)
@@ -572,7 +614,7 @@ class Solution:
             positions = positions[:, :2]
         elif isinstance(zs, (int, float, np.generic)):
             # constant zs
-            zs = zs * np.ones(positions.shape[0], dtype=dtype)
+            zs = zs * np.ones(positions.shape[0])
         zs = zs.squeeze()
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
@@ -656,9 +698,8 @@ class Solution:
             shape ``(m, 3)``.
         """
         device = self.device
-        dtype = device.solve_dtype
         ureg = device.ureg
-        points = device.points.astype(dtype, copy=False)
+        points = device.points
         areas = device.mesh.areas * device.coherence_length**2
         units = units or f"{self.field_units} * {device.length_units}"
 
@@ -674,15 +715,13 @@ class Solution:
             positions = positions[:, :2]
         elif isinstance(zs, (int, float, np.generic)):
             # constant zs
-            zs = zs * np.ones(positions.shape[0], dtype=dtype)
+            zs = zs * np.ones(positions.shape[0])
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
         if zs.ndim == 1:
             # We need zs to be shape (m, 1)
             zs = zs[:, np.newaxis]
-        rho2 = distance.cdist(positions, points, metric="sqeuclidean").astype(
-            dtype, copy=False
-        )
+        rho2 = distance.cdist(positions, points, metric="sqeuclidean")
         layer = device.layer
         vector_potentials = {}
         applied = self.applied_vector_potential(
@@ -702,7 +741,7 @@ class Solution:
         for name in ("supercurrent_density", "normal_current_density"):
             # J has units of [current / length], shape = (device.points.shape[0], 2)
             J = getattr(self, name).to(J_units).magnitude
-            Axy = np.einsum("ijk, j -> ik", J / rho, areas, dtype=dtype)
+            Axy = np.einsum("ijk, j -> ik", J / rho, areas)
             # z-component is zero because currents are parallel to the x-y plane.
             A = np.concatenate([Axy, np.zeros_like(Axy[:, :1])], axis=1)
             A = A * ureg(self.current_units)
@@ -757,8 +796,8 @@ class Solution:
                 self.path,
             )
             serialize_func(
-                self.source_drain_current,
-                "source_drain_current",
+                self.terminal_currents,
+                "terminal_currents",
                 group,
                 self.path,
             )
@@ -771,11 +810,6 @@ class Solution:
             group.attrs["rng_seed"] = str(self.rng_seed)
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
-
-    def delete_hdf5(self) -> None:
-        """Delete the HDF5 file accompanying the ``Solution``."""
-        if self.saved_on_disk:
-            os.remove(self.path)
 
     @classmethod
     def from_hdf5(cls, path: os.PathLike) -> "Solution":
@@ -814,9 +848,7 @@ class Solution:
             vector_potential = deserialize_func(
                 "applied_vector_potential", fname, grp, path
             )
-            source_drain_current = deserialize_func(
-                "source_drain_current", fname, grp, path
-            )
+            terminal_currents = deserialize_func("terminal_currents", fname, grp, path)
             pinning_sites = deserialize_func("pinning_sites", fname, grp, path)
             rng_seed = int(grp.attrs["rng_seed"])
             total_seconds = grp.attrs["total_seconds"]
@@ -827,7 +859,7 @@ class Solution:
             path=path,
             options=options,
             applied_vector_potential=vector_potential,
-            source_drain_current=source_drain_current,
+            terminal_currents=terminal_currents,
             pinning_sites=pinning_sites,
             current_units=current_units,
             field_units=field_units,
@@ -839,6 +871,11 @@ class Solution:
         solution._time_created = time_created
 
         return solution
+
+    def delete_hdf5(self) -> None:
+        """Delete the HDF5 file accompanying the ``Solution``."""
+        if self.saved_on_disk:
+            os.remove(self.path)
 
     def equals(
         self,
@@ -878,8 +915,8 @@ class Solution:
             and (self.current_units == other.current_units)
             and (self.path == other.path)
             and (self.solve_step == other.solve_step)
-            and (self.applied_vector_potential == other.applied_vector_potential)
-            and compare_callables(self.source_drain_current, other.source_drain_current)
+            and self.applied_vector_potential == other.applied_vector_potential
+            and compare_callables(self.terminal_currents, other.terminal_currents)
             and compare_callables(self.pinning_sites, other.pinning_sites)
             and (self.rng_seed == other.rng_seed)
         ):
