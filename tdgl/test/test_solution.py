@@ -33,8 +33,8 @@ def solution(transport_device, tempdir):
 
     solution = tdgl.solve(
         device,
-        fname,
         options,
+        output_file=fname,
         applied_vector_potential=field,
         field_units="uT",
         terminal_currents=terminal_currents,

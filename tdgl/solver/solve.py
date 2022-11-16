@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime
 from typing import Callable, Dict, Sequence, Tuple, Union
 
@@ -92,9 +93,9 @@ def _solve_for_psi_squared(
 
 def solve(
     device: Device,
-    output_file: str,
     options: SolverOptions,
-    applied_vector_potential: Union[Callable, None] = None,
+    output_file: Union[os.PathLike, None] = None,
+    applied_vector_potential: Union[Callable, float] = 0,
     terminal_currents: Union[Callable, Dict[str, float], None] = None,
     pinning_sites: Union[str, Callable, None] = None,
     field_units: str = "mT",
@@ -107,10 +108,16 @@ def solve(
 
     Args:
         device: The :class:`tdgl.Device` to solve.
+        options: An instance :class:`tdgl.SolverOptions` specifying the solver
+            parameters.
         output_file: Path to an HDF5 file in which to save the data.
             If the file name already exists, a unique name will be generated.
+            If ``output_file`` is ``None``, the solver results will not be saved
+            to disk.
         applied_vector_potential: A function or :class:`tdgl.Parameter` that computes
-            the applied vector potential as a function of position ``(x, y, z)``.
+            the applied vector potential as a function of position ``(x, y, z)``. If a float
+            ``B`` is given, the applied vector potential will be that of a uniform magnetic
+            field with strength ``B`` ``field_units``.
         source_drain_current: The applied source-drain current. A constant current can
             be specified by a float. A time-dependent current can be specified by
             a callable with signature ``source_drain_current(time: float) -> float``,
@@ -162,9 +169,9 @@ def solve(
     )
     assert "dimensionless" in str(current_density_scale.units)
     current_density_scale = current_density_scale.magnitude
-    if applied_vector_potential is None:
+    if not callable(applied_vector_potential):
         applied_vector_potential = ConstantField(
-            0,
+            applied_vector_potential,
             field_units=field_units,
             length_units=device.length_units,
         )
@@ -190,12 +197,6 @@ def solve(
         dt_max = options.dt_init
         max_solve_retries = 0
 
-    data_handler = DataHandler(
-        mesh,
-        output_file=output_file,
-        save_mesh=True,
-        logger=logger,
-    )
     builder = MatrixBuilder(mesh)
     mu_laplacian, _ = builder.build(MatrixType.LAPLACIAN)
     mu_laplacian = mu_laplacian.asformat("csc", copy=False)
@@ -434,42 +435,45 @@ def solve(
             "induced_vector_potential": seed_data.induced_vector_potential,
         }
 
-    Runner(
-        function=update,
-        options=options,
-        data_handler=data_handler,
-        initial_values=list(parameters.values()),
-        names=list(parameters),
-        fixed_values=(vector_potential,),
-        fixed_names=("applied_vector_potential",),
-        state={
-            "u": u,
-            "gamma": gamma,
-        },
-        running_names=(
-            "voltage",
-            "phase_difference",
-            "dt",
-        ),
+    with DataHandler(
+        mesh,
+        output_file=output_file,
+        save_mesh=True,
         logger=logger,
-    ).run()
+    ) as data_handler:
+        Runner(
+            function=update,
+            options=options,
+            data_handler=data_handler,
+            initial_values=list(parameters.values()),
+            names=list(parameters),
+            fixed_values=(vector_potential,),
+            fixed_names=("applied_vector_potential",),
+            state={
+                "u": u,
+                "gamma": gamma,
+            },
+            running_names=(
+                "voltage",
+                "phase_difference",
+                "dt",
+            ),
+            logger=logger,
+        ).run()
+        end_time = datetime.now()
+        logger.info(f"Simulation ended at {end_time}")
+        logger.info(f"Simulation took {end_time - start_time}")
 
-    data_handler.close()
-
-    end_time = datetime.now()
-    logger.info(f"Simulation ended at {end_time}")
-    logger.info(f"Simulation took {end_time - start_time}")
-
-    solution = Solution(
-        device=device,
-        path=data_handler.output_path,
-        options=options,
-        applied_vector_potential=applied_vector_potential,
-        terminal_currents=terminal_currents,
-        pinning_sites=pinning_sites,
-        rng_seed=rng_seed,
-        total_seconds=(end_time - start_time).total_seconds(),
-        field_units=field_units,
-        current_units=current_units,
-    )
+        solution = Solution(
+            device=device,
+            path=data_handler.output_path,
+            options=options,
+            applied_vector_potential=applied_vector_potential,
+            terminal_currents=terminal_currents,
+            pinning_sites=pinning_sites,
+            rng_seed=rng_seed,
+            total_seconds=(end_time - start_time).total_seconds(),
+            field_units=field_units,
+            current_units=current_units,
+        )
     return solution

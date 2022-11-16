@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, fields
+import dataclasses
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import h5py
@@ -10,7 +10,7 @@ from .finite_volume.matrices import build_gradient
 from .finite_volume.mesh import Mesh
 
 
-@dataclass
+@dataclasses.dataclass
 class TDGLData:
     step: int
     psi: np.ndarray
@@ -19,6 +19,7 @@ class TDGLData:
     induced_vector_potential: np.ndarray
     supercurrent: np.ndarray
     normal_current: np.ndarray
+    state: Dict[str, Any]
 
     @staticmethod
     def from_hdf5(h5file: h5py.File, step: int) -> "TDGLData":
@@ -27,17 +28,31 @@ class TDGLData:
         def get(key, default=None):
             if key in ["step"]:
                 return int(step)
+            if key in ["state"]:
+                return load_state_data(h5file, step)
             if key in h5file["data"][step]:
                 return np.asarray(h5file["data"][step][key])
             return default
 
-        return TDGLData(**{field.name: get(field.name) for field in fields(TDGLData)})
+        return TDGLData(
+            **{field.name: get(field.name) for field in dataclasses.fields(TDGLData)}
+        )
+
+    def to_hdf5(self, h5group: h5py.Group) -> None:
+        group = h5group.create_group(str(self.step))
+        for key, value in dataclasses.asdict(self).items():
+            if key in ["step"]:
+                continue
+            if key in ["state"]:
+                group.attrs.update(value)
+            else:
+                group[key] = value
 
 
-@dataclass
+@dataclasses.dataclass
 class DynamicsData:
     dt: np.ndarray
-    time: np.ndarray = field(init=False)
+    time: np.ndarray = dataclasses.field(init=False)
     voltage: np.ndarray
     phase_difference: np.ndarray
 
@@ -123,6 +138,11 @@ class DynamicsData:
         voltage = np.concatenate(voltages)[mask]
         phase = np.concatenate(phases)[mask]
         return DynamicsData(dt, voltage, phase)
+
+    def to_hdf5(self, h5group: h5py.Group, step: int):
+        grp = h5group.require_group(str(step))
+        for key in ("dt", "voltage", "phase_difference"):
+            grp[key] = getattr(self, key)
 
 
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:

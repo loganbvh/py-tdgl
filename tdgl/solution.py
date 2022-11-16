@@ -3,6 +3,8 @@ import logging
 import operator
 import os
 import pickle
+import shutil
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Union
 
@@ -20,13 +22,7 @@ from .device.device import Device
 from .em import biot_savart_2d, convert_field
 from .finite_volume.matrices import build_gradient
 from .geometry import path_vectors
-from .io import (
-    DynamicsData,
-    TDGLData,
-    get_data_range,
-    get_edge_observable_data,
-    load_state_data,
-)
+from .io import DynamicsData, TDGLData, get_data_range, get_edge_observable_data
 from .parameter import Parameter
 from .solver.runner import SolverOptions
 
@@ -125,7 +121,6 @@ class Solution:
 
         self.tdgl_data: Optional[TDGLData] = None
         self.dynamics: Optional[DynamicsData] = None
-        self.state: Optional[dict[str, Any]] = None
         self._solve_step: int = -1
         self.load_tdgl_data(self._solve_step)
 
@@ -155,7 +150,6 @@ class Solution:
             else:
                 step = solve_step
             self.tdgl_data = TDGLData.from_hdf5(f, step)
-            self.state = load_state_data(f, step)
             self.dynamics = DynamicsData.from_hdf5(f, step_min, step_max)
         mesh = self.device.mesh
         device = self.device
@@ -753,35 +747,32 @@ class Solution:
             return sum(vector_potentials.values())
         return vector_potentials
 
-    def to_hdf5(self, save_mesh: bool = True) -> None:
-        """Save the Solution to the existing output HDF5 file.
-
-        Args:
-            save_mesh: Whether to save the Device's mesh.
-        """
-
-        def serialize_func(func, name, h5group, h5path):
-            if not callable(func):
-                h5group.attrs[name] = func
-                return
+    def _save_to_hdf5_file(
+        self,
+        h5file: Union[h5py.File, str],
+        save_tdgl_data: bool = False,
+        save_mesh: bool = True,
+    ) -> None:
+        def serialize_func(func, name, h5group):
             try:
-                # See: https://docs.h5py.org/en/2.8.0/strings.html
-                h5group.attrs[f"{name}.pickle"] = np.void(cloudpickle.dumps(func))
-            except RuntimeError as e:
-                dirname = os.path.dirname(h5path)
-                fname = os.path.basename(h5path).replace(".h5", "")
-                pickle_path = os.path.join(dirname, f"{name}-{fname}.pickle")
-                logger.warning(
-                    f"Unable to serialize {name} to HDF5: {e}. "
-                    f"Saving {name} to {pickle!r} instead."
-                )
-                with open(pickle_path, "wb") as f:
-                    cloudpickle.dump(func, f)
+                h5group.attrs[name] = func
+            except TypeError:
+                # Unsupported dtype - just pickle it.
+                h5group[f"{name}.pickle"] = np.void(cloudpickle.dumps(func))
 
-        with h5py.File(self.path, "r+", libver="latest") as f:
+        if isinstance(h5file, str):
+            mode = "x" if save_tdgl_data else "r+"
+            save_context = h5py.File(h5file, mode, libver="latest")
+        else:
+            save_context = nullcontext(h5file)
+
+        with save_context as f:
             if "mesh" in f:
                 del f["mesh"]
             data_grp = f.require_group("data")
+            if save_tdgl_data:
+                self.tdgl_data.to_hdf5(data_grp)
+                self.dynamics.to_hdf5(data_grp, self.tdgl_data.step)
             for k, v in dataclasses.asdict(self.options).items():
                 if v is not None:
                     data_grp.attrs[k] = v
@@ -793,23 +784,45 @@ class Solution:
                 self.applied_vector_potential,
                 "applied_vector_potential",
                 group,
-                self.path,
             )
             serialize_func(
                 self.terminal_currents,
                 "terminal_currents",
                 group,
-                self.path,
             )
             serialize_func(
                 self.pinning_sites,
                 "pinning_sites",
                 group,
-                self.path,
             )
             group.attrs["rng_seed"] = str(self.rng_seed)
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
+
+    def to_hdf5(self, h5path: Union[str, None] = None, save_mesh: bool = True) -> None:
+        """Save the Solution to the existing output HDF5 file or to a new HDF5 file.
+
+        Args:
+            save_mesh: Whether to save the Device's mesh.
+        """
+
+        if self.saved_on_disk:
+            if h5path is None:
+                self._save_to_hdf5_file(self.path, save_mesh=save_mesh)
+            else:
+                shutil.copy(self.path, h5path)
+                with h5py.File(h5path, "r+", libver="latest") as f:
+                    if "solution" in f:
+                        del f["solution"]
+                self._save_to_hdf5_file(h5path, save_mesh=save_mesh)
+            return
+
+        if h5path is None:
+            raise ValueError(
+                "The solution HDF5 file does not exist, "
+                "and a new HDF5 file was not given."
+            )
+        self._save_to_hdf5_file(h5path, save_tdgl_data=True, save_mesh=save_mesh)
 
     @classmethod
     def from_hdf5(cls, path: os.PathLike) -> "Solution":
@@ -823,15 +836,10 @@ class Solution:
         """
 
         def deserialize_func(name, fname, h5group, path):
-            pickle_path = f"{name}-{fname}.pickle"
             if name in h5group.attrs:
                 return h5group.attrs[name]
-            elif f"{name}.pickle" in h5group.attrs:
-                # See: https://docs.h5py.org/en/2.8.0/strings.html
-                return pickle.loads(grp.attrs[f"{name}.pickle"].tobytes())
-            elif pickle_path in os.listdir(os.path.dirname(path)):
-                with open(pickle_path, "rb") as f:
-                    return pickle.load(f)
+            if f"{name}.pickle" in h5group:
+                return pickle.loads(np.void(grp[f"{name}.pickle"]).tobytes())
             raise IOError(f"Unable to load {name} from {path!r}.")
 
         with h5py.File(path, "r", libver="latest") as f:

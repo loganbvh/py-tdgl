@@ -1,6 +1,3 @@
-import os
-import tempfile
-
 import numpy as np
 import pytest
 
@@ -8,7 +5,7 @@ import tdgl
 
 
 @pytest.mark.parametrize("current", [1.0, 10.0, lambda t: 10])
-@pytest.mark.parametrize("field", [None, 0, 1])
+@pytest.mark.parametrize("field", [0, 1])
 def test_source_drain_current(transport_device, current, field):
 
     device = transport_device
@@ -21,8 +18,6 @@ def test_source_drain_current(transport_device, current, field):
         solve_time=total_time,
         save_every=100,
     )
-    if field is not None:
-        field = tdgl.sources.ConstantField(field)
     if callable(current):
 
         def terminal_currents(t):
@@ -30,18 +25,15 @@ def test_source_drain_current(transport_device, current, field):
 
     else:
         terminal_currents = dict(source=current, drain=-current)
-    with tempfile.TemporaryDirectory() as directory:
-        fname = os.path.join(directory, "output.h5")
-        solution = tdgl.solve(
-            device,
-            fname,
-            options,
-            applied_vector_potential=field,
-            field_units="uT",
-            terminal_currents=terminal_currents,
-            current_units="uA",
-            include_screening=False,
-        )
+    solution = tdgl.solve(
+        device,
+        options,
+        applied_vector_potential=field,
+        field_units="uT",
+        terminal_currents=terminal_currents,
+        current_units="uA",
+        include_screening=False,
+    )
 
     if callable(current):
         current = current(0)

@@ -32,8 +32,8 @@ def solution(transport_device, tempdir):
     fname = os.path.join(tempdir, "output.h5")
     solution = tdgl.solve(
         device,
-        fname,
         options,
+        output_file=fname,
         applied_vector_potential=field,
         field_units="uT",
         terminal_currents=dict(source=10, drain=-10),

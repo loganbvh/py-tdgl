@@ -1,6 +1,3 @@
-import os
-import tempfile
-
 import pytest
 
 import tdgl
@@ -42,19 +39,15 @@ def transport_device_solution(transport_device):
         save_every=100,
     )
     field = tdgl.sources.ConstantField(10)
-    with tempfile.TemporaryDirectory() as directory:
-        fname = os.path.join(directory, "output.h5")
-        solution = tdgl.solve(
-            device,
-            fname,
-            options,
-            applied_vector_potential=field,
-            field_units="uT",
-            terminal_currents=dict(source=10, drain=-10),
-            current_units="uA",
-            include_screening=False,
-        )
-
+    solution = tdgl.solve(
+        device,
+        options,
+        applied_vector_potential=field,
+        field_units="uT",
+        terminal_currents=dict(source=10, drain=-10),
+        current_units="uA",
+        include_screening=False,
+    )
     return solution
 
 
@@ -83,7 +76,6 @@ def box_device_solution_no_screening(box_device):
     )
     solution = tdgl.solve(
         device,
-        "output1.h5",
         options,
         applied_vector_potential=tdgl.sources.ConstantField(50),
         field_units="uT",
@@ -107,7 +99,6 @@ def box_device_solution_with_screening(box_device):
     )
     solution = tdgl.solve(
         device,
-        "output1.h5",
         options,
         applied_vector_potential=tdgl.sources.ConstantField(50),
         field_units="uT",

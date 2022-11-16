@@ -3,6 +3,7 @@ import logging
 import os
 import tempfile
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -16,7 +17,7 @@ from .options import SolverOptions
 
 
 class DataHandler:
-    """The data handler is responsible for reading from and writing to disk.
+    """A context manager that is responsible for reading from and writing to disk.
 
     Args:
         input_file: File to use as input for the simulation.
@@ -70,7 +71,8 @@ class DataHandler:
         """
 
         if output is None:
-            self.tempdir = directory = tempfile.TemporaryDirectory()
+            self.tempdir = tempfile.TemporaryDirectory()
+            directory = self.tempdir.name
             name = "output"
             suffix = "h5"
         else:
@@ -106,6 +108,19 @@ class DataHandler:
                         f"Output file already exists. Renaming to {file_name}."
                     )
             return file, file_path
+
+    def __enter__(self) -> "DataHandler":
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+        if exc_value is not None:
+            self.logger.warning(
+                "Ignoring the following exception in DataHandler.__exit__():"
+            )
+            self.logger.warning(
+                traceback.format_exception(exc_type, exc_value, exc_traceback)
+            )
+        self.close()
 
     def close(self):
         self.output_file.close()
