@@ -25,6 +25,10 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_rtd_theme",
     "sphinxarg.ext",
+    "sphinxcontrib.bibtex",
+]
+bibtex_bibfiles = [
+    "references.bib",
 ]
 
 templates_path = ["_templates"]

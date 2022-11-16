@@ -5,17 +5,24 @@ Theoretical Background
 **********************
 
 Here we sketch out the generalized time-dependent Ginzburg-Landau model implemented in ``pyTDGL``, and the numerical methods used to solve it.
-This material is largely based on the following references: [Jonsson-PRA-2022]_, [Jonsson-PHD-2022]_.
+This material and portions of the ``pyTDGL`` package are based on Refs. :footcite:p:`Jonsson2022-xe, Jonsson2022-mb` (`repo <https://github.com/afsa/super-detector-py>`_). The generalized
+time-dependent Ginzburg-Landau theory is based on Refs. :footcite:p:`Kramer1978-kb, Watts-Tobin1981-mn`. The numerical methods are based on
+Refs. :footcite:p:`Gropp1996-uw, Du1998-kt, Jonsson2022-xe`.
+The Python API is inspired by Ref. :footcite:p:`Bishop-Van_Horn2022-sy` (`repo <https://github.com/loganbvh/superscreen>`_).
 
 ``pyTDGL`` can model superconducting thin films of arbitrary geometry, including multiply-connected films (i.e., films with holes).
-By "thin" or "two-dimensional" we mean that the film thickness :math:`d` is smaller than the coherence length :math:`\xi`
-and the London penetration depth :math:`\lambda`. This assumption implies that both the superconducting order parameter :math:`\psi(\mathbf{r})`
-and the supercurrent :math:`\mathbf{J}_s(\mathbf{r})` are roughly constant over the thickness of the film.
+By "thin" or "two-dimensional" we mean that the film thickness :math:`d` is smaller than the coherence length :math:`\xi=\xi(T)`
+and the London penetration depth :math:`\lambda=\lambda(T)`, where :math:`T` is temperature. This assumption implies that both the
+superconducting order parameter :math:`\psi(\mathbf{r})` and the supercurrent :math:`\mathbf{J}_s(\mathbf{r})` are roughly
+constant over the thickness of the film.
+Strictly speaking, the model is only valid for temperatures very close to the critical
+temperature, :math:`T/T_c\approx 1`, and for dirty superconductors where the inelastic diffusion length much smaller than the
+coherence length :math:`\xi` :footcite:p:`Kramer1978-kb`.
 
 Time-dependent Ginzburg-Landau
 ------------------------------
 
-The time-dependent Ginzburg-Landau formalism employed here boils down to a set of coupled partial differential equations for a
+The time-dependent Ginzburg-Landau formalism employed here :footcite:p:`Kramer1978-kb` boils down to a set of coupled partial differential equations for a
 complex-valued field :math:`\psi(\mathbf{r}, t)=|\psi|e^{i\theta}` (the superconducting order parameter)
 and a real-valued field :math:`\mu(\mathbf{r}, t)` (the electric scalar potential), which evolve deterministically in time for a given
 time-independent applied magnetic vector potential :math:`\mathbf{A}(\mathbf{r})`.
@@ -31,13 +38,9 @@ The order parameter :math:`\psi` evolves according to:
 The quantity :math:`(\nabla-i\mathbf{A})^2\psi` is the covariant Laplacian of :math:`\psi`,
 which is used in place of an ordinary Laplacian in order to maintain gauge-invariance of the order parameter. Similarly,
 the quantity :math:`(\frac{\partial}{\partial t}+i\mu)\psi` is the covariant time derivative of :math:`\psi`.
-:math:`u=5.79` is the ratio of relaxation times for the amplitude and phase of the order parameter in dirty superconductors and
-:math:`\gamma` is a material parameter that characterizes the influence of the inelastic phonon-electron scattering.
-
-.. .. math::
-..     :label: helmholtz
-
-..     \kappa^2\nabla\times\nabla\times\mathbf{A} = \mathbf{J}_s-\nabla\mu-\frac{\partial\mathbf{A}}{\partial t}
+:math:`u=\pi^4/(14\zeta(3))\approx5.79` is the ratio of relaxation times for the amplitude and phase of the order parameter in dirty superconductors
+(:math:`\zeta` is the Riemann zeta function) and
+:math:`\gamma` is a material parameter which is proportional to the inelastic scattering time and the size of the superconducting gap.
 
 The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to:
 
@@ -52,6 +55,9 @@ The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to:
 where :math:`\mathbf{J}_s=\mathrm{Im}[\psi^*(\nabla-i\mathbf{A})\psi]` is the supercurrent density. Again, :math:`(\nabla-i\mathbf{A})\psi`
 is the covariant gradient of :math:`\psi`.
 
+There are a variety of extensions to this form of TDGL model, in which :eq:`tdgl` and :eq:`poisson` are coupled to equations of motion
+for other physical quantities such as the local temeprature :math:`T(\mathbf{r}, t)` of the material.
+
 Boundary conditions
 ===================
 
@@ -62,8 +68,8 @@ in form of Neumann boundary conditions for :math:`\psi` and :math:`\mu`:
     :label: bc-vacuum
 
     \begin{split}
-        \mathbf{n}\cdot(\nabla-i\mathbf{A})\psi &= 0 \\
-        \mathbf{n}\cdot\nabla\mu &= 0
+        \hat{\mathbf{n}}\cdot(\nabla-i\mathbf{A})\psi &= 0 \\
+        \hat{\mathbf{n}}\cdot\nabla\mu &= 0
     \end{split}
 
 Superconductor-normal metal interfaces can be used to apply a bias current density :math:`J_\mathrm{ext}`.
@@ -74,8 +80,25 @@ For such interfaces, we impose Dirichlet boundary conditions on :math:`\psi` and
 
     \begin{split}
         \psi &= 0 \\
-        \mathbf{n}\cdot\nabla\mu &= J_\mathrm{ext}
+        \hat{\mathbf{n}}\cdot\nabla\mu &= J_\mathrm{ext}
     \end{split}
+
+A single model can have an arbitrary number of current terminals (although just 1 terminal is not allowed due to current conservation).
+If we label the terminals :math:`i=1,2,\ldots`, we can express the global current conservation constraint as
+
+.. math::
+    :label: current-cons
+
+    \sum_i I_{\mathrm{ext},i} = \sum_i J_{\mathrm{ext},i}L_i = 0,
+
+where :math:`I_{\mathrm{ext},i}` is the total current through terminal :math:`i`, :math:`L_i` is the length of terminal :math:`i`,
+and :math:`J_{\mathrm{ext},i}` is the current density along terminal :math:`i`, which we assume to be constant and directed normal to the terminal.
+From :eq:`current-cons`, it follows that the current boundary condition for terminal :math:`i` is:
+
+.. math::
+    :label: bc-current
+
+    J_{\mathrm{ext},i}=-\frac{1}{L_i}\sum_{j\neq i}I_{\mathrm{ext},j}=-\frac{1}{L_i}\sum_{j\neq i}J_{\mathrm{ext},j}L_j.
 
 One may also model normal-metal inclusions by fixing :math:`\psi(\mathbf{r})=0` for some set of points :math:`\mathbf{r}` inside the film. This can be used to simulate pinning centers. 
 
@@ -139,30 +162,44 @@ superconducting flux quantum.
 
 ..     V_0 = \frac{\xi J_0}{\sigma} = \frac{4\xi^2 B_{c2}}{\mu_0\sigma\lambda^2}
 
-Finite volume method
---------------------
+Numerical implementation
+------------------------
 
-We solve the TDGL model [:eq:`tdgl`, :eq:`poisson`] on an unstructured Delaunay mesh in two dimenions.
-The mesh is composed of a set of sites :math:`\mathbf{r}_i`
+Finite volume method
+====================
+
+We solve the TDGL model [:eq:`tdgl`, :eq:`poisson`] on an unstructured `Delaunay mesh <https://en.wikipedia.org/wiki/Delaunay_triangulation>`_
+in two dimensions :footcite:p:`Du1998-kt, Jonsson2022-xe`.
+The mesh is composed of a set of sites, each denoted by its position :math:`\mathbf{r}_i\in\mathbb{R}^2` or an integer index :math:`i`,
 and a set of triangular cells :math:`c_{ijk}`. Each cell :math:`c_{ijk}=(i, j, k)` represents a triangle with three edges
 (:math:`(i, j)`, :math:`(j, k)`, and :math:`(k, i)`) that connect sites :math:`\mathbf{r}_i`, :math:`\mathbf{r}_j`, :math:`\mathbf{r}_k` in
-a counterclockwise fashion. Each edge has a length :math:`e_{ij}=|\mathbf{r}_j-\mathbf{r}_i|` and a direction :math:`\hat{e}_{ij}=(\mathbf{r}_j-\mathbf{r}_i)/e_{ij}`.
+a counterclockwise fashion. Each edge (denoted by the vector :math:`\mathbf{e}_{ij}=\mathbf{r}_j-\mathbf{r}_i` or the 2-tuple :math:`(i, j)`)
+has a length :math:`e_{ij}=|\mathbf{e}_{ij}|` and a direction :math:`\hat{\mathbf{e}}_{ij}=\mathbf{e}_{ij}/e_{ij}`.
 Each site is assigned an effective area :math:`a_i`, which is the area of the `Voronoi region <https://en.wikipedia.org/wiki/Voronoi_diagram>`_
 surrounding the site.
-The Voronoi region surrounding site :math:`\mathbf{r}_i` consists of all points in space that are closer to site :math:`\mathbf{r}_i`
+The Voronoi region surrounding site :math:`i` consists of all points in space that are closer to site :math:`\mathbf{r}_i`
 than to any other site in the mesh. The side of the Voronoi region that intersects edge :math:`(i, j)` is denoted
-:math:`\mathbf{s}_{ij}` and has a length :math:`s_{ij}`.
+:math:`\mathbf{s}_{ij}` and has a length :math:`s_{ij}`. The collection of all Voronoi cells tesselates the film and forms a mesh that is
+`dual <https://en.wikipedia.org/wiki/Dual_graph>`_ to the triangular Delaunay mesh.
 
 .. image:: images/voronoi.png
   :width: 400
   :alt: Schematic of a mesh.
   :align: center
 
-A scalar function :math:`f(\mathbf{r}, t)` can be discretized at a given time :math:`t^{(n)}`
-as the value of the function on each site, :math:`f_i^{(n)}=f(\mathbf{r}_i, t^{(n)})`.
-A vector function :math:`\mathbf{F}(\mathbf{r}, t)` can be discretized at time :math:`t^{(n)}` as the flow of the vector field between sites.
-In other words, :math:`F_{ij}^{(n)}=\mathbf{F}((\mathbf{r}_i+\mathbf{r}_j)/2, t^{(n)})\cdot\hat{e}_{ij}`, where :math:`(\mathbf{r}_i+\mathbf{r}_j)/2=\mathbf{r}_{ij}`
+A scalar function :math:`f(\mathbf{r}, t)` can be discretized at a given time :math:`t^{n}`
+as the value of the function on each site, :math:`f_i^{n}=f(\mathbf{r}_i, t^{n})`.
+A vector function :math:`\mathbf{F}(\mathbf{r}, t)` can be discretized at time :math:`t^{n}` as the flow of the vector field between sites.
+In other words, :math:`F_{ij}^{n}=\mathbf{F}((\mathbf{r}_i+\mathbf{r}_j)/2, t^{n})\cdot\hat{\mathbf{e}}_{ij}`, where :math:`(\mathbf{r}_i+\mathbf{r}_j)/2=\mathbf{r}_{ij}`
 is the center of edge :math:`(i, j)`.
+
+The gradient of a scalar function :math:`g(\mathbf{r})` is approximated on the edges of the mesh. The value of :math:`\nabla g`
+at position :math:`\mathbf{r}_{ij}` (i.e., the center of edge :math:`(i, j)`) is:
+
+.. math::
+    :label: gradient
+
+    (\nabla g)_{ij}=\left.(\nabla g)\right|_{\mathbf{r}_{ij}}\approx\frac{g_j-g_i}{e_{ij}}\hat{\mathbf{e}}_{ij}
 
 To calculate the divergence of a vector field :math:`\mathbf{F}(\mathbf{r})` on the mesh, we assume that
 each Voronoi cell is small enough that the value of :math:`\nabla\cdot\mathbf{F}` is constant over the area of the cell and
@@ -173,55 +210,58 @@ Then, using the `divergence theorem <https://en.wikipedia.org/wiki/Divergence_th
     :label: divergence
 
     \begin{split}
-        \int(\nabla\cdot\mathbf{F})\,\mathrm{d}^2\mathbf{r} &= \oint(\mathbf{F}\cdot\hat{n})\,\mathrm{d}s\\
+        \int(\nabla\cdot\mathbf{F})\,\mathrm{d}^2\mathbf{r} &= \oint(\mathbf{F}\cdot\hat{\mathbf{n}})\,\mathrm{d}s\\
         \left.(\nabla\cdot\mathbf{F})a_i\right|_{\mathbf{r}_i}&\approx\sum_{j\in\mathcal{N}(i)}F_{ij}s_{ij}\\
         (\nabla\cdot\mathbf{F})_i=\left.(\nabla\cdot\mathbf{F})\right|_{\mathbf{r}_i}&\approx\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}F_{ij}s_{ij},
     \end{split}
 
 where :math:`\mathcal{N}(i)` is the set of sites adjacent to site :math:`\mathbf{r}_i`.
-The gradient of a scalar function :math:`g(\mathbf{r})` is approximated on the edges of the mesh. The value of :math:`\nabla g`
-at position :math:`\mathbf{r}_{ij}` (i.e., the center of edge :math:`(i, j)`) is:
 
-.. math::
-    :label: gradient
 
-    (\nabla g)_{ij}=\left.(\nabla g)\right|_{\mathbf{r}_{ij}}\approx\frac{g_j-g_i}{e_{ij}}\hat{e}_{ij}
-
-The Laplacian of a scalar function :math:`g` is given by :math:`\nabla^2 g=\nabla\cdot\nabla g`, so combining :eq:`divergence` and :eq:`gradient` we have
+The Laplacian of a scalar function :math:`g` is given by :math:`\nabla^2 g=\nabla\cdot\nabla g`, so combining :eq:`gradient` and :eq:`divergence` we have
 
 .. math::
     :label: laplacian
 
     (\nabla^2g)_i=\left.(\nabla^2 g)\right|_{\mathbf{r}_i}\approx\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{g_j-g_i}{e_{ij}}s_{ij}
 
+The discrete gradient, divergence, and Laplacian of a field at site :math:`i` depend only on the value of the field at
+site :math:`i` and its nearest neighbors. This means that the corresponding operators, :eq:`gradient`, :eq:`divergence`, and :eq:`laplacian`,
+can be represented efficiently as sparse matrices, and their action given  by a matrix-vector product.
+
 Covariant derivatives
 =====================
 
-.. math::
-    :label: link-sym
+We use link variables :footcite:p:`Gropp1996-uw, Du1998-kt` to construct covariant versions of the spatial derivatives and time derivatives of :math:`\psi`.
+In the discrete case corresponding to our finite volume method, this amounts to adding a complex phase whenever taking a difference
+in :math:`\psi` between mesh sites (for spatial derivatives) or time steps (for time derivatives).
 
-    U_{ij}(t) = U(\mathbf{r}_i,\mathbf{r}_j, t) = \exp\left(-i\int_i^{\mathbf{r}_j}\mathbf{A}(\mathbf{r}, t)\cdot\mathrm{d}\mathbf{r}\right)
-
-The discretized form of the covariant time-derivative of :math:`\psi` at time :math:`t^{(n)}` and site :math:`\mathbf{r}_i` is
-
-.. math::
-    :label: dmu_dt
-
-    \left.\left(\frac{\partial}{\partial t}+i\mu\right)\psi\right|_{\mathbf{r}_i}^{t^{(n)}}=\frac{\psi_i^{(n+1)}\exp(i\mu_i^{(n)}\Delta t^{(n)})-\psi_i^{(n)}}{\Delta t^{(n)}}
-
-The discretized form of the covariant gradient of :math:`\psi` at time :math:`t^{(n)}` and edge :math:`\mathbf{r}_{ij}` is:
+The discretized form of the covariant gradient of :math:`\psi` at time :math:`t^{n}` and edge :math:`\mathbf{r}_{ij}` is:
 
 .. math::
     :label: grad-psi
 
-    \left.\left(\nabla-i\mathbf{A}\right)\psi\right|_{\mathbf{r}_{ij}}^{t^{(n)}}=\frac{\psi_i^{(n)}\exp(-iA_{ij}e_{ij})-\psi_i^{(n)}}{e_{ij}}
+    \left.\left(\nabla-i\mathbf{A}\right)\psi\right|_{\mathbf{r}_{ij}}^{t^{n}}=\frac{\psi_j^{n}\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})-\psi_i^{n}}{e_{ij}},
 
-The discretized form of the covariant Laplacian of :math:`\psi` at time :math:`t^{(n)}` and site :math:`\mathbf{r}_i` is:
+where the quantity :math:`U^{n}_{ij}=\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})` is the spatial link variable.
+:eq:`grad-psi` is similar to the `gauge-invariant phase difference <https://link.springer.com/article/10.1007/s10948-020-05784-9>`_
+in Josephson junction physics.
+
+The discretized form of the covariant Laplacian of :math:`\psi` at time :math:`t^{n}` and site :math:`\mathbf{r}_i` is:
 
 .. math::
     :label: lapacian-psi
 
-    \left.\left(\nabla-i\mathbf{A}\right)^2\psi\right|_{\mathbf{r}_{i}}^{t^{(n)}}=\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{(n)}\exp(-iA_{ij}e_{ij})-\psi_i^{(n)}}{e_{ij}}s_{ij}
+    \left.\left(\nabla-i\mathbf{A}\right)^2\psi\right|_{\mathbf{r}_{i}}^{t^{n}}=\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_j^{n}\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
+
+The discretized form of the covariant time-derivative of :math:`\psi` at time :math:`t^{n}` and site :math:`\mathbf{r}_i` is
+
+.. math::
+    :label: dmu_dt
+
+    \left.\left(\frac{\partial}{\partial t}+i\mu\right)\psi\right|_{\mathbf{r}_i}^{t^{n}}=\frac{\psi_i^{n+1}\exp(i\mu_i^{n}\Delta t^{n})-\psi_i^{n}}{\Delta t^{n}},
+
+where the quantity :math:`U_i^{(n, n+1)}=\exp(i\mu_i^{n}\Delta t^{n})` is the temoral link variable.
 
 Implicit Euler method
 =====================
@@ -232,76 +272,76 @@ The discretized form of the equations of motion for :math:`\psi(\mathbf{r}, t)` 
 ..     :label: tdgl-num1
 
 ..     \begin{split}
-..         \frac{u}{\sqrt{1+\gamma^2\left|\psi_i^{(n)}\right|^2}}&
+..         \frac{u}{\sqrt{1+\gamma^2\left|\psi_i^{n}\right|^2}}&
 ..         \left[
-..             \left.\left(\frac{\partial}{\partial t}+i\mu\right)\psi\right|_{\mathbf{r}_i}^{t^{(n)}}
-..             +\frac{\gamma^2}{2}\frac{\partial|\psi_{i}^{(n)}|^2}{\partial t}
+..             \left.\left(\frac{\partial}{\partial t}+i\mu\right)\psi\right|_{\mathbf{r}_i}^{t^{n}}
+..             +\frac{\gamma^2}{2}\frac{\partial|\psi_{i}^{n}|^2}{\partial t}
 ..         \right]\\
-..         &=\left(1-\left|\psi_i^{(n)}\right|^2\right)\psi_i^{(n)} + \left.\left(\nabla-i\mathbf{A}\right)^2\psi\right|_{\mathbf{r}_i}^{t^{(n)}}
+..         &=\left(1-\left|\psi_i^{n}\right|^2\right)\psi_i^{n} + \left.\left(\nabla-i\mathbf{A}\right)^2\psi\right|_{\mathbf{r}_i}^{t^{n}}
 ..     \end{split}
 
 .. math::
     :label: tdgl-num2
 
     \begin{split}
-        \frac{u}{\Delta t^{(n)}\sqrt{1 + \gamma^2\left|\psi_i^{(n)}\right|^2}}&
+        \frac{u}{\Delta t^{n}\sqrt{1 + \gamma^2\left|\psi_i^{n}\right|^2}}&
         \left[
-            \psi_i^{(n+1)}\exp(i\mu_i^{(n)}\Delta t^{(n)})-\psi_i^{(n)}
-            +\frac{\gamma^2}{2}\left(\left|\psi_i^{(n+1)}\right|^2-\left|\psi_i^{(n)}\right|^2\right)\psi_i^{(n)}
+            \psi_i^{n+1}\exp(i\mu_i^{n}\Delta t^{n})-\psi_i^{n}
+            +\frac{\gamma^2}{2}\left(\left|\psi_i^{n+1}\right|^2-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}
         \right]\\
-        &=\left(1-\left|\psi_i^{(n)}\right|^2\right)\psi_i^{(n)}+\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{(n)}\exp(-iA_{ij}e_{ij})-\psi_i^{(n)}}{e_{ij}}s_{ij}
+        &=\left(1-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}+\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
     \end{split}
 
 .. math::
     :label: poisson-num
 
     \begin{split}
-    \sum_{j\in\mathcal{N}(i)}\frac{\mu_j^{(n)}-\mu_i^{(n)}}{e_{ij}}s_{ij}&=\sum_{j\in\mathcal{N}(i)}J_{ij}^{(n)}|s_{ij}|\\
-    &=\sum_{j\in\mathcal{N}(i)}\mathrm{Im}\left\{\left(\psi_i^{(n)}\right)^*\,\frac{\psi_i^{(n)}\exp(-iA_{ij}e_{ij})-\psi_i^{(n)}}{e_{ij}}\right\}|s_{ij}|
+    \sum_{j\in\mathcal{N}(i)}\frac{\mu_j^{n}-\mu_i^{n}}{e_{ij}}s_{ij}&=\sum_{j\in\mathcal{N}(i)}J_{ij}^{n}|s_{ij}|\\
+    &=\sum_{j\in\mathcal{N}(i)}\mathrm{Im}\left\{\left(\psi_i^{n}\right)^*\,\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}\right\}|s_{ij}|
     \end{split}
 
-If we isloate the terms in :eq:`tdgl-num2` involving the order parameter at time :math:`t^{(n+1)}`, we can rewrite :eq:`tdgl-num2` in the form
+If we isloate the terms in :eq:`tdgl-num2` involving the order parameter at time :math:`t^{n+1}`, we can rewrite :eq:`tdgl-num2` in the form
 
 .. math::
     :label: quad-1
 
-    \psi_i^{(n+1)}+z_i^{(n)}\left|\psi_i^{(n+1)}\right|^2=w_i^{(n)},
+    \psi_i^{n+1}+z_i^{n}\left|\psi_i^{n+1}\right|^2=w_i^{n},
 
 
 where 
 
 .. math::
 
-    z_i^{(n)}=\frac{\gamma^2}{2}\exp(-i\mu_i^{(n)}\Delta t^{(n)})\psi_i^{(n)}
+    z_i^{n}=\frac{\gamma^2}{2}\exp(-i\mu_i^{n}\Delta t^{n})\psi_i^{n}
 
 and
 
 .. math::
 
     \begin{split}
-    w_i^{(n)}=&z_{i}^{(n)}\left|\psi_i^{(n)}\right|+\exp(-i\mu_i^{(n)}\Delta t^{(n)})\times\\
-    &\Biggl[\psi_i^{(n)}+\frac{\Delta t^{(n)}}{u}\sqrt{1+\gamma^2\left|\psi_i^{(n)}\right|^2}\times\\
+    w_i^{n}=&z_{i}^{n}\left|\psi_i^{n}\right|+\exp(-i\mu_i^{n}\Delta t^{n})\times\\
+    &\Biggl[\psi_i^{n}+\frac{\Delta t^{n}}{u}\sqrt{1+\gamma^2\left|\psi_i^{n}\right|^2}\times\\
     &\quad\biggl(
-        \left(1-\left|\psi_i^{(n)}\right|^2\right)\psi_{i}^{(n)} +
-        \frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{(n)}\exp(-iA_{ij}e_{ij})-\psi_i^{(n)}}{e_{ij}}s_{ij}
+        \left(1-\left|\psi_i^{n}\right|^2\right)\psi_{i}^{n} +
+        \frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
     \biggr)
     \Biggr]
     \end{split}
 
-Solving :eq:`quad-1` for :math:`\left|\psi_i^{(n+1)}\right|^2`,
-we arrive at a quadratic equation in :math:`\left|\psi_i^{(n+1)}\right|^2`
+Solving :eq:`quad-1` for :math:`\left|\psi_i^{n+1}\right|^2`,
+we arrive at a quadratic equation in :math:`\left|\psi_i^{n+1}\right|^2`
 (see :ref:`appendix-euler` for the full calculation):
 
 .. math::
     :label: quad-2
 
     \begin{split}
-    0 =& \left|z_i^{(n)}\right|^2\left|\psi_i^{(n+1)}\right|^4\\
+    0 =& \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4\\
     &-\left(2\left[
-        \mathrm{Re}\left\{z_i^{(n)}\right\}\mathrm{Re}\left\{w_i^{(n)}\right\}
-        +\mathrm{Im}\left\{z_i^{(n)}\right\}\mathrm{Im}\left\{w_i^{(n)}\right\}
-    \right] + 1\right)\left|\psi_i^{(n+1)}\right|^2\\
-    &+ \left|w_i^{(n)}\right|^2
+        \mathrm{Re}\left\{z_i^{n}\right\}\mathrm{Re}\left\{w_i^{n}\right\}
+        +\mathrm{Im}\left\{z_i^{n}\right\}\mathrm{Im}\left\{w_i^{n}\right\}
+    \right] + 1\right)\left|\psi_i^{n+1}\right|^2\\
+    &+ \left|w_i^{n}\right|^2
     \end{split}
 
 To solve :eq:`quad-2`, which has the form :math:`0=ax^2+bx+c`, we use the form of the
@@ -317,36 +357,37 @@ which yields
 .. math::
     :label: quad-root
 
-    \left|\psi_i^{(n+1)}\right|^2=\frac{2\left|w_i^{(n)}\right|^2}{(2c_i^{(n)} + 1)+\sqrt{(2c_i^{(n)} + 1)^2 - 4\left|z_i^{(n)}\right|^2\left|w_i^{(n)}\right|^2}},
+    \left|\psi_i^{n+1}\right|^2=\frac{2\left|w_i^{n}\right|^2}{(2c_i^{n} + 1)+\sqrt{(2c_i^{n} + 1)^2 - 4\left|z_i^{n}\right|^2\left|w_i^{n}\right|^2}},
 
 where we have defined 
 
 .. math::
 
-    c_i^{(n)}=
-    \mathrm{Re}\left\{z_i^{(n)}\right\}\mathrm{Re}\left\{w_i^{(n)}\right\}
-    +\mathrm{Im}\left\{z_i^{(n)}\right\}\mathrm{Im}\left\{w_i^{(n)}\right\}.
+    c_i^{n}=
+    \mathrm{Re}\left\{z_i^{n}\right\}\mathrm{Re}\left\{w_i^{n}\right\}
+    +\mathrm{Im}\left\{z_i^{n}\right\}\mathrm{Im}\left\{w_i^{n}\right\}.
 
 We take the root with the ":math:`+`" sign in :eq:`quad-root` because the ":math:`-`" sign results in unphysical behavior where
-:math:`\left|\psi_i^{(n+1)}\right|^2` diverges when :math:`\left|z_i^{(n)}\right|^2` vanishes (i.e., when :math:`\left|\psi_i^{(n)}\right|^2` is zero).
+:math:`\left|\psi_i^{n+1}\right|^2` diverges when :math:`\left|z_i^{n}\right|^2` vanishes (i.e., when :math:`\left|\psi_i^{n}\right|^2` is zero).
 
-Combining :eq:`quad-1` and :eq:`quad-root` allows us to find the order parameter at time :math:`t^{(n+1)}` in terms of the 
-order parameter and scalar potential at time :math:`t^{(n)}`:
+Combining :eq:`quad-1` and :eq:`quad-root` allows us to find the order parameter at time :math:`t^{n+1}` in terms of the 
+order parameter and scalar potential at time :math:`t^{n}`:
 
 .. math::
     :label: psi-sol
 
     \begin{split}
-    \psi_i^{(n+1)} &= w_i^{(n)} - z_i^{(n)}\left|\psi_i^{(n+1)}\right|^2\\
-    &=w_i^{(n)} - z_i^{(n)}\frac{2\left|w_i^{(n)}\right|^2}{(2c_i^{(n)} + 1)+\sqrt{(2c_i^{(n)} + 1)^2 - 4\left|z_i^{(n)}\right|^2\left|w_i^{(n)}\right|^2}}
+    \psi_i^{n+1} &= w_i^{n} - z_i^{n}\left|\psi_i^{n+1}\right|^2\\
+    &=w_i^{n} - z_i^{n}\frac{2\left|w_i^{n}\right|^2}{(2c_i^{n} + 1)+\sqrt{(2c_i^{n} + 1)^2 - 4\left|z_i^{n}\right|^2\left|w_i^{n}\right|^2}}
     \end{split}
 
-Combining :eq:`psi-sol` and :eq:`poisson-num` allows us to find :math:`\mu_i^{(n+1)}` given :math:`\mu_i^{(n)}` and :math:`\psi_i^{(n+1)}`.
+Combining :eq:`psi-sol` and :eq:`poisson-num` yields a sparse linear system that can be solved to find
+:math:`\mu_i^{n+1}` given :math:`\mu_i^{n}` and :math:`\psi_i^{(n + 1)}`.
 
 Adaptive time step
-------------------
+==================
 
-``pyTDGL`` implements an adaptive time step algorithm that adjusts the time step :math:`\Delta t^{(n)}`
+``pyTDGL`` implements an adaptive time step algorithm that adjusts the time step :math:`\Delta t^{n}`
 based on the speed of the system's dynamics. This functionality is useful if, for example, you are only interested
 in the equilibrium behavior of a system. The dynamics may initially be quite fast and then slow down as you approach steady state.
 Using an adaptive time step dramatically reduces the wall-clock time needed to model equilibrium behavior in such instances, without
@@ -355,23 +396,23 @@ sacrificing solution accuracy.
 There are three parameters that control the adaptive time step algorithm, which are defined in :class:`tdgl.SolverOptions`:
 :math:`\Delta t_\mathrm{init}` (``SolverOptions.dt_init``, default: :math:`10^{-4}\tau_0`),
 :math:`\Delta t_\mathrm{max}` (``SolverOptions.dt_max``, default: :math:`10^{-1}\tau_0`),
-and :math:`N_\mathrm{window}` (``SolverOptions.adaptive_window``, default: :math:`10`).
+and :math:`N_\mathrm{window}` (``SolverOptions.adaptive_window``, default: 10).
 The initial time step at iteration :math:`n=0` is set to :math:`\Delta t^{(0)}=\Delta t_\mathrm{init}`. We keep a running list of
-:math:`\Delta|\psi|^2_n=\max_i \left|\left(\left|\psi_i^{(n+1)}\right|^2-\left|\psi_i^{(n)}\right|^2\right)\right|` for each iteration :math:`n`.
-Then, for each iteration :math:`n > N_\mathrm{window}`, we define a potential new time step :math:`\Delta t_?^{(n+1)}`
+:math:`\Delta|\psi|^2_n=\max_i \left|\left(\left|\psi_i^{n+1}\right|^2-\left|\psi_i^{n}\right|^2\right)\right|` for each iteration :math:`n`.
+Then, for each iteration :math:`n > N_\mathrm{window}`, we define a potential new time step :math:`\Delta t_?^{n+1}`
 using the following heuristic:
 
 .. math::
     :label: dt-potential
 
-    \Delta t_?^{(n+1)}=\frac{\Delta t_\mathrm{init}}{\frac{1}{N_\mathrm{window}}\sum_{\ell=n-N_\mathrm{window}}^n\Delta|\psi|^2_\ell}.
+    \Delta t_?^{n+1}=\frac{\Delta t_\mathrm{init}}{\frac{1}{N_\mathrm{window}}\sum_{\ell=n-N_\mathrm{window}}^n\Delta|\psi|^2_\ell}.
 
-Finally, we choose a the actual updated time step by clamping :math:`\Delta t_?^{(n+1)}` between 0 and :math:`\Delta t_\mathrm{max}`:
+Finally, we choose a the actual updated time step by clamping :math:`\Delta t_?^{n+1}` between 0 and :math:`\Delta t_\mathrm{max}`:
 
 .. math::
     :label: dt-new
 
-    \Delta t^{(n+1)}=\max\left(0, \min(\Delta t_\mathrm{max}, \Delta t_?^{(n+1)})\right).
+    \Delta t^{n+1}=\max\left(0, \min(\Delta t_\mathrm{max}, \Delta t_?^{n+1})\right).
 
 :eq:`dt-potential` has the effect of automatically selecting a small time step if the recent dynamics
 of the system are fast, and a larger time step if the dynamics are slow.
@@ -384,14 +425,14 @@ of the system are fast, and a larger time step if the dynamics are slow.
 
 The the time step selected at iteration :math:`n` as described above may be too large to accurately solve for the state
 of the system in iteration :math:`m=n+1`. We detect such a failure to converge by evaluating the discriminant of
-:eq:`quad-2`. If the discriminant, :math:`(2c_i^{(m)} + 1)^2 - 4|z_i^{(m)}|^2|w_i^{(m)}|^2`, is less than zero for any
-site :math:`i`, then the value of :math:`|\psi_i^{(m+1)}|^2` found in :eq:`quad-root` will be complex, which is unphysical.
-If this happens, we iteratively reduce the time step :math:`\Delta t^{(m)}` and re-solve :eq:`quad-2` until
+:eq:`quad-2`. If the discriminant, :math:`(2c_i^{m} + 1)^2 - 4|z_i^{m}|^2|w_i^{m}|^2`, is less than zero for any
+site :math:`i`, then the value of :math:`|\psi_i^{m+1}|^2` found in :eq:`quad-root` will be complex, which is unphysical.
+If this happens, we iteratively reduce the time step :math:`\Delta t^{m}` and re-solve :eq:`quad-2` until
 the discriminant is nonnegative for all sites :math:`i`, then proceed with the rest of the calculation for iteration :math:`m`.
 
 
 Screening
----------
+=========
 
 If :math:`\Lambda=\lambda^2/d\gg L`, then one can neglect screening and assume that the total vector potential in the film is
 time-independent and equal to the applied vector potential: :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})`.
@@ -428,26 +469,31 @@ zero-field effective magnetic penetration depth.
 .. _appendix-euler:
 
 Appendix: Implicit Euler method
--------------------------------
+===============================
 
-Here we go through the full derivation of the quadratic equation for :math:`\left|\psi_i^{(n+1)}\right|^2`,
+Here we go through the full derivation of the quadratic equation for :math:`\left|\psi_i^{n+1}\right|^2`,
 :eq:`quad-2`, starting from :eq:`quad-1`:
 
 .. math::
     :label: quad-full
 
     \begin{split}
-        \psi_i^{(n+1)} =& w_i^{(n)} - z_i^{(n)}\left|\psi_i^{(n+1)}\right|^2\\
-        \left|\psi_i^{(n+1)}\right|^2 =& \left(\psi_i^{(n+1)}\right)^*\left(\psi_i^{(n+1)}\right)\\
-        =& \left(w_i^{(n)}-z_i^{(n)}\left|\psi_i^{(n+1)}\right|^2\right)^*\left(w_i^{(n)}-z_i^{(n)}\left|\psi_i^{(n+1)}\right|^2\right)\\
-        =& \left|w_i^{(n)}\right|^2 \\
-        & - {w_i^{(n)}}^*z_i^{(n)}\left|\psi_i^{(n+1)}\right|^2\\
-        & - w_i^{(n)}{z_i^{(n)}}^*\left|\psi_i^{(n+1)}\right|^2 \\
-        & + \left|z_i^{(n)}\right|^2\left|\psi_i^{(n+1)}\right|^4\\
-        \left|\psi_i^{(n+1)}\right|^2\left(1 + {w_i^{(n)}}^*z_i^{(n)} + w_i^{(n)}{z_i^{(n)}}^*\right)
-        =&\left|w_i^{(n)}\right|^2 + \left|z_i^{(n)}\right|^2\left|\psi_i^{(n+1)}\right|^4\\
-        {w_i^{(n)}}^*z_i^{(n)} + w_i^{(n)}{z_i^{(n)}}^* =& 2\left(\mathrm{Re}\{w_i^{(n)}\}\mathrm{Re}\{z_i^{(n)}\}+\mathrm{Im}\{w_i^{(n)}\}\mathrm{Im}\{z_i^{(n)}\}\right)\\
-        =& 2c_i^{(n)}\\
-        0 =& \left|z_i^{(n)}\right|^2\left|\psi_i^{(n+1)}\right|^4 - (2c_i^{(n)} + 1)\left|\psi_i^{(n+1)}\right|^2 + \left|w_i^{(n)}\right|^2
+        \psi_i^{n+1} =& w_i^{n} - z_i^{n}\left|\psi_i^{n+1}\right|^2\\
+        \left|\psi_i^{n+1}\right|^2 =& \left(\psi_i^{n+1}\right)^*\left(\psi_i^{n+1}\right)\\
+        =& \left(w_i^{n}-z_i^{n}\left|\psi_i^{n+1}\right|^2\right)^*\left(w_i^{n}-z_i^{n}\left|\psi_i^{n+1}\right|^2\right)\\
+        =& \left|w_i^{n}\right|^2 \\
+        & - {w_i^{n}}^*z_i^{n}\left|\psi_i^{n+1}\right|^2\\
+        & - w_i^{n}{z_i^{n}}^*\left|\psi_i^{n+1}\right|^2 \\
+        & + \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4\\
+        \left|\psi_i^{n+1}\right|^2\left(1 + {w_i^{n}}^*z_i^{n} + w_i^{n}{z_i^{n}}^*\right)
+        =&\left|w_i^{n}\right|^2 + \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4\\
+        {w_i^{n}}^*z_i^{n} + w_i^{n}{z_i^{n}}^* =& 2\left(\mathrm{Re}\{w_i^{n}\}\mathrm{Re}\{z_i^{n}\}+\mathrm{Im}\{w_i^{n}\}\mathrm{Im}\{z_i^{n}\}\right)\\
+        =& 2c_i^{n}\\
+        0 =& \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4 - (2c_i^{n} + 1)\left|\psi_i^{n+1}\right|^2 + \left|w_i^{n}\right|^2
         
     \end{split}
+
+References
+----------
+
+.. footbibliography::
