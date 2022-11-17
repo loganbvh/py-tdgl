@@ -812,8 +812,9 @@ class Solution:
         """Save the Solution to the existing output HDF5 file or to a new HDF5 file.
 
         Args:
-            h5path: Path to an HDF5 file. If ``None`` is given, the :class:`tdgl.Solution`
-                will be saved to the existing HDF5 output file located at ``self.path``.
+            h5path: Path to an HDF5 file. If ``None`` is given, the
+                :class:`tdgl.Solution` will be saved to the existing HDF5 output file
+                located at ``self.path``.
             save_mesh: Whether to save the Device's mesh.
         """
         if self.saved_on_disk:

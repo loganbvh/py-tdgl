@@ -479,4 +479,5 @@ def solve(
             field_units=field_units,
             current_units=current_units,
         )
+        solution.to_hdf5()
     return solution
