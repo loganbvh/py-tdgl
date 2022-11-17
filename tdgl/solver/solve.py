@@ -206,9 +206,12 @@ def solve(
     divergence = builder.build(MatrixType.DIVERGENCE)
     # Find the current terminal sites.
     terminal_info = device.terminal_info()
-    normal_boundary_index = np.concatenate(
-        [t.site_indices for t in terminal_info]
-    ).astype(np.int64)
+    if terminal_info:
+        normal_boundary_index = np.concatenate(
+            [t.site_indices for t in terminal_info]
+        ).astype(np.int64)
+    else:
+        normal_boundary_index = np.array([], dtype=np.int64)
     interior_indices = np.setdiff1d(
         np.arange(mesh.x.shape[0], dtype=int), normal_boundary_index
     )
