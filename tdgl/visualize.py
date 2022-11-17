@@ -15,7 +15,6 @@ def make_parser():
     parser = argparse.ArgumentParser(description="Visualize TDGL simulation data.")
     subparsers = parser.add_subparsers()
     parser.add_argument("--input", type=str, help="H5 file to visualize.")
-
     parser.add_argument(
         "-v",
         "--verbose",
@@ -23,7 +22,6 @@ def make_parser():
         default=False,
         help="Run in verbose mode.",
     )
-
     parser.add_argument(
         "-s",
         "--silent",
@@ -35,16 +33,6 @@ def make_parser():
     interactive_parser = subparsers.add_parser(
         "interactive", help="Create an interactive plot of one or more observables."
     )
-
-    interactive_parser.add_argument(
-        "-o",
-        "--observables",
-        type=lambda s: str(s).upper(),
-        choices=Observable.get_keys() + ["ALL"],
-        nargs="*",
-        help="Name(s) of the observable(s) to show.",
-    )
-
     interactive_parser.add_argument(
         "-a",
         "--allow-save",
@@ -52,16 +40,7 @@ def make_parser():
         default=False,
         help="Allow saving file.",
     )
-
-    interactive_parser.set_defaults(func=visualize_tdgl)
-
-    animate_parser = subparsers.add_parser(
-        "animate", help="Create an animation of the TDGL data."
-    )
-
-    animate_parser.add_argument("--output", type=str, help="Output file for animation.")
-
-    animate_parser.add_argument(
+    interactive_parser.add_argument(
         "-o",
         "--observables",
         type=lambda s: str(s).upper(),
@@ -70,14 +49,18 @@ def make_parser():
         help="Name(s) of the observable(s) to show.",
     )
 
+    interactive_parser.set_defaults(func=visualize_tdgl)
+
+    animate_parser = subparsers.add_parser(
+        "animate", help="Create an animation of the TDGL data."
+    )
+    animate_parser.add_argument("--output", type=str, help="Output file for animation.")
     animate_parser.add_argument(
         "-f", "--fps", type=int, default=30, help="Frame rate of the animation."
     )
-
     animate_parser.add_argument(
         "-d", "--dpi", type=float, default=200, help="Resolution in dots per inch."
     )
-
     animate_parser.add_argument(
         "-s",
         "--skip",
@@ -85,13 +68,20 @@ def make_parser():
         default=0,
         help="Number of frames to skip at the beginning of the animation.",
     )
-
     animate_parser.add_argument(
         "-g",
         "--gpu",
         action="store_true",
         default=False,
         help="Enable NVIDIA GPU acceleration.",
+    )
+    animate_parser.add_argument(
+        "-o",
+        "--observables",
+        type=lambda s: str(s).upper(),
+        choices=Observable.get_keys() + ["ALL"],
+        nargs="*",
+        help="Name(s) of the observable(s) to show.",
     )
 
     animate_parser.set_defaults(func=animate_tdgl)

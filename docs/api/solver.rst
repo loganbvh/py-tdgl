@@ -6,10 +6,7 @@
 Solver
 ******
 
-The ``tdgl.solver`` module is the entrypoint for running a TDGL simulation.
-
-Solve
------
+The :func:`tdgl.solve` module is the entrypoint for running a TDGL simulation.
 
 .. autofunction:: tdgl.solve
 
@@ -19,16 +16,3 @@ Solve
 .. autoclass:: tdgl.Parameter
 
 
-Solution
---------
-
-.. autoclass:: tdgl.Solution
-    :members:
-
-Fluxoid
--------
-
-.. autoclass:: tdgl.Fluxoid
-    :show-inheritance:
-
-.. autofunction:: tdgl.fluxoid.make_fluxoid_polygons

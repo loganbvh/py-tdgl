@@ -12,10 +12,11 @@ from tqdm import tqdm
 
 from ..enums import Observable
 from ..finite_volume.mesh import Mesh
-from ..io import get_data_range, get_plot_data, get_state_string
-from ..plot_solution import auto_grid
+from ..solution.data import get_data_range
+from ..solution.plot_solution import auto_grid
 from .defaults import PLOT_DEFAULTS
 from .interactive_plot import _default_observables
+from .io import get_plot_data, get_state_string
 
 
 class Animate:

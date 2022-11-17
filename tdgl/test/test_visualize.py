@@ -7,7 +7,7 @@ import pytest
 
 import tdgl
 from tdgl import visualize
-from tdgl.plot_solution import non_gui_backend
+from tdgl.solution.plot_solution import non_gui_backend
 
 
 @pytest.fixture(scope="module")

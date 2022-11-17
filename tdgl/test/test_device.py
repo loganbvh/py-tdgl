@@ -9,7 +9,7 @@ import pytest
 import shapely
 
 import tdgl
-from tdgl.plot_solution import non_gui_backend
+from tdgl.solution.plot_solution import non_gui_backend
 
 
 def test_set_polygon_points():

@@ -33,6 +33,7 @@ pyTDGL: 2D time-dependent Ginzburg Landau in Python
 
    api/device.rst
    api/solver.rst
+   api/solution.rst
    api/finite-volume.rst
    api/visualization.rst
 

@@ -38,8 +38,6 @@ Geometry
 
 .. autofunction:: tdgl.geometry.rotate
 
-.. autofunction:: tdgl.geometry.translate
-
 Mesh Generation
 ---------------
 

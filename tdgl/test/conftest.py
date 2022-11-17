@@ -20,7 +20,7 @@ def transport_device():
         "film",
         layer=layer,
         film=film,
-        holes=[hole, hole.scale(xfact=-1, yfact=-1).rename("hole2")],
+        holes=[hole, hole.scale(xfact=-1, yfact=-1).set_name("hole2")],
         terminals=[source, drain],
     )
     device.make_mesh(min_points=2000, optimesh_steps=100, max_edge_length=xi / 2)

@@ -16,48 +16,27 @@ import pint
 from scipy import interpolate
 from scipy.spatial import distance
 
-from .about import version_dict
-from .device.components import Polygon
-from .device.device import Device
-from .em import biot_savart_2d, convert_field
-from .finite_volume.matrices import build_gradient
-from .geometry import path_vectors
-from .io import DynamicsData, TDGLData, get_data_range, get_edge_observable_data
-from .parameter import Parameter
-from .solver.runner import SolverOptions
+from ..about import version_dict
+from ..device.device import Device
+from ..device.polygon import Polygon
+from ..em import biot_savart_2d, convert_field
+from ..finite_volume.matrices import build_gradient
+from ..fluxoid import Fluxoid
+from ..geometry import path_vectors
+from ..parameter import Parameter
+from ..solver.runner import SolverOptions
+from .data import DynamicsData, TDGLData, get_data_range, get_edge_observable_data
 
 logger = logging.getLogger(__name__)
 
 
-class Fluxoid(NamedTuple):
-    """The fluxoid for a closed region :math:`S` with boundary :math:`\\partial S`
-    is defined as:
-
-    .. math::
-
-        \\Phi^f_S = \\underbrace{
-            \\int_S \\mu_0 H_z(\\vec{r})\\,\\mathrm{d}^2r
-        }_{\\text{flux part}}
-        + \\underbrace{
-            \\oint_{\\partial S}
-            \\mu_0\\Lambda(\\vec{r})\\vec{J}(\\vec{r})\\cdot\\mathrm{d}\\vec{r}
-        }_{\\text{supercurrent part}}
-
-    Args:
-        flux_part: :math:`\\int_S \\mu_0 H_z(\\vec{r})\\,\\mathrm{d}^2r`.
-        supercurrent_part: :math:`\\oint_{\\partial S}\\mu_0\\Lambda(\\vec{r})\\vec{J}(\\vec{r})\\cdot\\mathrm{d}\\vec{r}`.
-    """
-
-    flux_part: Union[float, pint.Quantity]
-    supercurrent_part: Union[float, pint.Quantity]
-
-
 class BiotSavartField(NamedTuple):
-    """The magnetic field due to a sheet current.
+    """The magnetic field due to a current distribution, with the field due to the
+    supercurrent and normal current labeled separately.
 
     Args:
-        supercurrent: An array of sheet supercurrent densities.
-        normal_current: An array of sheey normal current densities.
+        supercurrent: An array of fields due to the supercurrent.
+        normal_current: An array of fields due to the normal current.
     """
 
     supercurrent: np.ndarray
@@ -65,30 +44,29 @@ class BiotSavartField(NamedTuple):
 
 
 class Solution:
-    """A container for the calculated stream functions and fields,
-    with some convenient data processing methods.
+    """A container for the results of a TDGL simulation.
 
     Args:
-        device: The ``Device`` that was solved
-        path: Path to the HDF5 file corresponding to the solution.
-        options: ``SolverOptions`` instance.
+        device: The :class`tdgl.Device` that was solved
+        options: A :class`tdgl.SolverOptions` instance.
+        path: Path to the HDF5 file containing the raw output data.
         applied_vector_potential: The ``Parameter`` defining the applied vector potential.
-        source_drain_current: A scalar or function with signature func(time) -> current
-            representing the source-drain current in units of ``current_units``.
+        terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
+            ``func(time) -> ``{terminal_name: current}``, where ``current`` is a float
+            in units of ``current_units``.
         pinning_sites: The string or callable specifying pinning sites.
         field_units: Units of the applied field
         current_units: Units used for current quantities.
         rng_seed: The RNG seed used for the simulation.
         total_seconds: The total wall time in seconds.
-        solver: The solver method that generated the solution.
     """
 
     def __init__(
         self,
         *,
         device: Device,
-        path: os.PathLike,
         options: SolverOptions,
+        path: os.PathLike,
         applied_vector_potential: Parameter,
         terminal_currents: Union[float, Callable],
         pinning_sites: Union[str, Callable],
@@ -96,7 +74,6 @@ class Solution:
         current_units: str,
         rng_seed: int,
         total_seconds: float,
-        solver: str = "tdgl.solve",
     ):
         self.device = device.copy()
         self.device.mesh = device.mesh
@@ -106,21 +83,25 @@ class Solution:
         self.terminal_currents = terminal_currents
         self.pinning_sites = pinning_sites
 
-        self.supercurrent_density: Optional[np.ndarray] = None
-        self.normal_current_density: Optional[np.ndarray] = None
-        self.vorticity: Optional[np.ndarray] = None
+        self.supercurrent_density: Union[np.ndarray, None] = None
+        """Sheet supercurrent density, :math:`\\mathbf{K}_s`"""
+        self.normal_current_density: Union[np.ndarray, None] = None
+        """Sheet normal density, :math:`\\mathbf{K}_n`"""
+        self.vorticity: Union[np.ndarray, None] = None
+        """The current vorticity, :math:`\\omega=(\\nabla\\times\\mathbf{K})\\cdot\\hat{\\mathbf{z}}`"""
 
         # Make field_units and current_units "read-only" attributes.
         # The should never be changed after instantiation.
         self._field_units = str(field_units)
         self._current_units = str(current_units)
-        self._solver = solver
         self._rng_seed = rng_seed
         self._time_created = datetime.now()
         self.total_seconds = total_seconds
 
-        self.tdgl_data: Optional[TDGLData] = None
-        self.dynamics: Optional[DynamicsData] = None
+        self.tdgl_data: Union[TDGLData, None] = None
+        """A container for the raw TDGL data."""
+        self.dynamics: Union[DynamicsData, None] = None
+        """A container for the time dynamics of the solution."""
         self._solve_step: int = -1
         self.load_tdgl_data(self._solve_step)
 
@@ -128,11 +109,21 @@ class Solution:
 
     @property
     def saved_on_disk(self) -> bool:
+        """Returns ``True`` if the underlying HDF5 file exists on disk."""
         return os.path.exists(self.path)
 
     @property
     def solve_step(self) -> int:
+        """The solver iteration corresponding to the current
+        :class:`tdgl.solution.data.TDGLData`.
+
+        Setting ``solve_step`` automatically loads data for the specitied step.
+        """
         return self._solve_step
+
+    @solve_step.setter
+    def solve_step(self, step: int) -> None:
+        self.load_tdgl_data(solve_step=step)
 
     def load_tdgl_data(self, solve_step: int = -1) -> None:
         """Loads the TDGL results from file for a given solve step.
@@ -161,9 +152,11 @@ class Solution:
             self.tdgl_data.normal_current, mesh
         )
         K0 = self.device.K0.to(f"{self.current_units} / {self.device.length_units}")
+        # Current density, evaluated on the mesh edges.
         self.supercurrent_density = K0 * supercurrent[:, np.newaxis] * sc_direc
         self.normal_current_density = K0 * normal_current[:, np.newaxis] * nc_direc
-
+        # Calculate the vorticity, evaluates on mesh sites.
+        # The vorticity is the curl of the current density.
         j_sc_site = mesh.get_observable_on_site(self.tdgl_data.supercurrent)
         j_nm_site = mesh.get_observable_on_site(self.tdgl_data.normal_current)
         j_site = j_sc_site + j_nm_site
@@ -185,13 +178,12 @@ class Solution:
 
     @property
     def current_density(self) -> pint.Quantity:
+        """The total sheet current density,
+        :math:`\\mathbf{K}=\\mathbf{K}_s+\\mathbf{K}_n`.
+        """
         if self.supercurrent_density is None:
             return None
         return self.supercurrent_density + self.normal_current_density
-
-    @solve_step.setter
-    def solve_step(self, step: int) -> None:
-        self.load_tdgl_data(solve_step=step)
 
     @property
     def rng_seed(self) -> int:
@@ -209,11 +201,6 @@ class Solution:
         return self._current_units
 
     @property
-    def solver(self) -> str:
-        """The solver method that generated the solution."""
-        return self._solver
-
-    @property
     def time_created(self) -> datetime:
         """The time at which the solution was originally created."""
         return self._time_created
@@ -226,27 +213,35 @@ class Solution:
     def grid_current_density(
         self,
         *,
-        dataset: Optional[str] = None,
+        dataset: Union[str, None] = None,
         grid_shape: Union[int, Tuple[int, int]] = (200, 200),
         method: str = "linear",
-        units: Optional[str] = None,
+        units: Union[str, None] = None,
         with_units: bool = False,
         **kwargs,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Computes the current density ``J = [dg/dy, -dg/dx]`` on a rectangular grid.
+        """Interpolates the sheet current density to a rectangular grid.
 
-        Keyword arguments are passed to scipy.interpolate.griddata().
+        Keyword arguments are passed to :func:`scipy.interpolate.griddata`.
+
+        .. seealso::
+
+            :meth:`tdgl.Solution.interp_current_density`
 
         Args:
+            dataset: The dataset to interpolate. One of ``"supercurrent"``,
+                ``"normal_current"``, or ``None``. If ``None``, then the total
+                sheet current density is used.
             grid_shape: Shape of the desired rectangular grid. If a single integer
                 N is given, then the grid will be square, shape = (N, N).
-            method: Interpolation method to use (see scipy.interpolate.griddata).
+            method: Interpolation method to use (see :func:`scipy.interpolate.griddata`).
             units: The desired units for the current density. Defaults to
                 ``self.current_units / self.device.length_units``.
-            with_units: Whether to return arrays of pint.Quantities with units attached.
+            with_units: Whether to return a :class:`pint.Quantity` array
+                with units attached.
 
         Returns:
-            x grid, y grid, nterpolated current density
+            x grid, y grid, interpolated current density
         """
         if dataset is None:
             J = self.current_density
@@ -256,6 +251,8 @@ class Solution:
             J = self.normal_current_density
         else:
             raise ValueError(f"Unexpected dataset: {dataset}.")
+        if isinstance(grid_shape, int):
+            grid_shape = (grid_shape, grid_shape)
         units = units or f"{self.current_units} / {self.device.length_units}"
         points = self.device.points
         x = points[:, 0]
@@ -291,25 +288,33 @@ class Solution:
         self,
         positions: np.ndarray,
         *,
-        dataset: Optional[str] = None,
+        dataset: Union[str, None] = None,
         method: str = "linear",
-        units: Optional[str] = None,
+        units: Union[str, None] = None,
         with_units: bool = False,
-    ):
-        """Computes the current density ``J = [dg/dy, -dg/dx]``
-        at unstructured coordinates via interpolation.
+    ) -> np.ndarray:
+        """Interpolates the sheet current density at unstructured coordinates.
+
+        .. seealso::
+
+            :meth:`tdgl.Solution.grid_current_density`
 
         Args:
             positions: Shape ``(m, 2)`` array of x, y coordinates at which to evaluate
                 the current density.
-            layers: Name(s) of the layer(s) for which to interpolate current density.
-            method: Interpolation method to use, 'nearest', 'linear', or 'cubic'.
+            dataset: The dataset to interpolate. One of ``"supercurrent"``,
+                ``"normal_current"``, or ``None``. If ``None``, then the total
+                sheet current density is used.
+            method: Interpolation method to use, ``"nearest"``, ``"linear"``,
+                or ``"cubic"``.
             units: The desired units for the current density. Defaults to
                 ``self.current_units / self.device.length_units``.
-            with_units: Whether to return arrays of pint.Quantities with units attached.
+            with_units: Whether to return a :class:`pint.Quantity` array
+                with units attached.
 
         Returns:
-            A dict of interpolated current density for each layer.
+            The interpolated current density as an array of floats
+            or a :class:`pint.Quantity` array.
         """
         valid_methods = ("nearest", "linear", "cubic")
         if method not in valid_methods:
@@ -350,22 +355,18 @@ class Solution:
     def interp_order_parameter(
         self,
         positions: np.ndarray,
-        *,
         method: str = "linear",
-    ):
-        """Computes the current density ``J = [dg/dy, -dg/dx]``
-        at unstructured coordinates via interpolation.
+    ) -> np.ndarray:
+        """Interpolates the order parameter at unstructured coordinates.
 
         Args:
             positions: Shape ``(m, 2)`` array of x, y coordinates at which to evaluate
-                the current density.
-            method: Interpolation method to use (see scipy.interpolate.griddata).
-            units: The desired units for the current density. Defaults to
-                ``self.current_units / self.device.length_units``.
-            with_units: Whether to return arrays of pint.Quantities with units attached.
+                the order parameter.
+            method: Interpolation method to use, ``"nearest"``, ``"linear"``,
+                or ``"cubic"``.
 
         Returns:
-            A dict of interpolated current density for each layer.
+            The interpolated order parameter.
         """
         valid_methods = ("nearest", "linear", "cubic")
         if method not in valid_methods:
@@ -391,10 +392,10 @@ class Solution:
         self,
         polygon_points: Union[np.ndarray, Polygon],
         interp_method: str = "linear",
-        units: Optional[str] = "Phi_0",
+        units: str = "Phi_0",
         with_units: bool = True,
-    ) -> Dict[str, Fluxoid]:
-        """Computes the :class:`Fluxoid` (flux + supercurrent) for
+    ) -> Fluxoid:
+        """Computes the :class:`tdgl.Fluxoid` (flux + supercurrent) for
         a given polygonal region.
 
         The fluxoid for a closed region :math:`S` with boundary :math:`\\partial S`
@@ -402,29 +403,31 @@ class Solution:
 
         .. math::
 
-            \\Phi^f_S = \\underbrace{
-                \\int_S \\mu_0 H_z(\\vec{r})\\,\\mathrm{d}^2r
-            }_{\\text{flux part}}
-            + \\underbrace{
+            \\begin{split}
+            \\Phi^f_S &= \\Phi^f_{S,\\text{ flux}} + \\Phi^f_{S,\\text{ supercurrent}}
+            \\\\&=\\int_S \\mu_0 H_z(\\mathbf{r})\\,\\mathrm{d}^2r +
                 \\oint_{\\partial S}
-                \\mu_0\\Lambda(\\vec{r})\\vec{J}(\\vec{r})\\cdot\\mathrm{d}\\vec{r}
-            }_{\\text{supercurrent part}}
+                \\mu_0\\Lambda(\\mathbf{r})\\mathbf{K}_s(\\mathbf{r})\\cdot\\mathrm{d}\\mathbf{r}
+            \\\\&=\\oint_{\\partial S} \\mathbf{A}(\\mathbf{r})\\cdot\\mathrm{d}\\mathbf{r} +
+                \\oint_{\\partial S}
+                \\mu_0\\Lambda(\\mathbf{r})\\mathbf{K}_s(\\mathbf{r})\\cdot\\mathrm{d}\\mathbf{r}
+            \\end{split}
+
+        .. seealso::
+
+            :class:`tdgl.Fluxoid`, :func:`tdgl.make_fluxoid_polygons`
 
         Args:
             polygon_points: A shape ``(n, 2)`` array of ``(x, y)`` coordinates of
                 polygon vertices defining the closed region :math:`S`.
-            layers: Name(s) of the layer(s) for which to compute the fluxoid.
-            grid_shape: Shape of the desired rectangular grid to use for interpolation.
-                If a single integer N is given, then the grid will be square,
-                shape = (N, N).
-            interp_method: Interpolation method to use.
-            units: The desired units for the current density.
-                Defaults to :math:`\\Phi_0`.
-            with_units: Whether to return values as pint.Quantities with units attached.
+            interp_method: Interpolation method to use, ``"nearest"``, ``"linear"``,
+                or ``"cubic"``.
+            units: The desired units for the fluxoid.
+            with_units: Whether to return values as :class:`pint.Quantity` instances
+                with units attached.
 
         Returns:
-            A dict of ``{layer_name: fluxoid}`` for each specified layer, where
-            ``fluxoid`` is an instance of :class:`Fluxoid`.
+            The polygon's :class:`Fluxoid`.
         """
         device = self.device
         ureg = device.ureg
@@ -455,7 +458,6 @@ class Solution:
             with_units=True,
             return_sum=True,
         )[:, :2]
-
         # Compute the flux part of the fluxoid:
         # \oint_{\\partial poly} \vec{A}\cdot\mathrm{d}\vec{r}
         int_A = np.trapz((A_poly * dl).sum(axis=1))
@@ -471,15 +473,14 @@ class Solution:
         if not with_units:
             flux_part = flux_part.magnitude
             supercurrent_part = supercurrent_part.magnitude
-        fluxoid = Fluxoid(flux_part, supercurrent_part)
-        return fluxoid
+        return Fluxoid(flux_part, supercurrent_part)
 
     def hole_fluxoid(
         self,
         hole_name: str,
-        points: Optional[np.ndarray] = None,
+        points: Union[np.ndarray, None] = None,
         interp_method: str = "linear",
-        units: Optional[str] = "Phi_0",
+        units: str = "Phi_0",
         with_units: bool = True,
     ) -> Fluxoid:
         """Calculcates the fluxoid for a polygon enclosing the specified hole.
@@ -488,21 +489,21 @@ class Solution:
             hole_name: The name of the hole for which to calculate the fluxoid.
             points: The vertices of the polygon enclosing the hole. If None is given,
                 a polygon is generated using
-                :func:`tdgl.fluxoid.make_fluxoid_polygons`.
-            interp_method: Interpolation method to use.
-            units: The desired units for the current density.
-                Defaults to :math:`\\Phi_0`.
-            with_units: Whether to return values as pint.Quantities with units attached.
+                :func:`tdgl.make_fluxoid_polygons`.
+            interp_method: Interpolation method to use, ``"nearest"``, ``"linear"``,
+                or ``"cubic"``.
+            units: The desired units for the fluxoid.
+            with_units: Whether to return values as :class:`pint.Quantity` instances
+                with units attached.
 
         Returns:
-            The hole's Fluxoid.
+            The hole's :class:`tdgl.Fluxoid`.
         """
         if points is None:
-            from .fluxoid import make_fluxoid_polygons
+            from ..fluxoid import make_fluxoid_polygons
 
             points = make_fluxoid_polygons(self.device, holes=hole_name)[hole_name]
-        holes = {hole.name: hole for hole in self.device.holes}
-        hole = holes[hole_name]
+        hole = {hole.name: hole for hole in self.device.holes}[hole_name]
         if not Polygon(points=points).contains_points(hole.points).all():
             raise ValueError(
                 f"Hole {hole_name} is not completely enclosed by the given polygon."
@@ -527,14 +528,15 @@ class Solution:
         Args:
             path_coords: An ``(n, 2)`` array of ``(x, y)`` coordinates defining
                 the path.
-            dataset: ``None``, "supercurrent", or "normal_current".
+            dataset: ``None``, ``"supercurrent"``, or ``"normal_current"``.
                 ``None`` indicates the total current.
             method: Interpolation method: either "linear" or "cubic".
             units: The current units to return.
-            with_units: Whether to return a pint.Quantity with units attached.
+            with_units: Whether to return a :class:`pint.Quantity` with units attached.
 
         Returns:
-            The total current crossing the path as either a float or a pint.Quantity.
+            The total current crossing the path as either a float or a
+            :class:`pint.Quantity`.
         """
         device = self.device
         if units is None:
@@ -545,11 +547,14 @@ class Solution:
             method=method,
             with_units=True,
         )
+        # The center of each edge in the path
         edge_positions = (path_coords[:-1] + path_coords[1:]) / 2
+        # Evaluate the supercurrent at the edge centers
         J_edge = (J[:-1] + J[1:]) / 2
         edge_lengths, unit_normals = path_vectors(path_coords)
         edge_lengths = edge_lengths * device.ureg(device.length_units)
         J_dot_n = (J_edge * unit_normals).sum(axis=1)
+        # Exclude points that are not inside the device.
         in_device = self.device.contains_points(edge_positions)
         total_current = np.trapz((J_dot_n * edge_lengths)[in_device]).to(units)
         if not with_units:
@@ -568,6 +573,10 @@ class Solution:
     ) -> Union[BiotSavartField, np.ndarray]:
         """Calculates the field due to currents in the device at any point(s) in space.
 
+        .. seealso::
+
+            :class:`tdgl.BiotSavartField`
+
         Args:
             positions: Shape (m, 2) array of (x, y) coordinates, or (m, 3) array
                 of (x, y, z) coordinates at which to calculate the magnetic field.
@@ -583,13 +592,14 @@ class Solution:
                 are returned in units of ``self.field_units``.
             with_units: Whether to return the fields as ``pint.Quantity``
                 with units attached.
-            return_sum: Whether to return the sum of the fields from all layers in
-                the device, or a dict of ``{layer_name: field_from_layer}``.
+            return_sum: If ``False``, this method will return a :class:`tdgl.BiotSavartField`
+                instance, where the field from the supercurrent and normal current
+                are identified separately.
 
         Returns:
-            An np.ndarray if return_sum is True, otherwise a dict of
-            ``{layer_name: field_from_layer}``. If with_units is True, then the
-            array(s) will contain pint.Quantities. ``field_from_layer`` will have
+            An np.ndarray if ``return_sum`` is ``True``, otherwise an instance of
+            :class:`tdgl.BiotSavartField`. If ``with_units`` is ``True``, then the
+            array(s) will be of type :class:`pint.Quantity`. The array(s) will have
             shape ``(m, )`` if vector is False, or shape ``(m, 3)`` if ``vector`` is True.
         """
         device = self.device
@@ -654,22 +664,22 @@ class Solution:
         self,
         positions: np.ndarray,
         *,
-        zs: Optional[Union[float, np.ndarray]] = None,
-        units: Optional[str] = None,
+        zs: Union[float, np.ndarray, None] = None,
+        units: Union[str, None] = None,
         with_units: bool = True,
         return_sum: bool = True,
     ) -> Union[np.ndarray, Dict[str, np.ndarray]]:
         """Calculates the vector potential due to currents in the device at any
         point(s) in space, plus the applied vector potential.
 
-        The vector potential :math:`\\vec{A}` at position :math:`\\vec{r}`
-        due to sheet current density :math:`\\vec{J}(\\vec{r}')` flowing in a film
+        The vector potential :math:`\\mathbf{A}` at position :math:`\\mathbf{r}`
+        due to sheet current density :math:`\\mathbf{K}(\\mathbf{r}')` flowing in a film
         with lateral geometry :math:`S` is:
 
         .. math::
 
-            \\vec{A}(\\vec{r}) = \\frac{\\mu_0}{4\\pi}
-            \\int_S\\frac{\\vec{J}(\\vec{r}')}{|\\vec{r}-\\vec{r}'|}\\mathrm{d}^2r'.
+            \\mathbf{A}(\\mathbf{r}) = \\frac{\\mu_0}{4\\pi}
+            \\int_S\\frac{\\mathbf{K}(\\mathbf{r}')}{|\\mathbf{r}-\\mathbf{r}'|}\\mathrm{d}^2r'.
 
         Args:
             positions: Shape (m, 2) array of (x, y) coordinates, or (m, 3) array
@@ -683,20 +693,19 @@ class Solution:
             with_units: Whether to return the vector potential as a ``pint.Quantity``
                 with units attached.
             return_sum: Whether to return the total potential or a dict with keys
-                ('applied', 'supercurrent', 'normal_current').
+                ``("applied", "supercurrent", "normal_current")``.
 
         Returns:
-            An np.ndarray if return_sum is True, otherwise a dict of
-            ``{source: potential_from_source}``. If with_units is True, then the
-            array(s) will contain pint.Quantities. ``potential_from_source`` will have
-            shape ``(m, 3)``.
+            An np.ndarray if ``return_sum`` is ``True``, otherwise a dict of
+            ``{source: potential_from_source}``. If ``with_units`` is ``True``, then
+            the array(s) will be of type :class:`pint.Quantity`.
+            ``potential_from_source`` will have shape ``(m, 3)``.
         """
         device = self.device
         ureg = device.ureg
         points = device.points
         areas = device.mesh.areas * device.coherence_length**2
         units = units or f"{self.field_units} * {device.length_units}"
-
         # In case something like a list [x, y] or [x, y, z] is given
         positions = np.atleast_2d(positions)
         # If positions includes z coordinates, peel those off here
@@ -772,7 +781,7 @@ class Solution:
             data_grp = f.require_group("data")
             if save_tdgl_data:
                 self.tdgl_data.to_hdf5(data_grp)
-                self.dynamics.to_hdf5(data_grp, self.tdgl_data.step)
+                self.dynamics.to_hdf5(data_grp, str(self.tdgl_data.step))
             for k, v in dataclasses.asdict(self.options).items():
                 if v is not None:
                     data_grp.attrs[k] = v
@@ -803,9 +812,10 @@ class Solution:
         """Save the Solution to the existing output HDF5 file or to a new HDF5 file.
 
         Args:
+            h5path: Path to an HDF5 file. If ``None`` is given, the :class:`tdgl.Solution`
+                will be saved to the existing HDF5 output file located at ``self.path``.
             save_mesh: Whether to save the Device's mesh.
         """
-
         if self.saved_on_disk:
             if h5path is None:
                 self._save_to_hdf5_file(self.path, save_mesh=save_mesh)
@@ -824,18 +834,18 @@ class Solution:
             )
         self._save_to_hdf5_file(h5path, save_tdgl_data=True, save_mesh=save_mesh)
 
-    @classmethod
-    def from_hdf5(cls, path: os.PathLike) -> "Solution":
-        """Loads a Solution from file.
+    @staticmethod
+    def from_hdf5(path: os.PathLike) -> "Solution":
+        """Loads a :class:`tdgl.Solution` from file.
 
         Args:
-            path: Path to the HDF5 file containing a serialized Solution.
+            path: Path to the HDF5 file containing a serialized :class:`tdgl.Solution`.
 
         Returns:
             The loaded Solution instance.
         """
 
-        def deserialize_func(name, fname, h5group, path):
+        def deserialize_func(name, h5group, path):
             if name in h5group.attrs:
                 return h5group.attrs[name]
             if f"{name}.pickle" in h5group:
@@ -843,7 +853,6 @@ class Solution:
             raise IOError(f"Unable to load {name} from {path!r}.")
 
         with h5py.File(path, "r", libver="latest") as f:
-            fname = os.path.basename(path).replace(".h5", "")
             data_grp = f["data"]
             options_kwargs = dict()
             for k, v in data_grp.attrs.items():
@@ -853,11 +862,9 @@ class Solution:
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             current_units = grp.attrs["current_units"]
             field_units = grp.attrs["field_units"]
-            vector_potential = deserialize_func(
-                "applied_vector_potential", fname, grp, path
-            )
-            terminal_currents = deserialize_func("terminal_currents", fname, grp, path)
-            pinning_sites = deserialize_func("pinning_sites", fname, grp, path)
+            vector_potential = deserialize_func("applied_vector_potential", grp, path)
+            terminal_currents = deserialize_func("terminal_currents", grp, path)
+            pinning_sites = deserialize_func("pinning_sites", grp, path)
             rng_seed = int(grp.attrs["rng_seed"])
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])
@@ -874,14 +881,11 @@ class Solution:
             rng_seed=rng_seed,
             total_seconds=total_seconds,
         )
-
-        # Set "read-only" attributes
         solution._time_created = time_created
-
         return solution
 
     def delete_hdf5(self) -> None:
-        """Delete the HDF5 file accompanying the ``Solution``."""
+        """Delete the HDF5 file accompanying the :class:`tdgl.Solution`."""
         if self.saved_on_disk:
             os.remove(self.path)
 
@@ -893,7 +897,7 @@ class Solution:
         """Checks whether two solutions are equal.
 
         Args:
-            other: The Solution to compare for equality.
+            other: The :class:`tdgl.Solution` to compare for equality.
             require_same_timestamp: If True, two solutions are only considered
                 equal if they have the exact same time_created.
 
@@ -937,33 +941,33 @@ class Solution:
         return self.equals(other, require_same_timestamp=True)
 
     def plot_currents(self, **kwargs) -> Tuple[plt.Figure, np.ndarray]:
-        """Alias for :func:`tdgl.visualization.plot_currents`."""
+        """An alias for :func:`tdgl.plot_currents`."""
         from .plot_solution import plot_currents
 
         return plot_currents(self, **kwargs)
 
     def plot_order_parameter(self, **kwargs) -> Tuple[plt.Figure, np.ndarray]:
-        """Alias for :func:`tdgl.visualization.plot_order_parameter`."""
+        """An alias for :func:`tdgl.plot_order_parameter`."""
         from .plot_solution import plot_order_parameter
 
         return plot_order_parameter(self, **kwargs)
 
     def plot_field_at_positions(
-        self, points: np.ndarray, **kwargs
+        self, positions: np.ndarray, **kwargs
     ) -> Tuple[plt.Figure, np.ndarray]:
-        """Alias for :func:`tdgl.visualization.plot_field_at_positions`."""
+        """An alias for :func:`tdgl.plot_field_at_positions`."""
         from .plot_solution import plot_field_at_positions
 
-        return plot_field_at_positions(self, points, **kwargs)
+        return plot_field_at_positions(self, positions, **kwargs)
 
     def plot_vorticity(self, **kwargs) -> Tuple[plt.Figure, plt.Axes]:
-        """Alias for :func:`tdgl.visualization.plot_vorticity`."""
+        """An alias for :func:`tdgl.plot_vorticity`."""
         from .plot_solution import plot_vorticity
 
         return plot_vorticity(self, **kwargs)
 
     def plot_scalar_potential(self, **kwargs) -> Tuple[plt.Figure, plt.Axes]:
-        """Alis for :func:`tdgl.visualization.plot_scalar_potential`."""
+        """An alias for :func:`tdgl.plot_scalar_potential`."""
         from .plot_solution import plot_scalar_potential
 
         return plot_scalar_potential(self, **kwargs)

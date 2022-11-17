@@ -10,13 +10,16 @@ class SolverOptions:
     """Options for the TDGL solver.
 
     Args:
-        dt_init: Initial time step.
-        adaptive: Whether to use an adpative time step.
-        dt_max: Maximum adaptive time step.
-        total_time: Total simulation time.
+        solve_time: Total simulation time, after any thermalization.
         skip_time: Amount of 'thermalization' time to simulate before recording data.
+        dt_init: Initial time step.
+        dt_max: Maximum adaptive time step.
+        adaptive: Whether to use an adpative time step. Setting ``dt_init = dt_max``
+            is equivalent to setting ``adaptive = False``.
         adaptive_window: Number of most recent solve steps to consider when
             computing the time step adaptively.
+        max_solve_retries: The maximum number of times to reduce the time step in a
+            given solve iteration before giving up.
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
     """
@@ -32,4 +35,5 @@ class SolverOptions:
     progress_interval: int = 0
 
     def validate(self) -> None:
-        pass
+        if self.dt_init > self.dt_max:
+            raise SolverOptionsError("dt_init must be less than or equal to dt_max.")

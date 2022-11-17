@@ -11,114 +11,13 @@ from shapely import geometry as geo
 from shapely.validation import explain_validity
 
 from ..geometry import close_curve
-from .mesh import generate_mesh, optimize_mesh
+from .mesh import ensure_unique, generate_mesh, optimize_mesh
 
 logger = logging.getLogger(__name__)
 
 
-class Layer:
-    """A single layer of a superconducting device.
-
-    Args:
-        london_lambda: The London penetration depth of the layer.
-        coherence_length: The superconducting coherence length of the
-            film(s) in the layer.
-        thickness: The thickness of the layer.
-        u: The ratio of the relaxation times for the order parameter amplitude
-            and phase. This value is 5.79 for dirty superconductors.
-        gamma: This parameter quantifies the effect of phonon-electron scattering.
-        z0: Vertical location of the layer.
-    """
-
-    def __init__(
-        self,
-        *,
-        london_lambda: float,
-        coherence_length: float,
-        thickness: float,
-        u: float = 5.79,
-        gamma: float = 10.0,
-        z0: float = 0,
-    ):
-        self.london_lambda = london_lambda
-        self._coherence_length = coherence_length
-        self.thickness = thickness
-        self.u = u
-        self.gamma = gamma
-        self.z0 = z0
-
-    @property
-    def coherence_length(self) -> float:
-        return self._coherence_length
-
-    @property
-    def Lambda(self) -> float:
-        """Effective magnetic penetration depth: :math:`\\Lambda=\\lambda^2/d`."""
-        return self.london_lambda**2 / self.thickness
-
-    def copy(self) -> "Layer":
-        """Create a deep copy of the Layer."""
-        return Layer(
-            london_lambda=self.london_lambda,
-            coherence_length=self.coherence_length,
-            thickness=self.thickness,
-            u=self.u,
-            gamma=self.gamma,
-            z0=self.z0,
-        )
-
-    def to_hdf5(self, h5_group: h5py.Group) -> None:
-        """Save the ``Layer`` to an ``h5py.Group``."""
-        h5_group.attrs["london_lambda"] = self.london_lambda
-        h5_group.attrs["coherence_length"] = self.coherence_length
-        h5_group.attrs["thickness"] = self.thickness
-        h5_group.attrs["u"] = self.u
-        h5_group.attrs["gamma"] = self.gamma
-        h5_group.attrs["z0"] = self.z0
-
-    @classmethod
-    def from_hdf5(cls, h5_group: h5py.Group) -> "Layer":
-        """Load a ``Layer`` from an ``h5py.Group``."""
-        return cls(
-            london_lambda=h5_group.attrs["london_lambda"],
-            coherence_length=h5_group.attrs["coherence_length"],
-            thickness=h5_group.attrs["thickness"],
-            u=h5_group.attrs["u"],
-            gamma=h5_group.attrs["gamma"],
-            z0=h5_group.attrs["z0"],
-        )
-
-    def __eq__(self, other):
-        if self is other:
-            return True
-
-        if not isinstance(other, Layer):
-            return False
-
-        return (
-            self.london_lambda == other.london_lambda
-            and self.coherence_length == other.coherence_length
-            and self.thickness == other.thickness
-            and self.u == other.u
-            and self.gamma == other.gamma
-            and self.z0 == other.z0
-        )
-
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"london_lambda={self.london_lambda:.3f}, "
-            f"coherence_length={self.coherence_length:.3f}, "
-            f"thickness={self.thickness:.3f}, "
-            f"u={self.u:.3f}, "
-            f"gamma={self.gamma:.3f}, "
-            f"z0={self.z0:.3f}"
-            f")"
-        )
-
-
 class Polygon:
-    """A polygonal region located in a Layer.
+    """A polygonal region located in a :class:`tdgl.Layer`.
 
     Args:
         name: Name of the polygon.
@@ -184,6 +83,14 @@ class Polygon:
     def area(self) -> float:
         """The area of the polygon."""
         return self.polygon.area
+
+    @property
+    def bbox(self) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """Returns the coordinates of the lower left and upper right corners
+        of the polygon's bounding box.
+        """
+        minx, miny, maxx, maxy = self.polygon.bounds
+        return (minx, miny), (maxx, maxy)
 
     @property
     def extents(self) -> Tuple[float, float]:
@@ -308,18 +215,6 @@ class Polygon:
             f"{triangles.shape[0]} triangles."
         )
         return points, triangles
-
-    def rename(self, name: str) -> "Polygon":
-        """Rename the Polygon.
-
-        Args:
-            name: The new name.
-
-        Returns:
-            ``self``
-        """
-        self.name = str(name)
-        return self
 
     def rotate(
         self,
@@ -613,9 +508,7 @@ class Polygon:
             num_points = self.points.shape[0]
         if not num_points:
             return self.copy()
-        points = self.points.copy()
-        _, ix = np.unique(points, return_index=True, axis=0)
-        points = points[np.sort(ix)]
+        points = ensure_unique(self.points.copy())
         tck, _ = interpolate.splprep(points.T, k=degree, s=smooth)
         x, y = interpolate.splev(np.linspace(0, 1, num_points - 1), tck)
         points = close_curve(np.array([x, y]).T)
@@ -626,7 +519,7 @@ class Polygon:
         )
 
     def set_name(self, name: Union[str, None]) -> "Polygon":
-        """Sets the ``Poygon``'s name and returns self."""
+        """Sets the Polygon's name and returns ``self``."""
         self.name = name
         return self
 
@@ -745,14 +638,14 @@ class Polygon:
         return polygon.difference(*rest, symmetric=symmetric)
 
     def to_hdf5(self, h5_group: h5py.Group) -> None:
-        """Save the ``Polygon`` to an ``h5py.Group``."""
+        """Save the ``Polygon`` to an :class:`h5py.Group`."""
         h5_group.attrs["name"] = self.name
         h5_group.attrs["mesh"] = self.mesh
         h5_group["points"] = self.points
 
     @classmethod
     def from_hdf5(cls, h5_group: h5py.Group) -> "Polygon":
-        """Load a ``Polygon`` from an ``h5py.Group``."""
+        """Load a ``Polygon`` from an :class:`h5py.Group`."""
         return Polygon(
             h5_group.attrs["name"],
             points=np.array(h5_group["points"]),
@@ -776,6 +669,7 @@ class Polygon:
         return self.name == other.name and np.allclose(self.points, other.points)
 
     def copy(self) -> "Polygon":
+        """Returns a deep copy of the :class:`Polygon`"""
         return Polygon(
             self.name,
             points=self.points.copy(),

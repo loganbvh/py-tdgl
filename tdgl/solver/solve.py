@@ -19,7 +19,7 @@ from ..enums import MatrixType
 from ..finite_volume.matrices import MatrixBuilder
 from ..finite_volume.util import get_supercurrent
 from ..parameter import Parameter
-from ..solution import Solution
+from ..solution.solution import Solution
 from ..sources.constant import ConstantField
 from .options import SolverOptions
 from .runner import DataHandler, Runner
@@ -82,8 +82,8 @@ def _solve_for_psi_squared(
             two_c_1 = 2 * c + 1
             w2 = np.abs(w) ** 2
             discriminant = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
-        except Exception as e:
-            logger.debug(e.with_traceback())
+        except Exception:
+            logger.debug("Unable to solve for |psi|^2.", exc_info=True)
             return None, None, None
     if np.any(discriminant < 0):
         return None, None, None

@@ -1,8 +1,34 @@
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union
 
 import numpy as np
+import pint
 
 from .device.device import Device
+
+
+class Fluxoid(NamedTuple):
+    """The fluxoid for a closed region :math:`S` with boundary :math:`\\partial S`
+    is defined as:
+
+    .. math::
+
+        \\begin{split}
+        \\Phi^f_S &= \\Phi^f_{S,\\text{ flux}} + \\Phi^f_{S,\\text{ supercurrent}}
+        \\\\&=\\int_S \\mu_0 H_z(\\mathbf{r})\\,\\mathrm{d}^2r +
+            \\oint_{\\partial S}
+            \\mu_0\\Lambda(\\mathbf{r})\\mathbf{K}_s(\\mathbf{r})\\cdot\\mathrm{d}\\mathbf{r}
+        \\\\&=\\oint_{\\partial S} \\mathbf{A}(\\mathbf{r})\\cdot\\mathrm{d}\\mathbf{r} +
+            \\oint_{\\partial S}
+            \\mu_0\\Lambda(\\mathbf{r})\\mathbf{K}_s(\\mathbf{r})\\cdot\\mathrm{d}\\mathbf{r}
+        \\end{split}
+
+    Args:
+        flux_part: :math:`\\int_S \\mu_0 H_z(\\mathbf{r})\\,\\mathrm{d}^2r=\\oint_{\\partial S}\\mathbf{A}(\\mathbf{r})\\cdot\\mathrm{d}\\mathbf{r}`.
+        supercurrent_part: :math:`\\oint_{\\partial S}\\mu_0\\Lambda(\\mathbf{r})\\mathbf{K}_s(\\mathbf{r})\\cdot\\mathrm{d}\\mathbf{r}`.
+    """
+
+    flux_part: Union[float, pint.Quantity]
+    supercurrent_part: Union[float, pint.Quantity]
 
 
 def make_fluxoid_polygons(
@@ -17,7 +43,7 @@ def make_fluxoid_polygons(
         device: The Device for which to generate polygons.
         holes: Name(s) of the hole(s) in the device for which to generate polygons.
             Defaults to all holes in the device.
-        join_style: See :meth:`tdgl.device.components.Polygon.buffer`.
+        join_style: See :meth:`tdgl.Polygon.buffer`.
         interp_points: If provided, the resulting polygons will be interpolated to
             ``interp_points`` vertices.
 

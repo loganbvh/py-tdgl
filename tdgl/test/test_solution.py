@@ -60,7 +60,7 @@ def test_hole_fluxoid(solution, hole, with_units, units):
             _ = solution.hole_fluxoid(hole, units=units, with_units=with_units)
     else:
         fluxoid = solution.hole_fluxoid(hole, units=units, with_units=with_units)
-        assert isinstance(fluxoid, tdgl.solution.Fluxoid)
+        assert isinstance(fluxoid, tdgl.Fluxoid)
         if with_units:
             assert isinstance(sum(fluxoid), pint.Quantity)
         else:

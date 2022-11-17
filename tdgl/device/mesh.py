@@ -60,6 +60,13 @@ def generate_mesh(
     # coords[facets] is a shape (m, 2, 2) array of edge coordinates:
     # [(x0, y0), (x1, y1)]
     coords = np.concatenate([poly_coords] + hole_coords, axis=0)
+    xmin = coords[:, 0].min()
+    dx = np.ptp(coords[:, 0])
+    ymin = coords[:, 1].min()
+    dy = np.ptp(coords[:, 1])
+    r0 = np.array([[xmin, ymin]]) + np.array([[dx, dy]]) / 2
+    # Center the coordinates at (0, 0) to avoid floating point issues.
+    coords = coords - r0
     indices = np.arange(poly_coords.shape[0], dtype=int)
     if convex_hull:
         if boundary is not None:
@@ -87,11 +94,14 @@ def generate_mesh(
     if hole_coords:
         # Triangle allows you to set holes by specifying a single point
         # that lies in each hole. Here we use the centroid of the hole.
-        holes = [Polygon(hole).centroid.coords[0] for hole in hole_coords]
+        holes = [
+            np.array(Polygon(hole).centroid.coords[0]) - r0.squeeze()
+            for hole in hole_coords
+        ]
         mesh_info.set_holes(holes)
 
     mesh = triangle.build(mesh_info=mesh_info, **kwargs)
-    points = np.array(mesh.points)
+    points = np.array(mesh.points) + r0
     triangles = np.array(mesh.elements)
 
     if min_points is None and (max_edge_length is None or max_edge_length <= 0):
@@ -107,7 +117,7 @@ def generate_mesh(
     max_length = get_edge_lengths(points, triangles).max()
     while (points.shape[0] < min_points) or (max_length > max_edge_length):
         mesh = triangle.build(mesh_info=mesh_info, **kwargs)
-        points = np.array(mesh.points)
+        points = np.array(mesh.points) + r0
         triangles = np.array(mesh.elements)
         max_length = get_edge_lengths(points, triangles).max()
         logger.debug(

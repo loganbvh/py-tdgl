@@ -26,10 +26,14 @@ extensions = [
     "sphinx_rtd_theme",
     "sphinxarg.ext",
     "sphinxcontrib.bibtex",
+    "sphinx.ext.autosectionlabel",
 ]
 bibtex_bibfiles = [
     "references.bib",
 ]
+
+# Make sure the target is unique
+autosectionlabel_prefix_document = True
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

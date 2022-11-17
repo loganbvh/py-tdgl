@@ -1,4 +1,3 @@
-import inspect
 import warnings
 from contextlib import contextmanager
 from typing import Dict, List, Optional, Sequence, Tuple, Union
@@ -17,15 +16,16 @@ def auto_grid(
     max_cols: int = 3,
     delaxes: bool = True,
     **kwargs,
-) -> Tuple[plt.Figure, np.ndarray]:
+) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
     """Creates a grid of at least ``num_plots`` subplots
     with at most ``max_cols`` columns.
 
-    Additional keyword arguments are passed to plt.subplots().
+    Additional keyword arguments are passed to ``plt.subplots()``.
 
     Args:
         num_plots: Total number of plots that will be populated.
         max_cols: Maximum number of columns in the grid.
+        delaxes: Whether to remove unused axes.
 
     Returns:
         matplotlib figure and axes
@@ -109,8 +109,8 @@ def auto_range_iqr(
 
 def setup_color_limits(
     dict_of_arrays: Dict[str, np.ndarray],
-    vmin: Optional[float] = None,
-    vmax: Optional[float] = None,
+    vmin: Union[float, None] = None,
+    vmax: Union[float, None] = None,
     share_color_scale: bool = False,
     symmetric_color_scale: bool = False,
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
@@ -127,7 +127,7 @@ def setup_color_limits(
             This option is ignored if vmin and vmax are provided.
         symmetric_color_scale: Whether to use a symmetric color scale (vmin = -vmax).
             This option is ignored if vmin and vmax are provided.
-        auto_range_cutoff: Cutoff percentile for ``auto_range_iqr``.
+        auto_range_cutoff: Cutoff percentile for :func:`tdgl.solution.plot_solution.auto_range_iqr`.
 
     Returns:
         A dict of ``{name: (vmin, vmax)}``
@@ -230,36 +230,35 @@ def cross_section(
 def plot_currents(
     solution: Solution,
     ax: Union[plt.Axes, None] = None,
-    dataset: Optional[str] = None,
-    units: Optional[str] = None,
-    grid_shape: Union[int, Tuple[int, int]] = (200, 200),
-    grid_method: str = "cubic",
+    dataset: Union[str, None] = None,
+    units: Union[str, None] = None,
     cmap: str = "inferno",
     colorbar: bool = True,
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
     symmetric_color_scale: bool = False,
-    vmin: Optional[float] = None,
-    vmax: Optional[float] = None,
+    vmin: Union[float, None] = None,
+    vmax: Union[float, None] = None,
     streamplot: bool = True,
     min_stream_amp: float = 0.025,
-    cross_section_coords: Optional[Union[np.ndarray, Sequence[np.ndarray]]] = None,
+    cross_section_coords: Union[np.ndarray, Sequence[np.ndarray], None] = None,
     **kwargs,
-) -> Tuple[plt.Figure, np.ndarray]:
-    """Plots the current density (sheet current) for each layer in a Device.
+) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
+    """Plots the sheet current density for a given :class:`tdgl.Solution`.
 
-    Additional keyword arguments are passed to plt.subplots().
+    Additional keyword arguments are passed to ``plt.subplots()``.
+
+    .. seealso:
+
+        :meth:`tdgl.Solution.plot_currents`
 
     Args:
         solution: The Solution from which to extract sheet current.
         ax: Matplotlib axes on which to plot.
         units: Units in which to plot the current density. Defaults to
-            solution.current_units / solution.device.length_units.
-        grid_shape: Shape of the desired rectangular grid. If a single integer n
-            is given, then the grid will be square, shape = (n, n).
-        grid_method: Interpolation method to use (see scipy.interpolate.griddata).
+            ``solution.current_units / solution.device.length_units``.
         cmap: Name of the matplotlib colormap to use.
         colorbar: Whether to add a colorbar to each subplot.
-        auto_range_cutoff: Cutoff percentile for ``auto_range_iqr``.
+        auto_range_cutoff: Cutoff percentile for :func:`tdgl.solution.plot_solution.auto_range_iqr`.
         symmetric_color_scale: Whether to use a symmetric color scale (vmin = -vmax).
         vmin: Color scale minimum to use for all layers
             (ignored if share_color_scale is True).
@@ -341,8 +340,8 @@ def plot_currents(
     if streamplot:
         xgrid, ygrid, Jgrid = solution.grid_current_density(
             dataset=dataset,
-            grid_shape=grid_shape,
-            method=grid_method,
+            grid_shape=200,
+            method="cubic",
             units=str(units),
             with_units=False,
         )
@@ -369,7 +368,7 @@ def plot_field_at_positions(
     positions: np.ndarray,
     zs: Optional[Union[float, np.ndarray]] = None,
     vector: bool = False,
-    units: Optional[str] = None,
+    units: Union[str, None] = None,
     grid_shape: Union[int, Tuple[int, int]] = (200, 200),
     grid_method: str = "cubic",
     cmap: str = "cividis",
@@ -377,38 +376,44 @@ def plot_field_at_positions(
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
     share_color_scale: bool = False,
     symmetric_color_scale: bool = False,
-    vmin: Optional[float] = None,
-    vmax: Optional[float] = None,
+    vmin: Union[float, None] = None,
+    vmax: Union[float, None] = None,
     cross_section_coords: Optional[Union[float, List[float]]] = None,
     **kwargs,
-) -> Tuple[plt.Figure, np.ndarray]:
-    """Plots the screening field (either all three components or just the
+) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
+    """Plots the Biot-Savart field (either all three components or just the
     z component) at a given set of positions (x, y, z) outside of the device.
 
-    NOTE: This function plots only the field due to currents flowing in the device.
-    It does not include the applied field.
+    .. note::
 
-    Additional keyword arguments are passed to plt.subplots().
+        This function plots only the field due to currents flowing in the device.
+        It does not include the applied field.
+
+    .. seealso:
+
+        :meth:`tdgl.Solution.plot_field_at_positions`
+
+    Additional keyword arguments are passed to ``plt.subplots()``. This function first
+    evaluates the field at ``positions``, then interpolates the resulting fields to a
+    rectangular grid for plotting.
 
     Args:
         solution: The Solution from which to extract fields.
         positions: Shape (m, 2) array of (x, y) coordinates, or (m, 3) array of (x, y, z)
-            coordinates at which to calculate the magnetic field. A single list like [x, y]
-            or [x, y, z] is also allowed.
+            coordinates at which to calculate the magnetic field.
         zs: z coordinates at which to calculate the field. If positions has shape (m, 3), then
             this argument is not allowed. If zs is a scalar, then the fields are calculated in
-            a plane parallel to the x-y plane. If zs is any array, then it must be same length
+            a plane parallel to the x-y plane. If zs is an array, then it must be same length
             as positions.
-        vector: Whether to return the full vector magnetic field or just the z component.
-        units: Units in which to plot the fields. Defaults to solution.field_units.
-            This argument is ignored if normalize is True.
-        grid_shape: Shape of the desired rectangular grid. If a single integer n
-            is given, then the grid will be square, shape = (n, n).
-        grid_method: Interpolation method to use (see scipy.interpolate.griddata).
+        vector: Whether to plot the full vector magnetic field or just the z component.
+        units: Units in which to plot the fields. Defaults to ``solution.field_units``.
+        grid_shape: Shape of the desired rectangular grid. If a single integer ``n``
+            is given, then the grid will be square, shape ``(n, n)``.
+        grid_method: Interpolation method to use (see :func:`scipy.interpolate.griddata`).
         max_cols: Maximum number of columns in the grid of subplots.
         cmap: Name of the matplotlib colormap to use.
         colorbar: Whether to add a colorbar to each subplot.
-        auto_range_cutoff: Cutoff percentile for ``auto_range_iqr``.
+        auto_range_cutoff: Cutoff percentile for :func:`tdgl.solution.plot_solution.auto_range_iqr`.
         share_color_scale: Whether to force all layers to use the same color scale.
         symmetric_color_scale: Whether to use a symmetric color scale (vmin = -vmax).
         vmin: Color scale minimum to use for all layers
@@ -429,7 +434,6 @@ def plot_field_at_positions(
         units = old_units
     if isinstance(units, str):
         units = device.ureg(units).units
-
     fields = solution.field_at_position(
         positions,
         zs=zs,
@@ -443,7 +447,7 @@ def plot_field_at_positions(
         num_subplots = 3
     else:
         num_subplots = 1
-    fig, axes = plt.subplots(1, num_subplots, **kwargs)
+    fig, axes = auto_grid(num_subplots, **kwargs)
     if not isinstance(axes, (list, np.ndarray)):
         axes = [axes]
     x, y, *_ = positions.T
@@ -516,15 +520,19 @@ def plot_order_parameter(
     phase_cmap: str = "twilight_shifted",
     shading: str = "gouraud",
     **kwargs,
-) -> Tuple[plt.Figure, np.ndarray]:
+) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
     """Plots the magnitude and phase of the complex order parameter,
     :math:`\\psi=|\\psi|e^{i\\theta}`.
+
+    .. seealso:
+
+        :meth:`tdgl.Solution.plot_order_parameter`
 
     Args:
         solution: The solution for which to plot the order parameter.
         mag_cmap: Name of the colormap to use for the magnitude.
         phase_cmap: Name of the colormap to use for the phase.
-        shading: May be 'flat' or 'gouraud'. The latter does some interpolation.
+        shading: May be ``"flat"`` or ``"gouraud"``. The latter does some interpolation.
 
     Returns:
         matplotlib Figure and an array of two Axes objects.
@@ -550,7 +558,6 @@ def plot_order_parameter(
     )
     cbar = fig.colorbar(im, ax=axes[0])
     cbar.set_label("$|\\psi|$")
-
     im = axes[1].tripcolor(
         points[:, 0],
         points[:, 1],
@@ -563,7 +570,6 @@ def plot_order_parameter(
     )
     cbar = fig.colorbar(im, ax=axes[1])
     cbar.set_label("$\\theta / \\pi$")
-
     length_units = device.ureg(device.length_units).units
     for ax in axes:
         ax.set_aspect("equal")
@@ -577,16 +583,20 @@ def plot_vorticity(
     solution: Solution,
     ax: Union[plt.Axes, None] = None,
     cmap: str = "coolwarm",
-    units: Optional[str] = None,
+    units: Union[str, None] = None,
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
     symmetric_color_scale: bool = True,
-    vmin: Optional[float] = None,
-    vmax: Optional[float] = None,
+    vmin: Union[float, None] = None,
+    vmax: Union[float, None] = None,
     shading: str = "gouraud",
     **kwargs,
 ):
     """Plots the vorticity in the film:
-    :math:`\\vec{\\omega}=\\vec{\\nabla}\\times\\vec{J}`.
+    :math:`\\mathbf{\\omega}=\\mathbf{\\nabla}\\times\\mathbf{K}`.
+
+    .. seealso:
+
+        :meth:`tdgl.Solution.plot_vorticity`
 
     Args:
         solution: The solution for which to plot the vorticity.
@@ -594,11 +604,11 @@ def plot_vorticity(
         cmap: Name of the matplotlib colormap to use.
         units: The units in which to plot the vorticity. Must have dimensions of
             [current] / [length]^2.
-        auto_range_cutoff: Cutoff percentile for ``auto_range_iqr``.
+        auto_range_cutoff: Cutoff percentile for :func:`tdgl.solution.plot_solution.auto_range_iqr`.
         symmetric_color_scale: Whether to use a symmetric color scale (vmin = -vmax).
         vmin: Color scale minimum.
         vmax: Color scale maximum.
-        shading: May be 'flat' or 'gouraud'. The latter does some interpolation.
+        shading: May be ``"flat"`` or ``"gouraud"``. The latter does some interpolation.
 
     Returns:
         matplotlib Figure and and Axes.
@@ -653,21 +663,25 @@ def plot_scalar_potential(
     ax: Union[plt.Axes, None] = None,
     cmap: str = "magma",
     auto_range_cutoff: Optional[Union[float, Tuple[float, float]]] = None,
-    vmin: Optional[float] = None,
-    vmax: Optional[float] = None,
+    vmin: Union[float, None] = None,
+    vmax: Union[float, None] = None,
     shading: str = "gouraud",
     **kwargs,
 ):
-    """Plots the scalar potential :math:`\\mu` in the film.
+    """Plots the scalar potential :math:`\\mu(\\mathbf{r})` in the film.
+
+    .. seealso:
+
+        :meth:`tdgl.Solution.plot_scalar_potential`
 
     Args:
-        solution: The solution for which to plot the vorticity.
+        solution: The solution for which to plot the scalar potential.
         ax: Matplotlib axes on which to plot.
         cmap: Name of the matplotlib colormap to use.
-        auto_range_cutoff: Cutoff percentile for ``auto_range_iqr``.
+        auto_range_cutoff: Cutoff percentile for :func:`tdgl.solution.plot_solution.auto_range_iqr`.
         vmin: Color scale minimum.
         vmax: Color scale maximum.
-        shading: May be 'flat' or 'gouraud'. The latter does some interpolation.
+        shading: May be ``"flat"`` or ``"gouraud"``. The latter does some interpolation.
 
     Returns:
         matplotlib Figure and and Axes.
@@ -715,7 +729,6 @@ def plot_scalar_potential(
 
 def _patch_docstring(func):
     other_func = getattr(Solution, func.__name__)
-    other_func.__signature__ = inspect.signature(func)
     other_func.__doc__ = (
         other_func.__doc__
         + "\n\n"
@@ -733,5 +746,6 @@ for func in (
     plot_field_at_positions,
     plot_order_parameter,
     plot_scalar_potential,
+    plot_vorticity,
 ):
     _patch_docstring(func)

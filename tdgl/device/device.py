@@ -18,7 +18,8 @@ from shapely.geometry import Point
 from ..em import ureg
 from ..finite_volume.mesh import Mesh
 from . import mesh
-from .components import Layer, Polygon
+from .layer import Layer
+from .polygon import Polygon
 
 logger = logging.getLogger(__name__)
 
