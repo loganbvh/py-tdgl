@@ -118,10 +118,9 @@ def solve(
             the applied vector potential as a function of position ``(x, y, z)``. If a float
             ``B`` is given, the applied vector potential will be that of a uniform magnetic
             field with strength ``B`` ``field_units``.
-        source_drain_current: The applied source-drain current. A constant current can
-            be specified by a float. A time-dependent current can be specified by
-            a callable with signature ``source_drain_current(time: float) -> float``,
-            where ``time`` is the dimensionless time.
+        terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
+            ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
+            in units of ``current_units`` and ``time`` is the dimensionless time.
         pinning_sites: Pinning sites are sites in the mesh where the order parameter
             fixed to :math:`\\psi(\\mathbf{r}, t)=0`. If ``pinning_sites``
             is given as a pint-parseable string with dimensions of ``length ** (-2)``,

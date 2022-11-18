@@ -52,7 +52,7 @@ class Solution:
         path: Path to the HDF5 file containing the raw output data.
         applied_vector_potential: The ``Parameter`` defining the applied vector potential.
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
-            ``func(time) -> ``{terminal_name: current}``, where ``current`` is a float
+            ``func(time) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units``.
         pinning_sites: The string or callable specifying pinning sites.
         field_units: Units of the applied field
