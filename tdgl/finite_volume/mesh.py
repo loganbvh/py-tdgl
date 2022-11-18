@@ -173,7 +173,8 @@ class Mesh:
     def get_observable_on_site(
         self, observable_on_edge: np.ndarray, vector: bool = True
     ) -> np.ndarray:
-        """Compute the observable on site.
+        """Compute the observable on site by averaging over all edges
+        connecting to each site.
 
         Args:
             observable_on_edge: Observable on the edges.

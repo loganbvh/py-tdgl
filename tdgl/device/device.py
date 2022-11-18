@@ -871,6 +871,17 @@ class Device:
             key = attrgetter(key)
             return sorted(seq1, key=key) == sorted(seq2, key=key)
 
+        if self.voltage_points is None and other.voltage_points is None:
+            same_voltage_points = True
+        elif (
+            isinstance(self.voltage_points, np.ndarray)
+            and isinstance(other.voltage_points, np.ndarray)
+            and np.allclose(self.voltage_points, other.voltage_points)
+        ):
+            same_voltage_points = True
+        else:
+            same_voltage_points = False
+
         return (
             self.name == other.name
             and self.layer == other.layer
@@ -878,5 +889,6 @@ class Device:
             and compare(self.holes, other.holes)
             and compare(self.abstract_regions, other.abstract_regions)
             and compare(self.terminals, other.terminals)
+            and same_voltage_points
             and self.length_units == other.length_units
         )

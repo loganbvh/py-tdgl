@@ -9,24 +9,60 @@ from ..finite_volume.mesh import Mesh
 
 
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:
+    """Returns the minimum and maximum solve steps in the file."""
     keys = np.asarray([int(key) for key in h5file["data"]])
     return np.min(keys), np.max(keys)
 
 
 def load_state_data(h5file: h5py.File, step: int) -> Dict[str, Any]:
+    """Returns a dict of state data for the given solve step."""
     return dict(h5file["data"][str(step)].attrs)
 
 
+def array_safe_equals(a: Any, b: Any) -> bool:
+    """Check if a and b are equal, even if they are numpy arrays."""
+    if a is b:
+        return True
+    if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+        return a.shape == b.shape and np.allclose(a, b)
+    try:
+        return a == b
+    except TypeError:
+        return NotImplemented
+
+
+def dataclass_equals(dc1: Any, dc2: Any) -> bool:
+    """Check if two dataclasses that may hold numpy arrays are equal."""
+    if dc1 is dc2:
+        return True
+    if dc1.__class__ is not dc2.__class__:
+        return NotImplemented
+    t1 = dataclasses.astuple(dc1)
+    t2 = dataclasses.astuple(dc2)
+    return all(array_safe_equals(a1, a2) for a1, a2 in zip(t1, t2))
+
+
 def get_edge_observable_data(
-    observable: np.ndarray, mesh: Mesh
-) -> Tuple[np.ndarray, np.ndarray, Sequence[float]]:
-    directions = mesh.get_observable_on_site(observable)
+    observable_on_edges: np.ndarray, mesh: Mesh
+) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float]]:
+    """Returns the value of a vector observable living on the edges of the mesh,
+    evaluated at sites in the mesh.
+
+    Args:
+        observable_on_edges: An array of observable values on the mesh edges.
+        mesh: The :class:`tdgl.finite_volume.mesh.Mesh` instance.
+
+    Returns:
+        The magnitude and directions of the observable on the sites, and a tuple
+        of the (min, max) of the data.
+    """
+    directions = mesh.get_observable_on_site(observable_on_edges)
     norm = np.linalg.norm(directions, axis=1)
     directions /= np.maximum(norm, 1e-12)[:, np.newaxis]
-    return norm, directions, [np.min(norm), np.max(norm)]
+    return norm, directions, (np.min(norm), np.max(norm))
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(eq=False)
 class TDGLData:
     """A container for raw data from the TDGL solver at a single solve step.
 
@@ -91,8 +127,11 @@ class TDGLData:
             else:
                 group[key] = value
 
+    def __eq__(self, other: Any) -> bool:
+        return dataclass_equals(self, other)
 
-@dataclasses.dataclass
+
+@dataclasses.dataclass(eq=False)
 class DynamicsData:
     """A container for the measured dynamics of a TDGL solution,
     measured at each time step in the simulation.
@@ -267,3 +306,6 @@ class DynamicsData:
         grp = h5group.require_group(str(subgroup))
         for key in ("dt", "voltage", "phase_difference"):
             grp[key] = getattr(self, key)
+
+    def __eq__(self, other: Any) -> bool:
+        return dataclass_equals(self, other)

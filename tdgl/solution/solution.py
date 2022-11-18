@@ -931,6 +931,8 @@ class Solution:
             and compare_callables(self.terminal_currents, other.terminal_currents)
             and compare_callables(self.pinning_sites, other.pinning_sites)
             and (self.rng_seed == other.rng_seed)
+            and (self.tdgl_data == other.tdgl_data)
+            and (self.dynamics == other.dynamics)
         ):
             return False
         if require_same_timestamp and (self.time_created != other.time_created):
