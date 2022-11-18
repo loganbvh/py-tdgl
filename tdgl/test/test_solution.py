@@ -45,9 +45,10 @@ def solution(transport_device, tempdir):
     return solution
 
 
-def test_save_and_load_solution(solution):
-    solution.to_hdf5()
-    loaded_solution = tdgl.Solution.from_hdf5(solution.path)
+def test_save_and_load_solution(solution, tempdir):
+    path = os.path.join(tempdir, "output-1.h5")
+    solution.to_hdf5(path)
+    loaded_solution = tdgl.Solution.from_hdf5(path)
     assert loaded_solution == solution
 
 

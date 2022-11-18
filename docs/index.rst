@@ -25,7 +25,7 @@ Acknowledgements
 ----------------
 
 Parts of this package have been adapted from `SuperDetectorPy <https://github.com/afsa/super-detector-py>`_,
-a GitHub repo authored by `Mattias Jönsson <https://github.com/afsa>`_. Both ``SuperDetectorPy`` and ``py-tdgl``
+a GitHub repo authored by `Mattias Jönsson <https://github.com/afsa>`_. Both ``SuperDetectorPy`` and ``pyTDGL``
 are released under the open-source MIT License. If you use either package in an academic publication or similar,
 please consider citing the following:
 

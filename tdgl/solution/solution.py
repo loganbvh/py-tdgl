@@ -926,7 +926,6 @@ class Solution:
             (self.device == other.device)
             and (self.field_units == other.field_units)
             and (self.current_units == other.current_units)
-            and (self.path == other.path)
             and (self.solve_step == other.solve_step)
             and self.applied_vector_potential == other.applied_vector_potential
             and compare_callables(self.terminal_currents, other.terminal_currents)
