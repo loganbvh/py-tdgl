@@ -18,7 +18,7 @@ from ..device.device import Device, TerminalInfo
 from ..enums import MatrixType
 from ..finite_volume.matrices import MatrixBuilder
 from ..finite_volume.util import get_supercurrent
-from ..parameter import Parameter
+from ..parameter import Constant
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
 from .options import SolverOptions
@@ -97,6 +97,7 @@ def solve(
     output_file: Union[os.PathLike, None] = None,
     applied_vector_potential: Union[Callable, float] = 0,
     terminal_currents: Union[Callable, Dict[str, float], None] = None,
+    disorder_alpha: Union[float, Callable] = 1.0,
     pinning_sites: Union[str, Callable, None] = None,
     field_units: str = "mT",
     current_units: str = "uA",
@@ -121,6 +122,11 @@ def solve(
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units`` and ``time`` is the dimensionless time.
+        disorder_alpha: A float in range [0, 1], or a callable with signature
+            ``disorder_alpha(x: float, y: float) -> alpha``, where ``alpha`` is a float
+            in range [0, 1]. If :math:`\\alpha(\\mathbf{r}) < 1` weakens the order
+            parameter at position :math:`\\mathbf{r}`, which can be used to model
+            inhomogeneity.
         pinning_sites: Pinning sites are sites in the mesh where the order parameter
             fixed to :math:`\\psi(\\mathbf{r}, t)=0`. If ``pinning_sites``
             is given as a pint-parseable string with dimensions of ``length ** (-2)``,
@@ -174,8 +180,6 @@ def solve(
             field_units=field_units,
             length_units=device.length_units,
         )
-    if not isinstance(applied_vector_potential, Parameter):
-        applied_vector_potential = Parameter(applied_vector_potential)
     # Evaluate the vector potential
     vector_potential = applied_vector_potential(x, y, z)
     vector_potential = np.asarray(vector_potential)[:, :2]
@@ -280,7 +284,11 @@ def solve(
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=np.float64)
     # Create the alpha parameter which weakens the complex field if it
     # is less than one.
-    alpha = np.ones_like(mesh.x, dtype=np.float64)
+    if not callable(disorder_alpha):
+        disorder_alpha = Constant(value=disorder_alpha)
+    alpha = disorder_alpha(sites[:, 0], sites[:, 1])
+    if np.any(alpha <= 0) or np.any(alpha > 1):
+        raise ValueError("The disorder parameter alpha must be in range (0, 1].")
 
     if include_screening:
         # Pre-compute the kernel for the screening integral.
@@ -449,8 +457,8 @@ def solve(
             data_handler=data_handler,
             initial_values=list(parameters.values()),
             names=list(parameters),
-            fixed_values=(vector_potential,),
-            fixed_names=("applied_vector_potential",),
+            fixed_values=(vector_potential, alpha),
+            fixed_names=("applied_vector_potential", "alpha"),
             state={
                 "u": u,
                 "gamma": gamma,
@@ -472,6 +480,7 @@ def solve(
             options=options,
             applied_vector_potential=applied_vector_potential,
             terminal_currents=terminal_currents,
+            disorder_alpha=disorder_alpha,
             pinning_sites=pinning_sites,
             rng_seed=rng_seed,
             total_seconds=(end_time - start_time).total_seconds(),

@@ -118,7 +118,7 @@ class DataHandler:
                 "Ignoring the following exception in DataHandler.__exit__():"
             )
             self.logger.warning(
-                traceback.format_exception(exc_type, exc_value, exc_traceback)
+                "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
             )
         self.close()
 
@@ -127,7 +127,13 @@ class DataHandler:
         if self.tempdir is not None:
             self.tempdir.cleanup()
 
-    def save_time_step(self, state: Dict[str, float], data: Dict[str, np.ndarray]):
+    def save_fixed_values(self, fixed_data: Dict[str, np.ndarray]) -> None:
+        for key, value in fixed_data.items():
+            self.output_file[key] = value
+
+    def save_time_step(
+        self, state: Dict[str, float], data: Dict[str, np.ndarray]
+    ) -> None:
         group = self.time_step_group.create_group(f"{self.save_number}")
         group.attrs["timestamp"] = datetime.now().isoformat()
         self.save_number += 1
@@ -248,6 +254,9 @@ class Runner:
         self.state["step"] = 0
         self.state["time"] = self.time
         self.state["dt"] = self.dt
+        self.data_handler.save_fixed_values(
+            dict(zip(self.fixed_names, self.fixed_values))
+        )
         # Thermalize if enabled.
         if self.options.skip_time:
             self._run_stage_(
@@ -299,10 +308,6 @@ class Runner:
 
         def save_step(step):
             data = dict(zip(self.names, self.values))
-            # Add the fixed values.
-            for idx, name in enumerate(self.fixed_names):
-                data[name] = self.fixed_values[idx]
-            # Add the running state data to the dict.
             if step != 0:
                 data.update(self.running_state.export())
             self.data_handler.save_time_step(self.state, data)

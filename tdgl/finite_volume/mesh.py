@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Tuple
+from typing import Sequence, Tuple, Union
 
 import h5py
 import numpy as np
@@ -11,14 +11,16 @@ from .util import compute_surrounding_area, get_edges, get_surrounding_voronoi_p
 class Mesh:
     """A triangular mesh of a simply- or multiply-connected polygon.
 
-    **Note**: Use :meth:`Mesh.from_triangulation` to create a new mesh.
-    The ``__init__`` constructor requires that all parameters to be known.
+    .. note::
+
+        Use :meth:`Mesh.from_triangulation` to create a new mesh.
+        The ``__init__`` constructor requires that all parameters to be known.
 
     Args:
         x: The x coordinates for the triangle vertices.
         y: The x coordinates for the triangle vertices.
         elements: A list of triplets that correspond to the indices of he vertices that
-            form a triangle.E.g. [[0, 1, 2], [0, 1, 3]] corresponds to a triangle
+            form a triangle. [[0, 1, 2], [0, 1, 3]] corresponds to a triangle
             connecting vertices 0, 1, and 2 and another triangle connecting vertices
             0, 1, and 3.
         boundary_indices: Indices corresponding to the boundary.
@@ -37,7 +39,7 @@ class Mesh:
         areas: Sequence[float],
         dual_mesh: DualMesh,
         edge_mesh: EdgeMesh,
-        voltage_points: Optional[np.ndarray] = None,
+        voltage_points: Union[np.ndarray, None] = None,
     ):
         # Store the data
         self.x = np.asarray(x)
@@ -58,7 +60,7 @@ class Mesh:
         x: Sequence[float],
         y: Sequence[float],
         elements: Sequence[Tuple[int, int, int]],
-        voltage_points: Optional[np.ndarray] = None,
+        voltage_points: Union[np.ndarray, None] = None,
     ) -> "Mesh":
         """Create a triangular mesh from the coordinates of the triangle vertices
         and a list of indices corresponding to the vertices that connect to triangles.

@@ -68,6 +68,8 @@ class TDGLData:
 
     Args:
         step: The solver iteration.
+        alpha: The disorder/pinning parameter. :math:`\\alpha<1` weakens the
+            order parameter.
         psi: The complex order parameter at each site in the mesh.
         mu: The scalar potential at each site in the mesh.
         applied_vector_potential: The applied vector potential at each edge in the mesh.
@@ -78,6 +80,7 @@ class TDGLData:
     """
 
     step: int
+    alpha: np.ndarray
     psi: np.ndarray
     mu: np.ndarray
     applied_vector_potential: np.ndarray
@@ -104,6 +107,8 @@ class TDGLData:
                 return int(step)
             if key in ["state"]:
                 return load_state_data(h5file, step)
+            if key in h5file:
+                return np.asarray(h5file[key])
             if key in h5file["data"][step]:
                 return np.asarray(h5file["data"][step][key])
             return default

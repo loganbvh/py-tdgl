@@ -54,6 +54,9 @@ class Solution:
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units``.
+        disorder_alpha: The disorder parameter :math:`\\alpha`. If
+            :math:`\\alpha(\\mathbf{r}) < 1` weakens the order parameter at position
+            :math:`\\mathbf{r}`, which can be used to model inhomogeneity.
         pinning_sites: The string or callable specifying pinning sites.
         field_units: Units of the applied field
         current_units: Units used for current quantities.
@@ -68,7 +71,8 @@ class Solution:
         options: SolverOptions,
         path: os.PathLike,
         applied_vector_potential: Parameter,
-        terminal_currents: Union[float, Callable],
+        terminal_currents: Union[Dict[str, float], Callable],
+        disorder_alpha: Union[float, Callable],
         pinning_sites: Union[str, Callable],
         field_units: str,
         current_units: str,
@@ -81,6 +85,7 @@ class Solution:
         self.path = path
         self.applied_vector_potential = applied_vector_potential
         self.terminal_currents = terminal_currents
+        self.disorder_alpha = disorder_alpha
         self.pinning_sites = pinning_sites
 
         self.supercurrent_density: Union[np.ndarray, None] = None
@@ -104,7 +109,6 @@ class Solution:
         """A container for the time dynamics of the solution."""
         self._solve_step: int = -1
         self.load_tdgl_data(self._solve_step)
-
         self._version_info = version_dict()
 
     @property
@@ -800,6 +804,11 @@ class Solution:
                 group,
             )
             serialize_func(
+                self.disorder_alpha,
+                "disorder_alpha",
+                group,
+            )
+            serialize_func(
                 self.pinning_sites,
                 "pinning_sites",
                 group,
@@ -846,12 +855,12 @@ class Solution:
             The loaded Solution instance.
         """
 
-        def deserialize_func(name, h5group, path):
+        def deserialize_func(name, h5group):
             if name in h5group.attrs:
                 return h5group.attrs[name]
             if f"{name}.pickle" in h5group:
                 return pickle.loads(np.void(grp[f"{name}.pickle"]).tobytes())
-            raise IOError(f"Unable to load {name} from {path!r}.")
+            raise IOError(f"Unable to load {name}.")
 
         with h5py.File(path, "r", libver="latest") as f:
             data_grp = f["data"]
@@ -863,9 +872,10 @@ class Solution:
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             current_units = grp.attrs["current_units"]
             field_units = grp.attrs["field_units"]
-            vector_potential = deserialize_func("applied_vector_potential", grp, path)
-            terminal_currents = deserialize_func("terminal_currents", grp, path)
-            pinning_sites = deserialize_func("pinning_sites", grp, path)
+            vector_potential = deserialize_func("applied_vector_potential", grp)
+            terminal_currents = deserialize_func("terminal_currents", grp)
+            disorder_alpha = deserialize_func("disorder_alpha", grp)
+            pinning_sites = deserialize_func("pinning_sites", grp)
             rng_seed = int(grp.attrs["rng_seed"])
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])
@@ -876,6 +886,7 @@ class Solution:
             options=options,
             applied_vector_potential=vector_potential,
             terminal_currents=terminal_currents,
+            disorder_alpha=disorder_alpha,
             pinning_sites=pinning_sites,
             current_units=current_units,
             field_units=field_units,
@@ -912,6 +923,8 @@ class Solution:
             return False
 
         def compare_callables(first, second):
+            if isinstance(first, Parameter):
+                return first == second
             if callable(first):
                 if not callable(second):
                     return False
@@ -927,8 +940,11 @@ class Solution:
             and (self.field_units == other.field_units)
             and (self.current_units == other.current_units)
             and (self.solve_step == other.solve_step)
-            and self.applied_vector_potential == other.applied_vector_potential
+            and compare_callables(
+                self.applied_vector_potential, other.applied_vector_potential
+            )
             and compare_callables(self.terminal_currents, other.terminal_currents)
+            and compare_callables(self.disorder_alpha, other.disorder_alpha)
             and compare_callables(self.pinning_sites, other.pinning_sites)
             and (self.rng_seed == other.rng_seed)
             and (self.tdgl_data == other.tdgl_data)

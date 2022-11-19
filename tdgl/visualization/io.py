@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Tuple
+from typing import Sequence, Tuple
 
 import h5py
 import numpy as np
@@ -9,9 +9,10 @@ from ..finite_volume.mesh import Mesh
 from ..solution.data import TDGLData, get_edge_observable_data, load_state_data
 
 
-def get_alpha(h5file: h5py.File) -> Optional[np.ndarray]:
-    if "disorder" in h5file:
-        return np.asarray(h5file["disorder"]["alpha"])
+def get_alpha(h5file: h5py.File) -> np.ndarray:
+    """Returns the array for the disorder alpha parameter."""
+    if "alpha" in h5file:
+        return np.asarray(h5file["alpha"])
     return None
 
 

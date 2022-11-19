@@ -2,20 +2,19 @@ import h5py
 
 
 class Layer:
-    """A single layer of a superconducting device.
+    """A superconducting thin film.
 
     Args:
-        london_lambda: The London penetration depth of the layer.
-        coherence_length: The superconducting coherence length of the
-            film(s) in the layer.
-        thickness: The thickness of the layer.
+        london_lambda: The London penetration depth of the film.
+        coherence_length: The superconducting coherence length of the film.
+        thickness: The thickness of the film.
         conductivity: The normal state conductivity of the superconductor.
         u: The ratio of the relaxation times for the order parameter amplitude
             and phase. This value is 5.79 for dirty superconductors.
         gamma: This parameter quantifies the effect of inelastic phonon-electron
             scattering. :math:`\\gamma` is proportional to the inelastic scattering
             time and the size of the superconducting gap.
-        z0: Vertical location of the layer.
+        z0: Vertical location of the film.
     """
 
     def __init__(

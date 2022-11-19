@@ -327,7 +327,7 @@ class CompositeParameter(Parameter):
 class Constant(Parameter):
     """A Parameter whose value doesn't depend on position."""
 
-    def __init__(self, value, dimensions=2):
+    def __init__(self, value: Union[int, float, complex], dimensions: int = 2):
         if dimensions not in (2, 3):
             raise ValueError(f"Dimensions must be 2 or 3, got {dimensions}.")
         if dimensions == 2:

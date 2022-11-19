@@ -5,7 +5,7 @@ from .device.mesh import generate_mesh, optimize_mesh
 from .device.polygon import Polygon
 from .em import ureg
 from .fluxoid import Fluxoid, make_fluxoid_polygons
-from .parameter import Parameter
+from .parameter import Constant, Parameter
 from .solution.plot_solution import (
     plot_currents,
     plot_field_at_positions,
