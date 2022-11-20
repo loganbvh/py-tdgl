@@ -8,11 +8,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-from ..enums import Observable
 from ..finite_volume.mesh import Mesh
 from ..solution.data import get_data_range
 from ..solution.plot_solution import auto_grid
-from .defaults import PLOT_DEFAULTS
+from .defaults import PLOT_DEFAULTS, Observable
 from .io import get_plot_data, get_state_string
 
 _default_observables = (

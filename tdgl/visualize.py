@@ -1,8 +1,8 @@
 import argparse
 import logging
 
-from .enums import Observable
 from .visualization.animate import Animate, MultiAnimate
+from .visualization.defaults import Observable
 from .visualization.interactive_plot import InteractivePlot, MultiInteractivePlot
 
 logger = logging.getLogger("visualize")

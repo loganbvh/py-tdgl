@@ -37,6 +37,7 @@ def transport_device_solution(transport_device):
         dt_init=dt,
         solve_time=total_time,
         save_every=100,
+        include_screening=False,
     )
     field = tdgl.sources.ConstantField(10)
     solution = tdgl.solve(
@@ -46,7 +47,6 @@ def transport_device_solution(transport_device):
         field_units="uT",
         terminal_currents=dict(source=10, drain=-10),
         current_units="uA",
-        include_screening=False,
     )
     return solution
 
@@ -73,6 +73,7 @@ def box_device_solution_no_screening(box_device):
         dt_init=dt,
         solve_time=total_time,
         save_every=100,
+        include_screening=False,
     )
     solution = tdgl.solve(
         device,
@@ -81,7 +82,6 @@ def box_device_solution_no_screening(box_device):
         field_units="uT",
         terminal_currents=None,
         current_units="uA",
-        include_screening=False,
     )
     return solution
 
@@ -96,6 +96,7 @@ def box_device_solution_with_screening(box_device):
         dt_init=dt,
         solve_time=total_time,
         save_every=100,
+        include_screening=True,
     )
     solution = tdgl.solve(
         device,
@@ -104,6 +105,5 @@ def box_device_solution_with_screening(box_device):
         field_units="uT",
         terminal_currents=None,
         current_units="uA",
-        include_screening=True,
     )
     return solution

@@ -1,7 +1,7 @@
 from .dual_mesh import DualMesh
 from .edge_mesh import EdgeMesh
-from .matrices import MatrixBuilder
 from .mesh import Mesh
+from .operators import MeshOperators
 from .util import (
     centroids,
     compute_surrounding_area,

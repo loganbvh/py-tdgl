@@ -3,10 +3,10 @@ from typing import Sequence, Tuple
 import h5py
 import numpy as np
 
-from ..enums import Observable
-from ..finite_volume.matrices import build_gradient
 from ..finite_volume.mesh import Mesh
+from ..finite_volume.operators import build_gradient
 from ..solution.data import TDGLData, get_edge_observable_data, load_state_data
+from ..visualization.defaults import Observable
 
 
 def get_alpha(h5file: h5py.File) -> np.ndarray:

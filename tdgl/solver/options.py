@@ -14,6 +14,7 @@ class SolverOptions:
         skip_time: Amount of 'thermalization' time to simulate before recording data.
         dt_init: Initial time step.
         dt_max: Maximum adaptive time step.
+        include_screening: Whether to include screening in the simulation.
         adaptive: Whether to use an adpative time step. Setting ``dt_init = dt_max``
             is equivalent to setting ``adaptive = False``.
         adaptive_window: Number of most recent solve steps to consider when
@@ -28,6 +29,7 @@ class SolverOptions:
     skip_time: float = 0.0
     dt_init: float = 1e-4
     dt_max: float = 1e-1
+    include_screening: bool = False
     adaptive: bool = True
     adaptive_window: int = 10
     max_solve_retries: int = 10

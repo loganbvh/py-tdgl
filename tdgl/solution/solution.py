@@ -20,7 +20,7 @@ from ..about import version_dict
 from ..device.device import Device
 from ..device.polygon import Polygon
 from ..em import biot_savart_2d, convert_field
-from ..finite_volume.matrices import build_gradient
+from ..finite_volume.operators import build_gradient
 from ..fluxoid import Fluxoid
 from ..geometry import path_vectors
 from ..parameter import Parameter

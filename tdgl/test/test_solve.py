@@ -32,7 +32,6 @@ def test_source_drain_current(transport_device, current, field):
         field_units="uT",
         terminal_currents=terminal_currents,
         current_units="uA",
-        include_screening=False,
     )
 
     if callable(current):

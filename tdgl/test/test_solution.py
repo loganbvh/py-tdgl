@@ -39,7 +39,6 @@ def solution(transport_device, tempdir):
         field_units="uT",
         terminal_currents=terminal_currents,
         current_units="uA",
-        include_screening=False,
     )
 
     return solution

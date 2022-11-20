@@ -22,17 +22,13 @@ Finite Volume Meshes
 Matrices
 --------
 
-.. autoclass:: tdgl.finite_volume.MatrixBuilder
+.. autoclass:: tdgl.finite_volume.MeshOperators
     :members:
 
-.. autofunction:: tdgl.finite_volume.matrices.build_divergence
+.. autofunction:: tdgl.finite_volume.operators.build_divergence
 
-.. autofunction:: tdgl.finite_volume.matrices.build_gradient
+.. autofunction:: tdgl.finite_volume.operators.build_gradient
 
-.. autofunction:: tdgl.finite_volume.matrices.build_laplacian
+.. autofunction:: tdgl.finite_volume.operators.build_laplacian
 
-.. autofunction:: tdgl.finite_volume.matrices.build_neumann_boundary_laplacian
-
-.. autoenum:: tdgl.enums.MatrixType
-
-.. autoenum:: tdgl.enums.SparseFormat
+.. autofunction:: tdgl.finite_volume.operators.build_neumann_boundary_laplacian

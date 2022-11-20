@@ -6,7 +6,6 @@ from typing import Callable, Dict, Sequence, Tuple, Union
 import numpy as np
 import scipy.sparse as sp
 from scipy import spatial
-from scipy.sparse.linalg import splu
 
 try:
     import jax
@@ -15,16 +14,20 @@ except (ModuleNotFoundError, ImportError):
     jax = None
 
 from ..device.device import Device, TerminalInfo
-from ..enums import MatrixType
-from ..finite_volume.matrices import MatrixBuilder
+from ..finite_volume.operators import MeshOperators
 from ..finite_volume.util import get_supercurrent
-from ..parameter import Constant
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
 from .options import SolverOptions
 from .runner import DataHandler, Runner
 
 logger = logging.getLogger(__name__)
+
+
+if jax is None:
+    einsum = np.einsum
+else:
+    einsum = jnp.einsum
 
 
 def validate_terminal_currents(
@@ -97,11 +100,10 @@ def solve(
     output_file: Union[os.PathLike, None] = None,
     applied_vector_potential: Union[Callable, float] = 0,
     terminal_currents: Union[Callable, Dict[str, float], None] = None,
-    disorder_alpha: Union[float, Callable] = 1.0,
+    disorder_alpha: Union[float, Callable] = 1,
     pinning_sites: Union[str, Callable, None] = None,
     field_units: str = "mT",
     current_units: str = "uA",
-    include_screening: bool = False,
     seed_solution: Union[Solution, None] = None,
     rng_seed: Union[int, None] = None,
 ):
@@ -122,23 +124,23 @@ def solve(
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units`` and ``time`` is the dimensionless time.
-        disorder_alpha: A float in range [0, 1], or a callable with signature
-            ``disorder_alpha(x: float, y: float) -> alpha``, where ``alpha`` is a float
-            in range [0, 1]. If :math:`\\alpha(\\mathbf{r}) < 1` weakens the order
-            parameter at position :math:`\\mathbf{r}`, which can be used to model
-            inhomogeneity.
+        disorder_alpha: A float in range (0, 1], or a callable with signature
+            ``disorder_alpha(r: Tuple[float, float]) -> alpha``, where ``alpha`` is a float
+            in range (0, 1]. If :math:`\\alpha(\\mathbf{r}) < 1` suppresses the superfluid
+            density at position :math:`\\mathbf{r}`, which can be used to model
+            inhomogeneity. :math:`|\\alpha(\\mathbf{r})|^2` is the maximum possible
+            superfluid density at position :math:`\\mathbf{r}`.
         pinning_sites: Pinning sites are sites in the mesh where the order parameter
             fixed to :math:`\\psi(\\mathbf{r}, t)=0`. If ``pinning_sites``
             is given as a pint-parseable string with dimensions of ``length ** (-2)``,
             the argument represents the areal density of pinning sites. A corresponding
             number of pinning sites will be chose at random according to ``rng_seed``.
             If ``pinning_sites`` is a callable, it must have a signature
-            ``pinning_sites(r: Sequence[float, float]) -> bool``, where ``r`` is position
+            ``pinning_sites(r: Tuple[float, float]) -> bool``, where ``r`` is position
             in the device (in ``device.length_units``). All sites for which
             ``pinning_sites`` returns ``True`` will be fixed as pinning sites.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
-        include_screening: Whether to include screening in the simulation.
         seed_solution: A :class:`tdgl.Solution` instance to use as the initial state
             for the simulation.
         rng_seed: An integer to used as a seed for the pseudorandom number generator.
@@ -200,13 +202,6 @@ def solve(
         dt_max = options.dt_init
         max_solve_retries = 0
 
-    builder = MatrixBuilder(mesh)
-    mu_laplacian, _ = builder.build(MatrixType.LAPLACIAN)
-    mu_laplacian = mu_laplacian.asformat("csc", copy=False)
-    mu_laplacian_lu = splu(mu_laplacian)
-    mu_boundary_laplacian = builder.build(MatrixType.NEUMANN_BOUNDARY_LAPLACIAN)
-    mu_gradient = builder.build(MatrixType.GRADIENT)
-    divergence = builder.build(MatrixType.DIVERGENCE)
     # Find the current terminal sites.
     terminal_info = device.terminal_info()
     if terminal_info:
@@ -267,30 +262,33 @@ def solve(
             p=site_areas / total_area,
             replace=False,
         )
-
     fixed_sites = np.union1d(normal_boundary_index, pinning_sites_indices)
-    # Update the builder and set fixed sites and link variables for
-    # the complex field.
-    builder = builder.with_dirichlet_boundary(
-        fixed_sites=fixed_sites
-    ).with_link_exponents(link_exponents=vector_potential)
-    # Build complex field matrices.
-    psi_laplacian, free_rows = builder.build(MatrixType.LAPLACIAN)
-    psi_gradient = builder.build(MatrixType.GRADIENT)
-    # Initialize the complex field and the scalar potential.
+
+    # Construct finite-volume operators
+    operators = MeshOperators(mesh, fixed_sites=fixed_sites)
+    operators.build_operators()
+    operators.set_link_exponents(vector_potential)
+    divergence = operators.divergence
+    mu_boundary_laplacian = operators.mu_boundary_laplacian
+    mu_laplacian_lu = operators.mu_laplacian_lu
+    mu_gradient = operators.mu_gradient
+
     psi = np.ones_like(mesh.x, dtype=np.complex128)
     psi[fixed_sites] = 0
     mu = np.zeros(len(mesh.x))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=np.float64)
-    # Create the alpha parameter which weakens the complex field if it
-    # is less than one.
+    # Create the alpha parameter, which is the maximum value of |psi| at each position.
     if not callable(disorder_alpha):
-        disorder_alpha = Constant(value=disorder_alpha)
-    alpha = disorder_alpha(sites[:, 0], sites[:, 1])
+        disorder_alpha_val = disorder_alpha
+
+        def disorder_alpha(r: Tuple[float, float]) -> float:
+            return disorder_alpha_val
+
+    alpha = np.apply_along_axis(disorder_alpha, 1, sites)
     if np.any(alpha <= 0) or np.any(alpha > 1):
         raise ValueError("The disorder parameter alpha must be in range (0, 1].")
 
-    if include_screening:
+    if options.include_screening:
         # Pre-compute the kernel for the screening integral.
         edge_points = np.array([mesh.edge_mesh.x, mesh.edge_mesh.y]).T
         edge_directions = mesh.edge_mesh.directions
@@ -306,9 +304,7 @@ def solve(
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         inv_rho *= A_scale
 
-        if jax is None:
-            einsum = np.einsum
-        else:
+        if jax is not None:
             # Even without a GPU, jax.numpy.einsum seems to be much faster
             # than numpy.einsum.
             einsum = jnp.einsum
@@ -341,22 +337,33 @@ def solve(
             mu_boundary[term.boundary_edge_indices] = (
                 current_density_scale * current_density
             )
+        abs_sq_psi = np.abs(psi_val) ** 2
 
         # If screening is included, update the link variables in the covariant
         # Laplacian and gradient for psi based on the induced vector potential
         # from the previous iteration.
-        nonlocal psi_laplacian, psi_gradient, free_rows
-        if include_screening and step > 0:
-            builder.link_exponents = vector_potential + induced_vector_potential_val
-            psi_laplacian, _ = builder.build(MatrixType.LAPLACIAN, free_rows=free_rows)
-            psi_gradient = builder.build(MatrixType.GRADIENT)
-
+        if options.include_screening:
+            # 3D current density
+            J_site = mesh.get_observable_on_site(supercurrent_val + normal_current_val)
+            # i: edges, j: sites, k: spatial dimensions
+            induced_vector_potential_val = np.asarray(
+                einsum("jk, ijk -> ik", J_site, inv_rho)
+            )
+            operators.set_link_exponents(
+                vector_potential + induced_vector_potential_val
+            )
         # Compute the next time step for psi with the discrete gauge
         # invariant discretization presented in chapter 5 in
         # http://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-312132
-        abs_sq_psi = np.abs(psi_val) ** 2
         z, w, new_sq_psi = _solve_for_psi_squared(
-            psi_val, abs_sq_psi, alpha, gamma, u, mu_val, dt_val, psi_laplacian
+            psi_val,
+            abs_sq_psi,
+            alpha,
+            gamma,
+            u,
+            mu_val,
+            dt_val,
+            operators.psi_laplacian,
         )
         # Adjust the time step if the calculation failed to converge.
         retries = 0
@@ -375,17 +382,25 @@ def solve(
                 f" Retrying with dt = {dt_val:.3e}."
             )
             z, w, new_sq_psi = _solve_for_psi_squared(
-                psi_val, abs_sq_psi, alpha, gamma, u, mu_val, dt_val, psi_laplacian
+                psi_val,
+                abs_sq_psi,
+                alpha,
+                gamma,
+                u,
+                mu_val,
+                dt_val,
+                operators.psi_laplacian,
             )
         psi_val = w - z * new_sq_psi
-        running_state.append("dt", dt_val)
         # Compute the supercurrent and scalar potential
-        supercurrent_val = get_supercurrent(psi_val, psi_gradient, mesh.edge_mesh.edges)
+        supercurrent_val = get_supercurrent(
+            psi_val, operators.psi_gradient, mesh.edge_mesh.edges
+        )
         supercurrent_divergence = divergence @ supercurrent_val
         lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
         mu_val = mu_laplacian_lu.solve(lhs)
         normal_current_val = -(mu_gradient @ mu_val)
-
+        running_state.append("dt", dt_val)
         # Update the voltage and phase difference
         if device.voltage_points is None:
             d_mu = 0
@@ -398,14 +413,6 @@ def solve(
         running_state.append("voltage", d_mu)
         running_state.append("phase_difference", d_theta)
 
-        # If screening is included, update the vector potential and link variables.
-        if include_screening:
-            # 3D current density
-            J_site = mesh.get_observable_on_site(supercurrent_val + normal_current_val)
-            # i: edges, j: sites, k: spatial dimensions
-            induced_vector_potential_val = np.asarray(
-                einsum("jk, ijk -> ik", J_site, inv_rho)
-            )
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
             # and use it to select a new time step.
