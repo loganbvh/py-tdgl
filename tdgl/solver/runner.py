@@ -89,7 +89,7 @@ class DataHandler:
 
     def __enter__(self) -> "DataHandler":
         self.output_file, self.output_path = self._create_output_file(
-            self._base_output_file, self.logger
+            self._base_output_file
         )
         self.time_step_group = self.output_file.create_group("data")
         return self
