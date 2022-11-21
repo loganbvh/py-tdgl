@@ -1,6 +1,7 @@
 import os
 import subprocess
 import tempfile
+from typing import List
 
 import matplotlib.pyplot as plt
 import pytest
@@ -42,7 +43,7 @@ def solution(transport_device, tempdir):
     return solution
 
 
-def run_cmd(cmd: list[str]) -> None:
+def run_cmd(cmd: List[str]) -> None:
     result = subprocess.run(
         cmd,
         check=True,

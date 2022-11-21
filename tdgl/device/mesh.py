@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 import optimesh
@@ -28,11 +28,11 @@ def ensure_unique(coords: np.ndarray) -> np.ndarray:
 
 def generate_mesh(
     poly_coords: np.ndarray,
-    hole_coords: Optional[list[np.ndarray]] = None,
-    min_points: Optional[int] = None,
-    max_edge_length: Optional[float] = None,
+    hole_coords: Union[List[np.ndarray], None] = None,
+    min_points: Union[int, None] = None,
+    max_edge_length: Union[float, None] = None,
     convex_hull: bool = False,
-    boundary: Optional[np.ndarray] = None,
+    boundary: Union[np.ndarray, None] = None,
     **kwargs,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Generates a Delaunay mesh for a given set of polygon vertex coordinates.
