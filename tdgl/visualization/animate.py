@@ -53,71 +53,68 @@ class Animate:
             self.logger.info("NVIDIA GPU acceleration is enabled.")
 
         # Open the file
-        with (
-            h5py.File(self.input_file, "r", libver="latest") as h5file,
-            plt.ioff(),
-        ):
+        with h5py.File(self.input_file, "r", libver="latest") as h5file:
+            with plt.ioff():
+                # Get the mesh
+                if "mesh" in h5file:
+                    mesh = Mesh.load_from_hdf5(h5file["mesh"])
+                else:
+                    mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
 
-            # Get the mesh
-            if "mesh" in h5file:
-                mesh = Mesh.load_from_hdf5(h5file["mesh"])
-            else:
-                mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
+                # Get the ranges for the frame
+                min_frame, max_frame = get_data_range(h5file)
+                min_frame += self.skip
 
-            # Get the ranges for the frame
-            min_frame, max_frame = get_data_range(h5file)
-            min_frame += self.skip
+                # Temp data to use in plots
+                temp_value = np.ones_like(mesh.x)
+                temp_value[0] = 0
+                temp_value[1] = 0.5
 
-            # Temp data to use in plots
-            temp_value = np.ones_like(mesh.x)
-            temp_value[0] = 0
-            temp_value[1] = 0.5
+                fig, ax = plt.subplots()
 
-            fig, ax = plt.subplots()
-
-            fig.subplots_adjust(top=0.8)
-            triplot = ax.tripcolor(
-                mesh.x,
-                mesh.y,
-                temp_value,
-                triangles=mesh.elements,
-                cmap=PLOT_DEFAULTS[self.observable].cmap,
-                shading="gouraud",
-            )
-
-            cbar = fig.colorbar(triplot)
-            cbar.set_label(PLOT_DEFAULTS[self.observable].clabel)
-            ax.set_aspect("equal")
-
-            def update(frame):
-                if not h5file:
-                    return
-                value, direction, limits = get_plot_data(
-                    h5file, mesh, self.observable, frame
+                fig.subplots_adjust(top=0.8)
+                triplot = ax.tripcolor(
+                    mesh.x,
+                    mesh.y,
+                    temp_value,
+                    triangles=mesh.elements,
+                    cmap=PLOT_DEFAULTS[self.observable].cmap,
+                    shading="gouraud",
                 )
-                state = get_state_string(h5file, frame, max_frame)
 
-                ax.set_title(f"{self.observable.value}\n{state}")
-                triplot.set_array(value)
-                triplot.set_clim(*limits)
+                cbar = fig.colorbar(triplot)
+                cbar.set_label(PLOT_DEFAULTS[self.observable].clabel)
+                ax.set_aspect("equal")
 
-                fig.canvas.draw()
+                def update(frame):
+                    if not h5file:
+                        return
+                    value, direction, limits = get_plot_data(
+                        h5file, mesh, self.observable, frame
+                    )
+                    state = get_state_string(h5file, frame, max_frame)
 
-            with tqdm(
-                total=len(range(min_frame, max_frame)),
-                unit="frames",
-                disable=self.silent,
-            ) as progress:
-                ani = FuncAnimation(
-                    fig, update, frames=max_frame - min_frame, blit=False
-                )
-                ani.save(
-                    self.output_file,
-                    fps=self.fps,
-                    dpi=self.dpi,
-                    codec=codec,
-                    progress_callback=lambda frame, total: progress.update(1),
-                )
+                    ax.set_title(f"{self.observable.value}\n{state}")
+                    triplot.set_array(value)
+                    triplot.set_clim(*limits)
+
+                    fig.canvas.draw()
+
+                with tqdm(
+                    total=len(range(min_frame, max_frame)),
+                    unit="frames",
+                    disable=self.silent,
+                ) as progress:
+                    ani = FuncAnimation(
+                        fig, update, frames=max_frame - min_frame, blit=False
+                    )
+                    ani.save(
+                        self.output_file,
+                        fps=self.fps,
+                        dpi=self.dpi,
+                        codec=codec,
+                        progress_callback=lambda frame, total: progress.update(1),
+                    )
 
 
 class MultiAnimate:
@@ -174,96 +171,93 @@ class MultiAnimate:
             self.logger.info("NVIDIA GPU acceleration is enabled.")
 
         # Open the file
-        with (
-            h5py.File(self.input_file, "r", libver="latest") as h5file,
-            plt.ioff(),
-        ):
-
-            # Get the mesh
-            if "mesh" in h5file:
-                if "mesh" in h5file["mesh"]:
-                    mesh = Mesh.load_from_hdf5(h5file["mesh/mesh"])
+        with h5py.File(self.input_file, "r", libver="latest") as h5file:
+            with plt.ioff():
+                # Get the mesh
+                if "mesh" in h5file:
+                    if "mesh" in h5file["mesh"]:
+                        mesh = Mesh.load_from_hdf5(h5file["mesh/mesh"])
+                    else:
+                        mesh = Mesh.load_from_hdf5(h5file["mesh"])
                 else:
-                    mesh = Mesh.load_from_hdf5(h5file["mesh"])
-            else:
-                mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
+                    mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
 
-            # Get the ranges for the frame
-            min_frame, max_frame = get_data_range(h5file)
-            min_frame += self.skip
+                # Get the ranges for the frame
+                min_frame, max_frame = get_data_range(h5file)
+                min_frame += self.skip
 
-            # Temp data to use in plots
-            temp_value = np.ones_like(mesh.x)
-            temp_value[0] = 0
-            temp_value[1] = 0.5
+                # Temp data to use in plots
+                temp_value = np.ones_like(mesh.x)
+                temp_value[0] = 0
+                temp_value[1] = 0.5
 
-            fig, axes = auto_grid(
-                self.num_plots, max_cols=self.max_cols, **self.figure_kwargs
-            )
-            collections = []
-            for observable, ax in zip(self.observables, axes.flat):
-                opts = PLOT_DEFAULTS[observable]
-                collection = ax.tripcolor(
-                    mesh.x,
-                    mesh.y,
-                    temp_value,
-                    triangles=mesh.elements,
-                    shading="gouraud",
-                    cmap=opts.cmap,
+                fig, axes = auto_grid(
+                    self.num_plots, max_cols=self.max_cols, **self.figure_kwargs
                 )
-                if self.quiver:
-                    quiver = ax.quiver(
+                collections = []
+                for observable, ax in zip(self.observables, axes.flat):
+                    opts = PLOT_DEFAULTS[observable]
+                    collection = ax.tripcolor(
                         mesh.x,
                         mesh.y,
                         temp_value,
-                        temp_value,
-                        scale=0.05,
-                        units="dots",
+                        triangles=mesh.elements,
+                        shading="gouraud",
+                        cmap=opts.cmap,
                     )
-                cbar = fig.colorbar(
-                    collection, ax=ax, format=FuncFormatter("{:.2f}".format)
-                )
-                cbar.set_label(opts.clabel)
-                ax.set_aspect("equal")
-                ax.set_title(observable.value)
-                collections.append(collection)
-
-            vmins = [+np.inf for _ in self.observables]
-            vmaxs = [-np.inf for _ in self.observables]
-
-            def update(frame):
-                if not h5file:
-                    return
-                state = get_state_string(h5file, frame, max_frame)
-                if not self.full_title:
-                    state = state.split(",")[0]
-                fig.suptitle(state)
-                for i, (observable, collection) in enumerate(
-                    zip(self.observables, collections)
-                ):
-                    value, direction, limits = get_plot_data(
-                        h5file, mesh, observable, frame
+                    if self.quiver:
+                        quiver = ax.quiver(
+                            mesh.x,
+                            mesh.y,
+                            temp_value,
+                            temp_value,
+                            scale=0.05,
+                            units="dots",
+                        )
+                    cbar = fig.colorbar(
+                        collection, ax=ax, format=FuncFormatter("{:.2f}".format)
                     )
-                    vmins[i] = min(vmins[i], limits[0])
-                    vmaxs[i] = max(vmaxs[i], limits[1])
-                    collection.set_array(value)
-                    collection.set_clim(vmins[i], vmaxs[i])
-                if self.quiver:
-                    quiver.set_UVC(direction[:, 0], direction[:, 1])
-                fig.canvas.draw()
+                    cbar.set_label(opts.clabel)
+                    ax.set_aspect("equal")
+                    ax.set_title(observable.value)
+                    collections.append(collection)
 
-            with tqdm(
-                total=len(range(min_frame, max_frame)),
-                unit="frames",
-                disable=self.silent,
-            ) as progress:
-                ani = FuncAnimation(
-                    fig, update, frames=max_frame - min_frame, blit=False
-                )
-                ani.save(
-                    self.output_file,
-                    fps=self.fps,
-                    dpi=self.dpi,
-                    codec=codec,
-                    progress_callback=lambda frame, total: progress.update(1),
-                )
+                vmins = [+np.inf for _ in self.observables]
+                vmaxs = [-np.inf for _ in self.observables]
+
+                def update(frame):
+                    if not h5file:
+                        return
+                    state = get_state_string(h5file, frame, max_frame)
+                    if not self.full_title:
+                        state = state.split(",")[0]
+                    fig.suptitle(state)
+                    for i, (observable, collection) in enumerate(
+                        zip(self.observables, collections)
+                    ):
+                        value, direction, limits = get_plot_data(
+                            h5file, mesh, observable, frame
+                        )
+                        vmins[i] = min(vmins[i], limits[0])
+                        vmaxs[i] = max(vmaxs[i], limits[1])
+                        collection.set_array(value)
+                        collection.set_clim(vmins[i], vmaxs[i])
+                    if self.quiver:
+                        quiver.set_UVC(direction[:, 0], direction[:, 1])
+                    fig.canvas.draw()
+
+                with tqdm(
+                    total=len(range(min_frame, max_frame)),
+                    unit="frames",
+                    disable=self.silent,
+                ) as progress:
+                    ani = FuncAnimation(
+                        fig, update, frames=max_frame - min_frame, blit=False
+                    )
+                    ani.save(
+                        self.output_file,
+                        fps=self.fps,
+                        dpi=self.dpi,
+                        codec=codec,
+                        progress_callback=lambda frame, total: progress.update(1),
+                    )
