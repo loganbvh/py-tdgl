@@ -471,12 +471,8 @@ def solve(
             "induced_vector_potential": seed_data.induced_vector_potential,
         }
 
-    with DataHandler(
-        mesh,
-        output_file=output_file,
-        save_mesh=True,
-        logger=logger,
-    ) as data_handler:
+    with DataHandler(output_file=output_file, logger=logger) as data_handler:
+        data_handler.save_mesh(mesh)
         Runner(
             function=update,
             options=options,
