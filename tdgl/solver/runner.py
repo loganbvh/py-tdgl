@@ -163,14 +163,6 @@ class RunningState:
         """Go to the next step."""
         self.step += 1
 
-    def set_step(self, step: int) -> None:
-        """Set the current step.
-
-        Args:
-            step: Step to go to.
-        """
-        self.step = step
-
     def clear(self) -> None:
         """Clear the buffer."""
 
@@ -269,7 +261,7 @@ class Runner:
         self.time = 0
         self.state["step"] = 0
         self.state["time"] = self.time
-        self.state["dt"] = self.dt
+        self.state["dt"] = self.options.dt_init
         # Run simulation.
         self._run_stage_(
             "Simulating",
@@ -321,7 +313,6 @@ class Runner:
             bar_format=bar_format,
         ) as pbar:
             for i in it:
-                saved_this_iteration = False
                 # Update the state
                 self.state["step"] = i
                 self.state["time"] = self.time
@@ -341,7 +332,6 @@ class Runner:
                 if i % self.options.save_every == 0:
                     if save:
                         save_step(i)
-                        saved_this_iteration = True
                     self.running_state.clear()
 
                 # Run time step.
@@ -356,11 +346,11 @@ class Runner:
                 else:
                     pbar.update(end_time - self.time)
 
-                self.dt = new_dt
                 if self.time >= end_time:
-                    if save and not saved_this_iteration:
-                        save_step(i)
                     break
 
+                self.dt = new_dt
                 self.running_state.next()
                 self.time += self.dt
+        if save:
+            save_step(i)

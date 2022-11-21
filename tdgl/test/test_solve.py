@@ -4,7 +4,7 @@ import pytest
 import tdgl
 
 
-@pytest.mark.parametrize("current", [1.0, 10.0, lambda t: 10])
+@pytest.mark.parametrize("current", [5.0, 10.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
 def test_source_drain_current(transport_device, current, field):
 

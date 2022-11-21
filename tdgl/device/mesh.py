@@ -108,7 +108,7 @@ def generate_mesh(
         return points, triangles
 
     kwargs = kwargs.copy()
-    kwargs["max_volume"] = 1
+    kwargs["max_volume"] = dx * dy / 100
     i = 1
     if min_points is None:
         min_points = 0

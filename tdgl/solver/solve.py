@@ -14,6 +14,7 @@ except (ModuleNotFoundError, ImportError):
     jax = None
 
 from ..device.device import Device, TerminalInfo
+from ..em import ureg
 from ..finite_volume.operators import MeshOperators
 from ..finite_volume.util import get_supercurrent
 from ..solution.solution import Solution
@@ -35,7 +36,7 @@ def validate_terminal_currents(
     terminal_info: Sequence[TerminalInfo],
     solver_options: SolverOptions,
     num_evals: int = 100,
-):
+) -> None:
     def check_total_current(currents: Dict[str, float]):
         names = set([t.name for t in terminal_info])
         if unknown := set(currents).difference(names):
@@ -60,7 +61,50 @@ def validate_terminal_currents(
         check_total_current(terminal_currents)
 
 
-def _solve_for_psi_squared(
+def select_pinning_sites(
+    pinning_sites: Union[Callable, str],
+    sites: np.ndarray,
+    areas: np.ndarray,
+    interior_indices: np.ndarray,
+    length_units: str,
+    rng_seed: int,
+) -> np.ndarray:
+    """Define the pinning sites."""
+    if callable(pinning_sites):
+        pinning_sites_indices = np.apply_along_axis(pinning_sites, 1, sites)
+        (pinning_sites_indices,) = np.where(pinning_sites_indices.astype(bool))
+    else:
+        if pinning_sites is None:
+            pinning_sites = f"0 * {length_units}**(-2)"
+        if not isinstance(pinning_sites, str):
+            raise ValueError(
+                f"Expected pinning sites to be a callable or str, "
+                f"but got {type(pinning_sites)}."
+            )
+        pinning_sites_density = (
+            ureg(pinning_sites).to(f"{length_units}**(-2)").magnitude
+        )
+        site_areas = areas[interior_indices]
+        total_area = site_areas.sum()
+        n_pinning_sites = int(pinning_sites_density * total_area)
+        if n_pinning_sites > len(interior_indices):
+            raise ValueError(
+                f"The total number of pinning sites ({n_pinning_sites}) for the requested"
+                f" areal density of pinning sites ({pinning_sites_density:~P})"
+                f" exceeds the total number of interior sites ({len(interior_indices)})."
+                f" Try setting a smaller density of pinning sites."
+            )
+        rng = np.random.default_rng(rng_seed)
+        pinning_sites_indices = rng.choice(
+            interior_indices,
+            size=n_pinning_sites,
+            p=site_areas / total_area,
+            replace=False,
+        )
+    return pinning_sites_indices
+
+
+def solve_for_psi_squared(
     psi: np.ndarray,
     abs_sq_psi: np.ndarray,
     alpha: np.ndarray,
@@ -81,7 +125,6 @@ def _solve_for_psi_squared(
                 * ((alpha - abs_sq_psi) * psi + psi_laplacian @ psi)
             )
             c = w.real * z.real + w.imag * z.imag
-            # Find the modulus squared for the next time step
             two_c_1 = 2 * c + 1
             w2 = np.abs(w) ** 2
             discriminant = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
@@ -105,7 +148,6 @@ def solve(
     field_units: str = "mT",
     current_units: str = "uA",
     seed_solution: Union[Solution, None] = None,
-    rng_seed: Union[int, None] = None,
 ):
     """Solve a TDGL model.
 
@@ -128,13 +170,13 @@ def solve(
             ``disorder_alpha(r: Tuple[float, float]) -> alpha``, where ``alpha`` is a float
             in range (0, 1]. If :math:`\\alpha(\\mathbf{r}) < 1` suppresses the superfluid
             density at position :math:`\\mathbf{r}`, which can be used to model
-            inhomogeneity. :math:`|\\alpha(\\mathbf{r})|^2` is the maximum possible
+            inhomogeneity. :math:`\\alpha(\\mathbf{r})` is the maximum possible
             superfluid density at position :math:`\\mathbf{r}`.
         pinning_sites: Pinning sites are sites in the mesh where the order parameter
             fixed to :math:`\\psi(\\mathbf{r}, t)=0`. If ``pinning_sites``
             is given as a pint-parseable string with dimensions of ``length ** (-2)``,
             the argument represents the areal density of pinning sites. A corresponding
-            number of pinning sites will be chose at random according to ``rng_seed``.
+            number of pinning sites will be chose at random according to ``options.rng_seed``.
             If ``pinning_sites`` is a callable, it must have a signature
             ``pinning_sites(r: Tuple[float, float]) -> bool``, where ``r`` is position
             in the device (in ``device.length_units``). All sites for which
@@ -143,20 +185,15 @@ def solve(
         current_units: The units for currents.
         seed_solution: A :class:`tdgl.Solution` instance to use as the initial state
             for the simulation.
-        rng_seed: An integer to used as a seed for the pseudorandom number generator.
 
     Returns:
         A :class:`tdgl.Solution` instance.
     """
 
     start_time = datetime.now()
-
-    if rng_seed is None:
-        rng_seed = np.random.SeedSequence().entropy
-
     options.validate()
+    rng_seed = int(options.rng_seed)
 
-    ureg = device.ureg
     mesh = device.mesh
     sites = device.points
     voltage_points = mesh.voltage_points
@@ -230,38 +267,14 @@ def solve(
 
     validate_terminal_currents(current_func, terminal_info, options)
 
-    # Define the pinning sites.
-    if callable(pinning_sites):
-        pinning_sites_indices = np.apply_along_axis(pinning_sites, 1, sites)
-        (pinning_sites_indices,) = np.where(pinning_sites_indices.astype(bool))
-    else:
-        if pinning_sites is None:
-            pinning_sites = f"0 * {device.length_units}**(-2)"
-        if not isinstance(pinning_sites, str):
-            raise ValueError(
-                f"Expected pinning sites to be a callable or str, "
-                f"but got {type(pinning_sites)}."
-            )
-        pinning_sites_density = (
-            ureg(pinning_sites).to(f"{device.length_units}**(-2)").magnitude
-        )
-        site_areas = xi**2 * mesh.areas[interior_indices]
-        total_area = site_areas.sum()
-        n_pinning_sites = int(pinning_sites_density * total_area)
-        if n_pinning_sites > len(interior_indices):
-            raise ValueError(
-                f"The total number of pinning sites ({n_pinning_sites}) for the requested"
-                f" areal density of pinning sites ({pinning_sites_density:~P})"
-                f" exceeds the total number of interior sites ({len(interior_indices)})."
-                f" Try setting a smaller density of pinning sites."
-            )
-        rng = np.random.default_rng(rng_seed)
-        pinning_sites_indices = rng.choice(
-            interior_indices,
-            size=n_pinning_sites,
-            p=site_areas / total_area,
-            replace=False,
-        )
+    pinning_sites_indices = select_pinning_sites(
+        pinning_sites,
+        sites,
+        xi**2 * mesh.areas,
+        interior_indices,
+        device.length_units,
+        rng_seed,
+    )
     fixed_sites = np.union1d(normal_boundary_index, pinning_sites_indices)
 
     # Construct finite-volume operators
@@ -313,6 +326,7 @@ def solve(
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
     d_psi_sq_vals = []
+    tentative_dt = options.dt_init
 
     # This is the function called at each step of the solver.
     def update(
@@ -325,6 +339,7 @@ def solve(
         induced_vector_potential_val,
         dt_val,
     ):
+        nonlocal tentative_dt
         step = state["step"]
         time = state["time"]
         # Compute the current density for this step
@@ -337,14 +352,14 @@ def solve(
             mu_boundary[term.boundary_edge_indices] = (
                 current_density_scale * current_density
             )
-        abs_sq_psi = np.abs(psi_val) ** 2
 
         # If screening is included, update the link variables in the covariant
         # Laplacian and gradient for psi based on the induced vector potential
         # from the previous iteration.
         if options.include_screening:
             # 3D current density
-            J_site = mesh.get_observable_on_site(supercurrent_val + normal_current_val)
+            J_edge = supercurrent_val + normal_current_val
+            J_site = mesh.get_observable_on_site(J_edge)
             # i: edges, j: sites, k: spatial dimensions
             induced_vector_potential_val = np.asarray(
                 einsum("jk, ijk -> ik", J_site, inv_rho)
@@ -352,10 +367,13 @@ def solve(
             operators.set_link_exponents(
                 vector_potential + induced_vector_potential_val
             )
+
         # Compute the next time step for psi with the discrete gauge
         # invariant discretization presented in chapter 5 in
         # http://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-312132
-        z, w, new_sq_psi = _solve_for_psi_squared(
+        abs_sq_psi = np.abs(psi_val) ** 2
+        dt_val = tentative_dt
+        z, w, new_sq_psi = solve_for_psi_squared(
             psi_val,
             abs_sq_psi,
             alpha,
@@ -381,7 +399,7 @@ def solve(
                 f"\nFailed to converge at step {step} with dt = {old_dt:.3e}."
                 f" Retrying with dt = {dt_val:.3e}."
             )
-            z, w, new_sq_psi = _solve_for_psi_squared(
+            z, w, new_sq_psi = solve_for_psi_squared(
                 psi_val,
                 abs_sq_psi,
                 alpha,
@@ -400,7 +418,6 @@ def solve(
         lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
         mu_val = mu_laplacian_lu.solve(lhs)
         normal_current_val = -(mu_gradient @ mu_val)
-        running_state.append("dt", dt_val)
         # Update the voltage and phase difference
         if device.voltage_points is None:
             d_mu = 0
@@ -410,6 +427,8 @@ def solve(
             d_theta = np.angle(psi_val[voltage_points[0]]) - np.angle(
                 psi_val[voltage_points[1]]
             )
+
+        running_state.append("dt", dt_val)
         running_state.append("voltage", d_mu)
         running_state.append("phase_difference", d_theta)
 
@@ -422,7 +441,7 @@ def solve(
                 new_dt = options.dt_init / max(
                     1e-10, np.mean(d_psi_sq_vals[-options.adaptive_window :])
                 )
-                dt_val = np.clip(new_dt, 0, dt_max)
+                tentative_dt = np.clip(new_dt, 0, dt_max)
 
         return (
             psi_val,
@@ -489,7 +508,6 @@ def solve(
             terminal_currents=terminal_currents,
             disorder_alpha=disorder_alpha,
             pinning_sites=pinning_sites,
-            rng_seed=rng_seed,
             total_seconds=(end_time - start_time).total_seconds(),
             field_units=field_units,
             current_units=current_units,

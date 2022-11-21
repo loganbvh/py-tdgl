@@ -516,13 +516,14 @@ def plot_field_at_positions(
 
 def plot_order_parameter(
     solution: Solution,
+    squared: bool = False,
     mag_cmap: str = "viridis",
     phase_cmap: str = "twilight_shifted",
     shading: str = "gouraud",
     **kwargs,
 ) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
-    """Plots the magnitude and phase of the complex order parameter,
-    :math:`\\psi=|\\psi|e^{i\\theta}`.
+    """Plots the magnitude (or the magnitude squared) and
+    phase of the complex order parameter, :math:`\\psi=|\\psi|e^{i\\theta}`.
 
     .. seealso:
 
@@ -530,6 +531,7 @@ def plot_order_parameter(
 
     Args:
         solution: The solution for which to plot the order parameter.
+        squared: Whether to plot the magnitude squared, :math:`|\\psi|^2`.
         mag_cmap: Name of the colormap to use for the magnitude.
         phase_cmap: Name of the colormap to use for the phase.
         shading: May be ``"flat"`` or ``"gouraud"``. The latter does some interpolation.
@@ -541,7 +543,11 @@ def plot_order_parameter(
     kwargs.setdefault("constrained_layout", True)
     device = solution.device
     psi = solution.tdgl_data.psi
-    ns = np.abs(psi)
+    mag = np.abs(psi)
+    psi_label = "$|\\psi|$"
+    if squared:
+        mag = mag**2
+        psi_label = "$|\\psi|^2$"
     phase = np.angle(psi) / np.pi
     points = device.points
     triangles = device.triangles
@@ -549,7 +555,7 @@ def plot_order_parameter(
     im = axes[0].tripcolor(
         points[:, 0],
         points[:, 1],
-        ns,
+        mag,
         triangles=triangles,
         vmin=0,
         vmax=1,
@@ -557,7 +563,7 @@ def plot_order_parameter(
         shading=shading,
     )
     cbar = fig.colorbar(im, ax=axes[0])
-    cbar.set_label("$|\\psi|$")
+    cbar.set_label(psi_label)
     im = axes[1].tripcolor(
         points[:, 0],
         points[:, 1],
@@ -575,7 +581,6 @@ def plot_order_parameter(
         ax.set_aspect("equal")
         ax.set_xlabel(f"$x$ [${length_units:~L}$]")
         ax.set_ylabel(f"$y$ [${length_units:~L}$]")
-
     return fig, axes
 
 

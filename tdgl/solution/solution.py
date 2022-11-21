@@ -60,7 +60,6 @@ class Solution:
         pinning_sites: The string or callable specifying pinning sites.
         field_units: Units of the applied field
         current_units: Units used for current quantities.
-        rng_seed: The RNG seed used for the simulation.
         total_seconds: The total wall time in seconds.
     """
 
@@ -76,7 +75,6 @@ class Solution:
         pinning_sites: Union[str, Callable],
         field_units: str,
         current_units: str,
-        rng_seed: int,
         total_seconds: float,
     ):
         self.device = device.copy()
@@ -99,7 +97,6 @@ class Solution:
         # The should never be changed after instantiation.
         self._field_units = str(field_units)
         self._current_units = str(current_units)
-        self._rng_seed = rng_seed
         self._time_created = datetime.now()
         self.total_seconds = total_seconds
 
@@ -188,11 +185,6 @@ class Solution:
         if self.supercurrent_density is None:
             return None
         return self.supercurrent_density + self.normal_current_density
-
-    @property
-    def rng_seed(self) -> int:
-        """The RNG seed used for the simulation."""
-        return self._rng_seed
 
     @property
     def field_units(self) -> str:
@@ -813,7 +805,6 @@ class Solution:
                 "pinning_sites",
                 group,
             )
-            group.attrs["rng_seed"] = str(self.rng_seed)
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
 
@@ -876,7 +867,6 @@ class Solution:
             terminal_currents = deserialize_func("terminal_currents", grp)
             disorder_alpha = deserialize_func("disorder_alpha", grp)
             pinning_sites = deserialize_func("pinning_sites", grp)
-            rng_seed = int(grp.attrs["rng_seed"])
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])
 
@@ -890,7 +880,6 @@ class Solution:
             pinning_sites=pinning_sites,
             current_units=current_units,
             field_units=field_units,
-            rng_seed=rng_seed,
             total_seconds=total_seconds,
         )
         solution._time_created = time_created
@@ -937,6 +926,7 @@ class Solution:
 
         if not (
             (self.device == other.device)
+            and (self.options == other.options)
             and (self.field_units == other.field_units)
             and (self.current_units == other.current_units)
             and (self.solve_step == other.solve_step)
@@ -946,7 +936,6 @@ class Solution:
             and compare_callables(self.terminal_currents, other.terminal_currents)
             and compare_callables(self.disorder_alpha, other.disorder_alpha)
             and compare_callables(self.pinning_sites, other.pinning_sites)
-            and (self.rng_seed == other.rng_seed)
             and (self.tdgl_data == other.tdgl_data)
             and (self.dynamics == other.dynamics)
         ):

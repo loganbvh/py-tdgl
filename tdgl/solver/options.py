@@ -1,4 +1,7 @@
 from dataclasses import dataclass
+from typing import Union
+
+import numpy as np
 
 
 class SolverOptionsError(ValueError):
@@ -23,6 +26,7 @@ class SolverOptions:
             given solve iteration before giving up.
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
+        rng_seed: An integer to used as a seed for the pseudorandom number generator.
     """
 
     solve_time: float
@@ -35,6 +39,12 @@ class SolverOptions:
     max_solve_retries: int = 10
     save_every: int = 100
     progress_interval: int = 0
+    rng_seed: Union[int, str, None] = None
+
+    def __post_init__(self) -> None:
+        if self.rng_seed is None:
+            self.rng_seed = np.random.SeedSequence().entropy
+        self.rng_seed = str(self.rng_seed)
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
