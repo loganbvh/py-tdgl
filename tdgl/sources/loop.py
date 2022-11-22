@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Tuple
 
 import numpy as np
 
@@ -13,7 +13,7 @@ def loop_vector_potential(
     *,
     current: float,
     radius: float,
-    center: Sequence[float] = (0, 0, 0),
+    center: Tuple[float, float, float] = (0, 0, 0),
     current_units: str = "uA",
     field_units: str = "mT",
     length_units: str = "um",
@@ -36,7 +36,7 @@ def CurrentLoop(
     *,
     current: float,
     radius: float,
-    center: Sequence[float],
+    center: Tuple[float, float, float],
     current_units: str = "uA",
     field_units: str = "mT",
     length_units: str = "um",

@@ -113,11 +113,11 @@ def solve_for_psi_squared(
     dt: float,
     psi_laplacian: sp.spmatrix,
 ) -> Tuple[Union[np.ndarray, None], Union[np.ndarray, None], Union[np.ndarray, None]]:
-    phase = np.exp(-1j * mu * dt)
-    z = phase * gamma**2 / 2 * psi
+    U = np.exp(-1j * mu * dt)
+    z = U * gamma**2 / 2 * psi
     with np.errstate(all="raise"):
         try:
-            w = z * abs_sq_psi + phase * (
+            w = z * abs_sq_psi + U * (
                 psi
                 + (dt / u)
                 * np.sqrt(1 + gamma**2 * abs_sq_psi)
@@ -158,9 +158,9 @@ def solve(
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units`` and ``time`` is the dimensionless time.
-        disorder_alpha: A float in range (0, 1], or a callable with signature
+        disorder_alpha: A float in range [0, 1], or a callable with signature
             ``disorder_alpha(r: Tuple[float, float]) -> alpha``, where ``alpha`` is a float
-            in range (0, 1]. If :math:`\\alpha(\\mathbf{r}) < 1` suppresses the superfluid
+            in range [0, 1]. If :math:`\\alpha(\\mathbf{r}) < 1` suppresses the superfluid
             density at position :math:`\\mathbf{r}`, which can be used to model
             inhomogeneity. :math:`\\alpha(\\mathbf{r})` is the maximum possible
             superfluid density at position :math:`\\mathbf{r}`.
@@ -290,9 +290,9 @@ def solve(
         def disorder_alpha(r: Tuple[float, float]) -> float:
             return disorder_alpha_val
 
-    alpha = np.apply_along_axis(disorder_alpha, 1, sites)
-    if np.any(alpha <= 0) or np.any(alpha > 1):
-        raise ValueError("The disorder parameter alpha must be in range (0, 1].")
+    alpha = np.apply_along_axis(disorder_alpha, 1, sites).astype(float)
+    if np.any(alpha < 0) or np.any(alpha > 1):
+        raise ValueError("The disorder parameter alpha must be in range [0, 1].")
 
     if options.include_screening:
         # Pre-compute the kernel for the screening integral.

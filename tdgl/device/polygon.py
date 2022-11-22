@@ -10,6 +10,7 @@ from shapely import affinity
 from shapely import geometry as geo
 from shapely.validation import explain_validity
 
+from ..finite_volume.mesh import Mesh
 from ..geometry import close_curve
 from .mesh import ensure_unique, generate_mesh, optimize_mesh
 
@@ -170,7 +171,7 @@ class Polygon:
         optimesh_tolerance: float = 1e-3,
         optimesh_verbose: bool = False,
         **meshpy_kwargs,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Mesh:
         """Returns the vertices and triangles of a Delaunay mesh covering the Polygon.
 
         Args:
@@ -214,7 +215,7 @@ class Polygon:
             f"Finished generating mesh with {points.shape[0]} points and "
             f"{triangles.shape[0]} triangles."
         )
-        return points, triangles
+        return Mesh.from_triangulation(points[:, 0], points[:, 1], triangles)
 
     def rotate(
         self,
