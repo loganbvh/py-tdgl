@@ -16,6 +16,8 @@ def test_source_drain_current(transport_device, current, field):
         dt_init=dt,
         dt_max=10 * dt,
         solve_time=total_time,
+        field_units="uT",
+        current_units="uA",
         save_every=100,
     )
     if callable(current):
@@ -29,9 +31,7 @@ def test_source_drain_current(transport_device, current, field):
         device,
         options,
         applied_vector_potential=field,
-        field_units="uT",
         terminal_currents=terminal_currents,
-        current_units="uA",
     )
 
     if callable(current):

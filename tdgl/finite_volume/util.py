@@ -142,7 +142,7 @@ def get_surrounding_voronoi_polygons(
     # The indices for the triangles are the same as the indices for the
     # Voronoi lattice
     return dict(
-        (idx, (elements == idx).any(axis=1).nonzero()[0]) for idx in range(num_sites)
+        (idx, np.where((elements == idx).any(axis=1))[0]) for idx in range(num_sites)
     )
 
 
@@ -190,9 +190,7 @@ def compute_surrounding_area(
         # TODO: First computing a dict where the key is the boundary index
         #  and the value is a list of neighbouring
         #  points would be more effective. Consider changing to that instead.
-        connected_boundary_edges = boundary_edges[
-            (boundary_edges == i).any(axis=1).nonzero()[0]
-        ]
+        connected_boundary_edges = boundary_edges[(boundary_edges == i).any(axis=1)]
         x_mid = x[connected_boundary_edges].mean(axis=1)
         y_mid = y[connected_boundary_edges].mean(axis=1)
         poly_x = np.concatenate([poly_x, [x[i]], x_mid])

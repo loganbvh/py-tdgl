@@ -64,14 +64,18 @@ see `Working with polygons <../notebooks/polygons.ipynb>`_.
     - :meth:`tdgl.Polygon.to_hdf5`, :meth:`tdgl.Polygon.from_hdf5`
     - :meth:`tdgl.Device.to_hdf5`, :meth:`tdgl.Device.from_hdf5`
 
-Classes
--------
+Layer
+-----
 .. autoclass:: tdgl.Layer
     :members:
 
+Polygon
+-------
 .. autoclass:: tdgl.Polygon
     :members:
 
+Device
+------
 .. autoclass:: tdgl.Device
     :members:
 

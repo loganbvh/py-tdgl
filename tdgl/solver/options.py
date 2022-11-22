@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from typing import Union
 
@@ -17,15 +18,21 @@ class SolverOptions:
         skip_time: Amount of 'thermalization' time to simulate before recording data.
         dt_init: Initial time step.
         dt_max: Maximum adaptive time step.
-        include_screening: Whether to include screening in the simulation.
         adaptive: Whether to use an adpative time step. Setting ``dt_init = dt_max``
             is equivalent to setting ``adaptive = False``.
         adaptive_window: Number of most recent solve steps to consider when
             computing the time step adaptively.
         max_solve_retries: The maximum number of times to reduce the time step in a
             given solve iteration before giving up.
+        field_units: The units for magnetic fields.
+        current_units: The units for currents.
+        output_file: Path to an HDF5 file in which to save the data.
+            If the file name already exists, a unique name will be generated.
+            If ``output_file`` is ``None``, the solver results will not be saved
+            to disk.
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
+        include_screening: Whether to include screening in the simulation.
         rng_seed: An integer to used as a seed for the pseudorandom number generator.
     """
 
@@ -33,12 +40,15 @@ class SolverOptions:
     skip_time: float = 0.0
     dt_init: float = 1e-4
     dt_max: float = 1e-1
-    include_screening: bool = False
     adaptive: bool = True
     adaptive_window: int = 10
     max_solve_retries: int = 10
     save_every: int = 100
     progress_interval: int = 0
+    field_units: str = "mT"
+    current_units: str = "uA"
+    output_file: Union[os.PathLike, None] = None
+    include_screening: bool = False
     rng_seed: Union[int, str, None] = None
 
     def __post_init__(self) -> None:

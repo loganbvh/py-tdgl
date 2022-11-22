@@ -58,7 +58,7 @@ class EdgeMesh:
         # Get the edges and the boundary edges
         edges, is_boundary = get_edges(elements)
         # Get the indices of the boundary edges
-        boundary_edge_indices = is_boundary.nonzero()[0]
+        boundary_edge_indices = np.where(is_boundary)[0]
         # Get the coordinates
         xe = np.mean(x[edges], axis=1)
         ye = np.mean(y[edges], axis=1)
@@ -87,14 +87,6 @@ class EdgeMesh:
             edge_lengths,
             dual_edge_lengths,
         )
-
-    def get_boundary_edges(self) -> np.ndarray:
-        """Get the boundary edges.
-
-        Returns:
-            The boundary edges.
-        """
-        return self.edges[self.boundary_edge_indices]
 
     def save_to_hdf5(self, h5group: h5py.Group) -> None:
         """Save the data to a HDF5 file.

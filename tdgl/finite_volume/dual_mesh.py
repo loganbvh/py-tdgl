@@ -38,7 +38,6 @@ class DualMesh:
 
         # Get the location of the Voronoi vertices from the original mesh
         xc, yc = generate_voronoi_vertices(x, y, elements)
-        # Generate the dual mesh
         return DualMesh(xc, yc)
 
     def save_to_hdf5(self, h5group: h5py.Group) -> None:

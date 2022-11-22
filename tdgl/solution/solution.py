@@ -58,8 +58,6 @@ class Solution:
             :math:`\\alpha(\\mathbf{r}) < 1` weakens the order parameter at position
             :math:`\\mathbf{r}`, which can be used to model inhomogeneity.
         pinning_sites: The string or callable specifying pinning sites.
-        field_units: Units of the applied field
-        current_units: Units used for current quantities.
         total_seconds: The total wall time in seconds.
     """
 
@@ -73,8 +71,6 @@ class Solution:
         terminal_currents: Union[Dict[str, float], Callable],
         disorder_alpha: Union[float, Callable],
         pinning_sites: Union[str, Callable],
-        field_units: str,
-        current_units: str,
         total_seconds: float,
     ):
         self.device = device.copy()
@@ -95,15 +91,15 @@ class Solution:
 
         # Make field_units and current_units "read-only" attributes.
         # The should never be changed after instantiation.
-        self._field_units = str(field_units)
-        self._current_units = str(current_units)
+        self._field_units = str(self.options.field_units)
+        self._current_units = str(self.options.current_units)
         self._time_created = datetime.now()
         self.total_seconds = total_seconds
 
         self.tdgl_data: Union[TDGLData, None] = None
-        """A container for the raw TDGL data."""
+        """A container for the raw TDGL data (in dimensionless units)."""
         self.dynamics: Union[DynamicsData, None] = None
-        """A container for the time dynamics of the solution."""
+        """A container for the time dynamics of the solution (in dimensionless units)."""
         self._solve_step: int = -1
         self.load_tdgl_data(self._solve_step)
         self._version_info = version_dict()
@@ -861,8 +857,6 @@ class Solution:
             options = SolverOptions(**options_kwargs)
             grp = f["solution"]
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
-            current_units = grp.attrs["current_units"]
-            field_units = grp.attrs["field_units"]
             vector_potential = deserialize_func("applied_vector_potential", grp)
             terminal_currents = deserialize_func("terminal_currents", grp)
             disorder_alpha = deserialize_func("disorder_alpha", grp)
@@ -878,8 +872,6 @@ class Solution:
             terminal_currents=terminal_currents,
             disorder_alpha=disorder_alpha,
             pinning_sites=pinning_sites,
-            current_units=current_units,
-            field_units=field_units,
             total_seconds=total_seconds,
         )
         solution._time_created = time_created
@@ -927,8 +919,6 @@ class Solution:
         if not (
             (self.device == other.device)
             and (self.options == other.options)
-            and (self.field_units == other.field_units)
-            and (self.current_units == other.current_units)
             and (self.solve_step == other.solve_step)
             and compare_callables(
                 self.applied_vector_potential, other.applied_vector_potential

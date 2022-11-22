@@ -1,5 +1,4 @@
 import logging
-import os
 from datetime import datetime
 from typing import Callable, Dict, Sequence, Tuple, Union
 
@@ -72,7 +71,7 @@ def select_pinning_sites(
     """Define the pinning sites."""
     if callable(pinning_sites):
         pinning_sites_indices = np.apply_along_axis(pinning_sites, 1, sites)
-        (pinning_sites_indices,) = np.where(pinning_sites_indices.astype(bool))
+        pinning_sites_indices = np.where(pinning_sites_indices.astype(bool))[0]
     else:
         if pinning_sites is None:
             pinning_sites = f"0 * {length_units}**(-2)"
@@ -140,13 +139,10 @@ def solve_for_psi_squared(
 def solve(
     device: Device,
     options: SolverOptions,
-    output_file: Union[os.PathLike, None] = None,
     applied_vector_potential: Union[Callable, float] = 0,
     terminal_currents: Union[Callable, Dict[str, float], None] = None,
     disorder_alpha: Union[float, Callable] = 1,
     pinning_sites: Union[str, Callable, None] = None,
-    field_units: str = "mT",
-    current_units: str = "uA",
     seed_solution: Union[Solution, None] = None,
 ):
     """Solve a TDGL model.
@@ -155,10 +151,6 @@ def solve(
         device: The :class:`tdgl.Device` to solve.
         options: An instance :class:`tdgl.SolverOptions` specifying the solver
             parameters.
-        output_file: Path to an HDF5 file in which to save the data.
-            If the file name already exists, a unique name will be generated.
-            If ``output_file`` is ``None``, the solver results will not be saved
-            to disk.
         applied_vector_potential: A function or :class:`tdgl.Parameter` that computes
             the applied vector potential as a function of position ``(x, y, z)``. If a float
             ``B`` is given, the applied vector potential will be that of a uniform magnetic
@@ -181,8 +173,6 @@ def solve(
             ``pinning_sites(r: Tuple[float, float]) -> bool``, where ``r`` is position
             in the device (in ``device.length_units``). All sites for which
             ``pinning_sites`` returns ``True`` will be fixed as pinning sites.
-        field_units: The units for magnetic fields.
-        current_units: The units for currents.
         seed_solution: A :class:`tdgl.Solution` instance to use as the initial state
             for the simulation.
 
@@ -193,12 +183,15 @@ def solve(
     start_time = datetime.now()
     options.validate()
     rng_seed = int(options.rng_seed)
+    current_units = options.current_units
+    field_units = options.field_units
+    output_file = options.output_file
 
     mesh = device.mesh
     sites = device.points
-    voltage_points = mesh.voltage_points
     length_units = ureg(device.length_units)
     xi = device.coherence_length
+    voltage_points = device.voltage_point_indices
     u = device.layer.u
     gamma = device.layer.gamma
     K0 = device.K0
@@ -505,8 +498,6 @@ def solve(
             disorder_alpha=disorder_alpha,
             pinning_sites=pinning_sites,
             total_seconds=(end_time - start_time).total_seconds(),
-            field_units=field_units,
-            current_units=current_units,
         )
         solution.to_hdf5()
     return solution

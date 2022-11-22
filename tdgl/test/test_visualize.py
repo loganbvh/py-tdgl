@@ -24,21 +24,20 @@ def solution(transport_device, tempdir):
     dt = 1e-3
     total_time = 10
 
+    fname = os.path.join(tempdir, "output.h5")
     options = tdgl.SolverOptions(
         dt_init=dt,
         solve_time=total_time,
-        save_every=100,
+        output_file=fname,
+        field_units="uT",
+        current_units="uA",
     )
     field = tdgl.sources.ConstantField(10)
-    fname = os.path.join(tempdir, "output.h5")
     solution = tdgl.solve(
         device,
         options,
-        output_file=fname,
         applied_vector_potential=field,
-        field_units="uT",
         terminal_currents=dict(source=10, drain=-10),
-        current_units="uA",
     )
     return solution
 

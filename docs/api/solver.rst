@@ -19,7 +19,7 @@ The bias or terminal currents (if any) can be specified as a dictionary like ``t
 where ``current`` is a ``float`` in units of the specified ``current_units``. For time-dependent applied currents, one can provide
 a function with signature ``terminal_currents(time: float) -> {terminal_name: current}``, where ``time`` is the dimensionless time.
 In either case, the sum of all terminal currents must be zero at every time step and every terminal in the device must be included 
-n the dictionary to ensure current conservation.
+in the dictionary to ensure current conservation.
 
 .. autofunction:: tdgl.solve
 

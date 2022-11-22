@@ -220,7 +220,7 @@ class Device:
         """
         if self.mesh is None:
             return None
-        return self.coherence_length * np.array([self.mesh.x, self.mesh.y]).T
+        return self.coherence_length * self.mesh.sites
 
     @property
     def triangles(self) -> Union[np.ndarray, None]:
@@ -249,6 +249,14 @@ class Device:
         if self.mesh is None:
             return None
         return self.mesh.areas * self.coherence_length**2
+
+    @property
+    def voltage_point_indices(self) -> Union[Tuple[int, int], None]:
+        """A tuple of the mesh site indices for the voltage points."""
+        if self.mesh is None or self.voltage_points is None:
+            return None
+        xi = self.coherence_length
+        return tuple(self.mesh.closest_site(xy) for xy in self.voltage_points / xi)
 
     def contains_points(
         self,
@@ -281,7 +289,7 @@ class Device:
 
     @property
     def poly_points(self) -> np.ndarray:
-        """Shape (n, 2) array of (x, y) coordinates of all Polygons in the Device."""
+        """A shape (n, 2) array of (x, y) coordinates of all Polygons in the Device."""
         points = np.concatenate(
             [self.film.points]
             + [poly.points for poly in self.abstract_regions if poly.mesh],
@@ -525,20 +533,10 @@ class Device:
         Returns:
             The dimensionless ``Mesh`` object.
         """
-        if self.voltage_points is None:
-            voltage_points = None
-        else:
-            voltage_points = [
-                np.argmin(np.linalg.norm(points - xy, axis=1))
-                for xy in self.voltage_points
-            ]
-            voltage_points = np.array(voltage_points)
-
         self.mesh = Mesh.from_triangulation(
             points[:, 0] / self.coherence_length,
             points[:, 1] / self.coherence_length,
             triangles,
-            voltage_points=voltage_points,
         )
 
     def mesh_stats_dict(self) -> Dict[str, Union[int, float, str]]:
@@ -619,8 +617,9 @@ class Device:
         else:
             fig = ax.get_figure()
         points = self.points
+        voltage_points = self.voltage_point_indices
         if mesh:
-            if self.triangles is None:
+            if self.mesh is None:
                 raise RuntimeError(
                     "Mesh does not exist. Run device.make_mesh() to generate the mesh."
                 )
@@ -632,8 +631,8 @@ class Device:
             ax = polygon.plot(ax=ax, **kwargs)
         if self.mesh is None and self.voltage_points is not None:
             ax.plot(*self.voltage_points.T, "ko", label="Voltage points")
-        if self.mesh is not None and self.mesh.voltage_points is not None:
-            ax.plot(*points[self.mesh.voltage_points].T, "ko", label="Voltage points")
+        if voltage_points:
+            ax.plot(*points[voltage_points, :].T, "ko", label="Voltage points")
         if legend:
             ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
         units = self.ureg(self.length_units).units
@@ -696,6 +695,7 @@ class Device:
         exclude = exclude or []
         if isinstance(exclude, str):
             exclude = [exclude]
+        voltage_points = self.voltage_point_indices
         patches = self.patches()
         units = self.ureg(self.length_units).units
         x, y = self.poly_points.T
@@ -726,8 +726,8 @@ class Device:
             (line,) = ax.plot(*self.voltage_points.T, "ko", label="Voltage points")
             handles.append(line)
             labels.append("Voltage points")
-        if self.mesh is not None and self.mesh.voltage_points is not None:
-            (line,) = ax.plot(*self.points[self.mesh.voltage_points].T, "ko")
+        if voltage_points:
+            (line,) = ax.plot(*self.points[voltage_points, :].T, "ko")
             handles.append(line)
             labels.append("Voltage points")
         if legend:
