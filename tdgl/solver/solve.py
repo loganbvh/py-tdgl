@@ -402,8 +402,9 @@ def solve(
                 dt_val,
                 operators.psi_laplacian,
             )
+        # Compute the new value of the order parameter
         psi_val = w - z * new_sq_psi
-        # Compute the supercurrent and scalar potential
+        # Compute the supercurrent, scalar potential, and normal current
         supercurrent_val = get_supercurrent(
             psi_val, operators.psi_gradient, mesh.edge_mesh.edges
         )

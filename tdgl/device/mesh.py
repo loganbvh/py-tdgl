@@ -103,7 +103,6 @@ def generate_mesh(
     mesh = triangle.build(mesh_info=mesh_info, **kwargs)
     points = np.array(mesh.points) + r0
     triangles = np.array(mesh.elements)
-
     if min_points is None and (max_edge_length is None or max_edge_length <= 0):
         return points, triangles
 
@@ -125,7 +124,10 @@ def generate_mesh(
             f"{triangles.shape[0]} triangles with maximum edge length: "
             f"{max_length:.2e}. Target maximum edge length: {max_edge_length:.2e}."
         )
-        kwargs["max_volume"] *= 0.98
+        if np.isfinite(max_edge_length):
+            kwargs["max_volume"] *= min(0.98, np.sqrt(max_edge_length / max_length))
+        else:
+            kwargs["max_volume"] *= 0.98
         i += 1
     return points, triangles
 
@@ -166,15 +168,15 @@ def optimize_mesh(
     return points, triangles
 
 
-def boundary_vertices(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
-    """Returns an array of boundary vertex indices, ordered counterclockwise.
+def boundary_edges(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
+    """Returns an array of boundary edges.
 
     Args:
         points: Shape ``(n, 2)`` array of vertex coordinates.
         triangles: Shape ``(m, 3)`` array of triangle indices.
 
     Returns:
-        An array of boundary vertex indices, ordered counterclockwise.
+        An array of boundary edges.
     """
     tri = Triangulation(points[:, 0], points[:, 1], triangles)
     boundary_edges = set()
@@ -182,10 +184,29 @@ def boundary_vertices(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
         for k in range(3):
             if neighbors[k] == -1:
                 boundary_edges.add((triangles[i, k], triangles[i, (k + 1) % 3]))
+    return np.array(list(boundary_edges))
+
+
+def oriented_boundary(
+    points: np.ndarray, boundary_edges: np.ndarray
+) -> List[np.ndarray]:
+    """Returns arrays of boundary vertex indices, ordered counterclockwise.
+
+    Args:
+        points: Shape ``(n, 2)``, float array of vertex coordinates.
+        boundary_edges: Shape ``(m, 2)`` integer array of boundary edges.
+
+    Returns:
+        A list of arrays of boundary vertex indices (ordered counterclockwise).
+        The length of the list will be 1 plus the number of holes in the polygon,
+        as each hole has a boundary.
+    """
+    points_list = [tuple(xy) for xy in points]
     edges = MultiLineString([points[edge, :] for edge in boundary_edges])
     polygons = list(polygonize(edges))
-    assert len(polygons) == 1, polygons
-    polygon = orient(polygons[0])
-    points_list = [tuple(xy) for xy in points]
-    indices = np.array([points_list.index(xy) for xy in polygon.exterior.coords])
-    return indices[:-1]
+    polygon_indices = []
+    for p in polygons:
+        polygon = orient(p)
+        indices = np.array([points_list.index(xy) for xy in polygon.exterior.coords])
+        polygon_indices.append(indices[:-1])
+    return polygon_indices

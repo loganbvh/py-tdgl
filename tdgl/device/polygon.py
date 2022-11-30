@@ -1,5 +1,5 @@
 import logging
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
@@ -17,6 +17,15 @@ from .mesh import ensure_unique, generate_mesh, optimize_mesh
 logger = logging.getLogger(__name__)
 
 
+PolygonType = Union[
+    "Polygon",
+    np.ndarray,
+    geo.linestring.LineString,
+    geo.polygon.LinearRing,
+    geo.polygon.Polygon,
+]
+
+
 class Polygon:
     """A polygonal region located in a :class:`tdgl.Layer`.
 
@@ -29,14 +38,9 @@ class Polygon:
 
     def __init__(
         self,
-        name: Optional[str] = None,
+        name: Union[str, None] = None,
         *,
-        points: Union[
-            np.ndarray,
-            geo.linestring.LineString,
-            geo.polygon.LinearRing,
-            geo.polygon.Polygon,
-        ],
+        points: PolygonType,
         mesh: bool = True,
     ):
         self.name = name
@@ -165,8 +169,8 @@ class Polygon:
 
     def make_mesh(
         self,
-        min_points: Optional[int] = None,
-        optimesh_steps: Optional[int] = None,
+        min_points: Union[int, None] = None,
+        optimesh_steps: Union[int, None] = None,
         optimesh_method: str = "cvt-block-diagonal",
         optimesh_tolerance: float = 1e-3,
         optimesh_verbose: bool = False,
@@ -295,12 +299,7 @@ class Polygon:
 
     def _join_via(
         self,
-        other: Union[
-            np.ndarray,
-            "Polygon",
-            geo.polygon.Polygon,
-            geo.polygon.LinearRing,
-        ],
+        other: PolygonType,
         operation: str,
     ) -> geo.polygon.Polygon:
         """Joins ``self.polygon`` with another polygon-like object
@@ -316,7 +315,6 @@ class Polygon:
             "union",
             "intersection",
             "difference",
-            "symmetric_difference",
         )
         if operation not in valid_operations:
             raise ValueError(
@@ -348,14 +346,8 @@ class Polygon:
 
     def union(
         self,
-        *others: Union[
-            "Polygon",
-            np.ndarray,
-            geo.linestring.LineString,
-            geo.polygon.LinearRing,
-            geo.polygon.Polygon,
-        ],
-        name: Optional[str] = None,
+        *others: PolygonType,
+        name: Union[str, None] = None,
     ) -> "Polygon":
         """Returns the union of the polygon and zero or more other polygons.
 
@@ -378,14 +370,8 @@ class Polygon:
 
     def intersection(
         self,
-        *others: Union[
-            "Polygon",
-            np.ndarray,
-            geo.linestring.LineString,
-            geo.polygon.LinearRing,
-            geo.polygon.Polygon,
-        ],
-        name: Optional[str] = None,
+        *others: PolygonType,
+        name: Union[str, None] = None,
     ) -> "Polygon":
         """Returns the intersection of the polygon and zero or more other polygons.
 
@@ -408,22 +394,13 @@ class Polygon:
 
     def difference(
         self,
-        *others: Union[
-            "Polygon",
-            np.ndarray,
-            geo.linestring.LineString,
-            geo.polygon.LinearRing,
-            geo.polygon.Polygon,
-        ],
-        symmetric: bool = False,
-        name: Optional[str] = None,
+        *others: PolygonType,
+        name: Union[str, None] = None,
     ) -> "Polygon":
         """Returns the difference of the polygon and zero more other polygons.
 
         Args:
             others: One or more objects with which to join the polygon.
-            symmetric: Whether to join via a symmetric difference operation (aka XOR).
-                See the `shapely documentation`_.
             name: A name for the resulting joined Polygon (defaults to ``self.name``.)
 
         Returns:
@@ -432,15 +409,23 @@ class Polygon:
 
         .. _shapely documentation: https://shapely.readthedocs.io/en/stable/manual.html
         """
-        operation = "symmetric_difference" if symmetric else "difference"
         if not others:
             return self.copy()
         first, *rest = others
         return Polygon(
             name=name or self.name,
-            points=self._join_via(first, operation),
+            points=self._join_via(first, "difference"),
             mesh=self.mesh,
-        ).difference(*rest, symmetric=symmetric, name=name)
+        ).difference(*rest, name=name)
+
+    def __add__(self, other: PolygonType) -> "Polygon":
+        return self.union(other)
+
+    def __sub__(self, other: PolygonType) -> "Polygon":
+        return self.difference(other)
+
+    def __mul__(self, other: PolygonType) -> "Polygon":
+        return self.intersection(other)
 
     def buffer(
         self,
@@ -479,7 +464,7 @@ class Polygon:
         )
 
         polygon = Polygon(
-            name=f"{self.name} ({distance:+.3f})",
+            name=self.name,
             points=poly,
             mesh=self.mesh,
         )
@@ -490,7 +475,7 @@ class Polygon:
         return polygon.points
 
     def resample(
-        self, num_points: Optional[int] = None, degree: int = 1, smooth: float = 0
+        self, num_points: Union[int, None] = None, degree: int = 1, smooth: float = 0
     ) -> "Polygon":
         """Resample vertices so that they are approximately uniformly distributed
         along the polygon boundary.
@@ -524,7 +509,7 @@ class Polygon:
         self.name = name
         return self
 
-    def plot(self, ax: Optional[plt.Axes] = None, **kwargs) -> plt.Axes:
+    def plot(self, ax: Union[plt.Axes, None] = None, **kwargs) -> plt.Axes:
         """Plots the Polygon's vertices.
 
         Args:
@@ -546,17 +531,9 @@ class Polygon:
     @classmethod
     def from_union(
         cls,
-        items: Iterable[
-            Union[
-                "Polygon",
-                np.ndarray,
-                geo.linestring.LineString,
-                geo.polygon.LinearRing,
-                geo.polygon.Polygon,
-            ],
-        ],
+        items: Iterable[PolygonType],
         *,
-        name: Optional[str] = None,
+        name: Union[str, None] = None,
         mesh: bool = True,
     ) -> "Polygon":
         """Creates a new :class:`Polygon` from the union of a sequence of polygons.
@@ -576,17 +553,9 @@ class Polygon:
     @classmethod
     def from_intersection(
         cls,
-        items: Iterable[
-            Union[
-                "Polygon",
-                np.ndarray,
-                geo.linestring.LineString,
-                geo.polygon.LinearRing,
-                geo.polygon.Polygon,
-            ],
-        ],
+        items: Iterable[PolygonType],
         *,
-        name: Optional[str] = None,
+        name: Union[str, None] = None,
         mesh: bool = True,
     ) -> "Polygon":
         """Creates a new :class:`Polygon` from the intersection
@@ -607,19 +576,10 @@ class Polygon:
     @classmethod
     def from_difference(
         cls,
-        items: Iterable[
-            Union[
-                "Polygon",
-                np.ndarray,
-                geo.linestring.LineString,
-                geo.polygon.LinearRing,
-                geo.polygon.Polygon,
-            ],
-        ],
+        items: Iterable[PolygonType],
         *,
-        name: Optional[str] = None,
+        name: Union[str, None] = None,
         mesh: bool = True,
-        symmetric: bool = False,
     ) -> "Polygon":
         """Creates a new :class:`Polygon` from the difference
         of a sequence of polygons.
@@ -628,15 +588,13 @@ class Polygon:
             items: A sequence of polygon-like objects to join.
             name: Name of the polygon.
             mesh: Whether to include this polygon when computing a mesh.
-            symmetric: If True, creates a new :class:`Polygon` from the
-                "symmetric difference" (aka XOR) of the inputs.
 
         Returns:
             A new :class:`Polygon`.
         """
         first, *rest = items
         polygon = cls(name=name, points=first, mesh=mesh)
-        return polygon.difference(*rest, symmetric=symmetric)
+        return polygon.difference(*rest)
 
     def to_hdf5(self, h5_group: h5py.Group) -> None:
         """Save the ``Polygon`` to an :class:`h5py.Group`."""

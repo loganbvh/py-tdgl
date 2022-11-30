@@ -71,13 +71,27 @@ def test_polygon_join():
     )
 
     assert (
+        square1.union(square2, square3).polygon == (square1 + square2 + square3).polygon
+    )
+
+    assert (
         square1.intersection(square2, square3).polygon
         == tdgl.Polygon.from_intersection(items, name=name).polygon
     )
 
     assert (
+        square1.intersection(square2, square3).polygon
+        == (square1 * square2 * square3).polygon
+    )
+
+    assert (
         square1.difference(square2, square3).polygon
         == tdgl.Polygon.from_difference(items, name=name).polygon
+    )
+
+    assert (
+        square1.difference(square2, square3).polygon
+        == (square1 - square2 - square3).polygon
     )
 
     square1.layer = square2.layer = None
@@ -86,13 +100,6 @@ def test_polygon_join():
 
     with pytest.raises(ValueError):
         _ = square1._join_via(square2, "invalid")
-
-    with pytest.raises(ValueError):
-        _ = tdgl.Polygon.from_difference(
-            [square1, square2],
-            name=name,
-            symmetric=True,
-        )
 
     assert square1.resample(False) == square1
     assert square1.resample(None).points.shape == square1.points.shape

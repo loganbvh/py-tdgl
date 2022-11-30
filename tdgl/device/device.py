@@ -99,6 +99,10 @@ class Device:
                 raise ValueError("All terminals must have a unique name")
             names.add(terminal.name)
 
+        for polygon in [self.film] + self.holes:
+            if not polygon.is_valid:
+                raise ValueError("Invalid Polygon: {polygon!r}.")
+
         # Make units a "read-only" attribute.
         # It should never be changed after instantiation.
         self._length_units = length_units
@@ -258,6 +262,33 @@ class Device:
         xi = self.coherence_length
         return tuple(self.mesh.closest_site(xy) for xy in self.voltage_points / xi)
 
+    def boundary_sites(self) -> Union[Dict[str, np.ndarray], None]:
+        """Returns a dict of ``{polygon_name: boundary_indices}``, where ``boundary_indices``
+        is an integer array of site indices for mesh sites on the boundary of each polygon.
+
+        The length of the returned dictionary will be the number of holes in the device
+        plus one.
+
+        Returns:
+            ``{polygon_name: boundary_indices}``
+        """
+        if self.mesh is None:
+            return None
+        polygons = [self.film] + list(self.holes)
+        points = self.points
+        edge_mesh = self.mesh.edge_mesh
+        boundary_edges = edge_mesh.edges[edge_mesh.boundary_edge_indices]
+        boundary = {}
+        for polygon in polygons:
+            on_boundary = np.logical_and(
+                polygon.on_boundary(points[boundary_edges[:, 0]], radius=1e-6),
+                polygon.on_boundary(points[boundary_edges[:, 1]], radius=1e-6),
+            )
+            boundary_sites = mesh.oriented_boundary(points, boundary_edges[on_boundary])
+            assert len(boundary_sites) == 1, len(boundary_sites)
+            boundary[polygon.name] = boundary_sites[0]
+        return boundary
+
     def contains_points(
         self,
         points: np.ndarray,
@@ -301,10 +332,11 @@ class Device:
         points = mesh.ensure_unique(points)
         return points
 
-    def copy(self) -> "Device":
+    def copy(self, with_mesh: bool = True) -> "Device":
         """Copy this Device to create a new one.
 
-        Note that the new Device is returned without a mesh.
+        Args:
+            with_mesh: Whether to copy the mesh.
 
         Returns:
             A new Device instance, copied from self.
@@ -327,6 +359,8 @@ class Device:
             voltage_points=voltage_points,
             length_units=self.length_units,
         )
+        if with_mesh and self.mesh is not None:
+            device.mesh = self.mesh
         return device
 
     def _warn_if_mesh_exist(self, method: str) -> None:
@@ -361,7 +395,7 @@ class Device:
         ):
             raise TypeError("Origin must be a tuple of floats (x, y).")
         self._warn_if_mesh_exist("scale()")
-        device = self.copy()
+        device = self.copy(with_mesh=False)
         for polygon in device.polygons:
             polygon.scale(xfact=xfact, yfact=yfact, origin=origin, inplace=True)
         if device.voltage_points is not None:
@@ -392,7 +426,7 @@ class Device:
         ):
             raise TypeError("Origin must be a tuple of floats (x, y).")
         self._warn_if_mesh_exist("rotate()")
-        device = self.copy()
+        device = self.copy(with_mesh=False)
         for polygon in device.polygons:
             polygon.rotate(degrees, origin=origin, inplace=True)
         if self.voltage_points is not None:
@@ -428,7 +462,7 @@ class Device:
             device = self
         else:
             self._warn_if_mesh_exist("translate(..., inplace=False)")
-            device = self.copy()
+            device = self.copy(with_mesh=False)
         for polygon in device.polygons:
             polygon.translate(dx, dy, inplace=True)
         if self.voltage_points is not None:

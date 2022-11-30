@@ -201,6 +201,7 @@ class MeshOperators:
         self.psi_gradient: Union[sp.spmatrix, None] = None
         self.psi_laplacian: Union[sp.spmatrix, None] = None
         self.link_exponents: Union[np.ndarray, None] = None
+        # Compute these quantities just once, as they never change.
         self.gradient_weights = 1 / edge_mesh.edge_lengths
         self.laplacian_weights = edge_mesh.dual_edge_lengths / edge_mesh.edge_lengths
         self.gradient_link_rows = np.arange(edge_mesh.edges.shape[0], dtype=int)
@@ -234,6 +235,7 @@ class MeshOperators:
             link_exponents = np.asarray(link_exponents)
         self.link_exponents = link_exponents
         if self.psi_gradient is None:
+            # Build the matrices from scratch
             self.psi_gradient = build_gradient(
                 mesh,
                 link_exponents=link_exponents,
@@ -247,6 +249,7 @@ class MeshOperators:
                 weights=self.laplacian_weights,
             )
             return
+        # Just update the link variables
         directions = mesh.edge_mesh.directions
         if self.link_exponents is None:
             link_variables = np.ones(directions.shape[0])

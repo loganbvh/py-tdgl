@@ -1,5 +1,8 @@
+import multiprocessing as mp
+from functools import partial
 from typing import Dict, Tuple, Union
 
+import joblib
 import numpy as np
 import scipy.sparse as sp
 from scipy.spatial import ConvexHull, QhullError
@@ -72,15 +75,15 @@ def get_dual_edge_lengths(
     edge_element_indices = [[0, 1], [1, 2], [2, 0]]
     for i, element in enumerate(elements):
         for idx in edge_element_indices:
-            # Hash the array by converting it to a string
-            edge = str(np.sort(element[idx]))
+            # Make the array hashable by converting it to a tuple
+            edge = tuple(np.sort(element[idx]))
             if edge in edge_to_element:
                 edge_to_element[edge].append(i)
             else:
                 edge_to_element[edge] = [i]
     dual_lengths = np.zeros_like(xe)
     for i, edge in enumerate(edges):
-        indices = edge_to_element[str(edge)]
+        indices = edge_to_element[tuple(edge)]
         if len(indices) == 1:  # Boundary edges
             dual_lengths[i] = np.sqrt(
                 (x_dual[indices[0]] - xe[i]) ** 2 + (y_dual[indices[0]] - ye[i]) ** 2
@@ -125,14 +128,28 @@ def generate_voronoi_vertices(
     return xcp + a[0, :], ycp + a[1, :]
 
 
+def _get_polygon_indices(
+    elements: np.ndarray, site_index: int
+) -> Tuple[int, np.ndarray]:
+    """Helper function for get_surrounding_voronoi_polygons()."""
+    return site_index, np.where((elements == site_index).any(axis=1))[0]
+
+
 def get_surrounding_voronoi_polygons(
-    elements: np.ndarray, num_sites: int
+    elements: np.ndarray,
+    num_sites: int,
+    parallel: bool = True,
+    min_sites_for_multiprocessing: int = 10_000,
 ) -> Dict[int, np.ndarray]:
     """Find the polygons surrounding each site.
 
     Args:
         elements: The triangular elements in the tesselation.
         num_sites: The number of sites
+        parallel: If True and the number of sites is greater than
+            ``min_sites_for_multiprocessing``, then use multiprocessing.
+        min_sites_for_multiprocessing: If ``parallel`` is True and ``num_sites``
+            is greater than this value, then use multiprocessing.
 
     Returns:
         A dict where the keys are the indices for the sites and the values
@@ -141,9 +158,19 @@ def get_surrounding_voronoi_polygons(
     # Iterate over all sites and find the triangles that the site belongs to
     # The indices for the triangles are the same as the indices for the
     # Voronoi lattice
-    return dict(
-        (idx, np.where((elements == idx).any(axis=1))[0]) for idx in range(num_sites)
-    )
+    # This is by far the costliest step in Mesh.from_triangulation(),
+    # so by default we will use multiprocessing if there are many sites.
+    if (
+        parallel
+        and (ncpus := joblib.cpu_count(only_physical_cores=True)) > 1
+        and num_sites > min_sites_for_multiprocessing
+    ):
+        with mp.Pool(processes=ncpus) as pool:
+            results = pool.map(
+                partial(_get_polygon_indices, elements), range(num_sites)
+            )
+        return dict(results)
+    return dict((i, np.where((elements == i).any(axis=1))[0]) for i in range(num_sites))
 
 
 def compute_surrounding_area(

@@ -192,6 +192,25 @@ class DynamicsData:
         indices = self.time_slice(tmin, tmax)
         return np.average(self.voltage[indices], weights=self.dt[indices])
 
+    def resample(self, num_points: Union[int, None] = None) -> "DynamicsData":
+        """Re-sample the dynamics to a uniform grid using linear interpolation.
+
+        Args:
+            num_points: The number of points to interpolate to.
+
+        Returns:
+            A new :class:`DynamicsData` instance with the re-sampled data.
+        """
+        time = self.time
+        if num_points is None:
+            num_points = len(time)
+        ts = np.linspace(time.min(), time.max(), num_points)
+        return DynamicsData(
+            dt=(ts[1] - ts[0]) * np.ones_like(ts),
+            voltage=np.interp(ts, time, self.voltage),
+            phase_difference=np.interp(ts, time, self.phase_difference),
+        )
+
     def plot(
         self,
         tmin: float = -np.inf,
@@ -245,27 +264,43 @@ class DynamicsData:
         tmax: float = +np.inf,
         grid: bool = True,
         labels: bool = True,
-    ) -> Tuple[plt.Figure, plt.Axes]:
-        """Plot the time step :math:`\\Delta t^{n}` vs. time.
+        **histogram_kwargs,
+    ) -> Tuple[plt.Figure, Tuple[plt.Axes, plt.Axes]]:
+        """Plots the time step :math:`\\Delta t^{n}` vs. time and a histogram of
+        :math:`\\Delta t^{n}`.
 
         Args:
             tmin: The minimum of the time window to plot.
             tmax: The maximum of the time window to plot.
             grid: Whether to add grid lines to the plots.
             labels: Whether to include axis labels.
+            histogram_kwargs: Passed to plt.Axes.hist().
 
         Returns:
-            matplotlib figure and axes.
+            matplotlib figure and two axes.
         """
-        fig, ax = plt.subplots()
+        fig, (ax, bx) = plt.subplots(
+            1, 2, sharey=True, gridspec_kw=dict(width_ratios=[2, 1])
+        )
         ax.grid(grid)
+        bx.grid(grid)
         ts = self.time
         indices = self.time_slice(tmin, tmax)
         ax.plot(ts[indices], self.dt[indices])
+        histogram_kwargs = histogram_kwargs.copy()
+        histogram_kwargs.setdefault("bins", 101)
+        histogram_kwargs.setdefault("density", True)
+        histogram_kwargs["orientation"] = "horizontal"
+        bx.hist(self.dt[indices], **histogram_kwargs)
         if labels:
             ax.set_xlabel("Time, $t/\\tau_0$")
             ax.set_ylabel("Time step, $\\Delta t/\\tau_0$")
-        return fig, ax
+            if histogram_kwargs.get("density", False):
+                bx.set_xlabel("Density")
+            else:
+                bx.set_xlabel("Counts per bin")
+        fig.tight_layout()
+        return fig, (ax, bx)
 
     @staticmethod
     def from_hdf5(

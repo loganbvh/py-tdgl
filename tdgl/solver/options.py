@@ -38,7 +38,7 @@ class SolverOptions:
 
     solve_time: float
     skip_time: float = 0.0
-    dt_init: float = 1e-4
+    dt_init: float = 1e-6
     dt_max: float = 1e-1
     adaptive: bool = True
     adaptive_window: int = 10

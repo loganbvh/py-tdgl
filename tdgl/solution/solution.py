@@ -82,6 +82,8 @@ class Solution:
         self.disorder_alpha = disorder_alpha
         self.pinning_sites = pinning_sites
 
+        self.data_range: Union[Tuple[int, int], None] = None
+        """A tuple of ``(min_step, max_step)``."""
         self.supercurrent_density: Union[np.ndarray, None] = None
         """Sheet supercurrent density, :math:`\\mathbf{K}_s`"""
         self.normal_current_density: Union[np.ndarray, None] = None
@@ -130,7 +132,7 @@ class Solution:
                 Defaults to -1, i.e. the final step.
         """
         with h5py.File(self.path, "r", libver="latest") as f:
-            step_min, step_max = get_data_range(f)
+            self.data_range = step_min, step_max = get_data_range(f)
             if solve_step == 0:
                 step = step_min
             elif solve_step < 0:
@@ -506,6 +508,33 @@ class Solution:
             units=units,
             with_units=with_units,
         )
+
+    def boundary_phases(
+        self, delta: bool = False
+    ) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+        """Return a dict of ``{polygon_name: (boundary_indices, boundary_phases)}``.
+
+        ``(boundary_phases[-1] - boundary_phases[0]) / (2 * np.pi)`` gives the winding
+        number for the polygon, i.e., the fluxoid in units of ``Phi_0``.
+
+        Args:
+            delta: If True, ``boundary_phases[boundary_indices[0]]`` will be subtracted
+                for each polygon.
+
+        Returns:
+            ``{polygon_name: (boundary_indices, boundary_phases)}``
+        """
+        device = self.device
+        boundary_indices = device.boundary_sites()
+        psi = self.tdgl_data.psi
+        theta = np.angle(psi)
+        phases = {}
+        for name, indices in boundary_indices.items():
+            phase = np.unwrap(theta[indices])
+            if delta:
+                phase -= phase[0]
+            phases[name] = (indices, phase)
+        return phases
 
     def current_through_path(
         self,
