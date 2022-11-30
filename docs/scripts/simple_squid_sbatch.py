@@ -134,7 +134,7 @@ def simulate_iv_curve(
     )
 
     zero_current_solution.to_hdf5(h5file.create_group("zero_current_solution"))
-    dynamics_grp = h5file.create_group("dynamics", track_order=True)
+    # dynamics_grp = h5file.create_group("dynamics", track_order=True)
 
     voltages = []
 
@@ -153,9 +153,9 @@ def simulate_iv_curve(
         )
         mean_voltage = solution.dynamics.mean_voltage(tmin=solve_time / 2)
         voltages.append(mean_voltage)
-        solution.dynamics.to_hdf5(dynamics_grp, str(i))
-        dynamics_grp[str(i)].attrs["current"] = current
-        dynamics_grp[str(i)].attrs["voltage"] = mean_voltage
+        # solution.dynamics.to_hdf5(dynamics_grp, str(i))
+        # dynamics_grp[str(i)].attrs["current"] = current
+        # dynamics_grp[str(i)].attrs["voltage"] = mean_voltage
 
     h5file["voltages"] = np.array(voltages)
 

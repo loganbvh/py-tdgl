@@ -290,7 +290,7 @@ class Runner:
                 self.state["time"] = self.time
                 self.state["dt"] = self.dt
                 # Print progress if TQDM is disabled.
-                if prog_disabled and i % self.options.progress_interval == 0:
+                if prog_disabled and (i % self.options.progress_interval) == 0:
                     then, now = now, time.perf_counter()
                     if then is None:
                         speed = 0
