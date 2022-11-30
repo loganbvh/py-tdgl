@@ -177,6 +177,7 @@ def main():
         nargs=3,
         help="(start, stop, num_points) for the applied field in ``field_units``.",
     )
+    parser.add_argument("--index", type=int, default=0)
     parser.add_argument("--output", type=str, default=None, help="Output directory.")
     parser.add_argument(
         "--min-points", type=int, default=3000, help="Minimum number of mesh points."
