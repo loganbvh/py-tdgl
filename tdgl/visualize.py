@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from .visualization.animate import Animate, MultiAnimate
+from .visualization.animate import multi_animate
 from .visualization.defaults import Observable
 from .visualization.interactive_plot import InteractivePlot, MultiInteractivePlot
 
@@ -100,13 +100,9 @@ def animate_tdgl(args):
         gpu=args.gpu,
         skip=args.skip,
     )
-    if len(args.observables) == 1 and "ALL" not in args.observables[0]:
-        kwargs["observable"] = Observable.from_key(args.observables[0])
-        Animate(**kwargs).build()
-        return
-    if "ALL" not in args.observables:
+    if args.observables is not None and "ALL" not in args.observables:
         kwargs["observables"] = args.observables
-    MultiAnimate(**kwargs).build()
+    multi_animate(**kwargs)
 
 
 def visualize_tdgl(args):

@@ -1,7 +1,7 @@
 import datetime
 import logging
-from os import getcwd, path
-from typing import Any, Dict, Optional, Sequence
+import os
+from typing import Any, Dict, Sequence, Union
 
 import h5py
 import numpy as np
@@ -18,7 +18,7 @@ _default_observables = (
     "complex_field",
     "phase",
     "supercurrent",
-    "vorticity",
+    "normal_current",
 )
 
 
@@ -26,27 +26,20 @@ class InteractivePlot:
     def __init__(
         self,
         input_file: str,
-        enable_save: Optional[bool] = False,
+        enable_save: Union[bool, None] = False,
         logger: logging.Logger = None,
     ):
 
-        self.input_file = path.join(getcwd(), input_file)
+        self.input_file = os.path.join(os.getcwd(), input_file)
         self.frame = 0
         self.observable = Observable.COMPLEX_FIELD
-        self.hide_quiver = False
         self.enable_save = enable_save
-        self.logger = logger if logger is not None else logging.getLogger()
+        self.logger = logger or logging.getLogger()
 
     def show(self):
-        # Open the file
         with h5py.File(self.input_file, "r", libver="latest") as h5file:
-
-            # Get the mesh
             if "mesh" in h5file:
-                if "mesh" in h5file["mesh"]:
-                    mesh = Mesh.load_from_hdf5(h5file["mesh/mesh"])
-                else:
-                    mesh = Mesh.load_from_hdf5(h5file["mesh"])
+                mesh = Mesh.load_from_hdf5(h5file["mesh"])
             else:
                 mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
 
@@ -129,9 +122,9 @@ class InteractivePlot:
                     )
                     self.logger.info(f"Saved data to file {file_name}.")
 
-                redraw()
+                draw()
 
-            def redraw():
+            def draw():
                 value, direction, limits = get_plot_data(
                     h5file, mesh, self.observable, self.frame
                 )
@@ -142,7 +135,6 @@ class InteractivePlot:
                 triplot.set_clim(*limits)
                 triplot.set_cmap(PLOT_DEFAULTS[self.observable].cmap)
                 cbar.set_label(PLOT_DEFAULTS[self.observable].clabel)
-                # quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 
             # Temp data to use in plots
@@ -156,12 +148,9 @@ class InteractivePlot:
             triplot = ax.tripcolor(
                 mesh.x, mesh.y, temp_value, triangles=mesh.elements, shading="gouraud"
             )
-            # quiver = ax.quiver(
-            #     mesh.x, mesh.y, temp_value, temp_value, scale=0.05, units="dots"
-            # )
             cbar = fig.colorbar(triplot)
             ax.set_aspect("equal")
-            redraw()
+            draw()
             plt.show()
 
 
@@ -172,16 +161,15 @@ class MultiInteractivePlot:
         observables: Sequence[str] = _default_observables,
         max_cols: int = 4,
         logger: logging.Logger = None,
-        figure_kwargs: Optional[Dict[str, Any]] = None,
+        figure_kwargs: Union[Dict[str, Any], None] = None,
     ):
-        self.input_file = path.join(getcwd(), input_file)
+        self.input_file = os.path.join(os.getcwd(), input_file)
         self.frame = 0
         if observables is None:
             observables = Observable.get_keys()
         self.observables = [Observable.from_key(name) for name in observables]
         self.num_plots = len(observables)
         self.max_cols = max_cols
-        self.hide_quiver = False
         self.logger = logger if logger is not None else logging.getLogger()
         self.figure_kwargs = figure_kwargs or dict()
         self.figure_kwargs.setdefault("constrained_layout", True)
@@ -192,19 +180,12 @@ class MultiInteractivePlot:
         self.figure_kwargs.setdefault("figsize", default_figsize)
 
     def show(self):
-        # Open the file
         with h5py.File(self.input_file, "r", libver="latest") as h5file:
-
-            # Get the mesh
             if "mesh" in h5file:
-                if "mesh" in h5file["mesh"]:
-                    mesh = Mesh.load_from_hdf5(h5file["mesh/mesh"])
-                else:
-                    mesh = Mesh.load_from_hdf5(h5file["mesh"])
+                mesh = Mesh.load_from_hdf5(h5file["mesh"])
             else:
                 mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
 
-            # Get the ranges for the frame
             min_frame, max_frame = get_data_range(h5file)
 
             def on_keypress(event):
@@ -238,12 +219,12 @@ class MultiInteractivePlot:
                 elif event.key == "end":
                     self.frame = max_frame
 
-                redraw()
+                draw()
 
             vmins = [+np.inf for _ in self.observables]
             vmaxs = [-np.inf for _ in self.observables]
 
-            def redraw():
+            def draw():
                 state = get_state_string(h5file, self.frame, max_frame)
                 fig.suptitle(state)
                 for i, (observable, collection) in enumerate(
@@ -256,7 +237,6 @@ class MultiInteractivePlot:
                     vmins[i] = min(vmins[i], limits[0])
                     vmaxs[i] = max(vmaxs[i], limits[1])
                     collection.set_clim(vmins[i], vmaxs[i])
-                # quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 
             # Temp data to use in plots
@@ -270,7 +250,6 @@ class MultiInteractivePlot:
             fig.canvas.mpl_connect("key_press_event", on_keypress)
 
             collections = []
-
             for observable, ax in zip(self.observables, axes.flat):
                 opts = PLOT_DEFAULTS[observable]
                 collection = ax.tripcolor(
@@ -281,9 +260,6 @@ class MultiInteractivePlot:
                     shading="gouraud",
                     cmap=opts.cmap,
                 )
-                # quiver = ax.quiver(
-                #     mesh.x, mesh.y, temp_value, temp_value, scale=0.05, units="dots"
-                # )
                 cbar = fig.colorbar(
                     collection, ax=ax, format=FuncFormatter("{:.2f}".format)
                 )
@@ -292,5 +268,5 @@ class MultiInteractivePlot:
                 ax.set_title(observable.value)
                 collections.append(collection)
 
-            redraw()
+            draw()
             plt.show()

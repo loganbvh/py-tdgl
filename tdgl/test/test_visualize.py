@@ -9,6 +9,7 @@ import pytest
 import tdgl
 from tdgl import visualize
 from tdgl.solution.plot_solution import non_gui_backend
+from tdgl.visualization.animate import animate, multi_animate
 
 
 @pytest.fixture(scope="module")
@@ -21,12 +22,10 @@ def tempdir():
 @pytest.fixture(scope="module")
 def solution(transport_device, tempdir):
     device = transport_device
-    dt = 1e-3
     total_time = 10
 
     fname = os.path.join(tempdir, "output.h5")
     options = tdgl.SolverOptions(
-        dt_init=dt,
         solve_time=total_time,
         output_file=fname,
         field_units="uT",
@@ -82,6 +81,61 @@ def test_interactive(solution, observables, verbose, silent, allow_save):
         cmd.insert(2, "--silent")
     if allow_save:
         cmd.append("--allow-save")
+    if observables is not None:
+        cmd.extend(["--observables"] + observables.split(" "))
+    args = parser.parse_args(cmd)
+    with non_gui_backend():
+        tdgl.visualize.main(args)
+        plt.close("all")
+
+
+@pytest.mark.parametrize("observable", ["COMPLEX_FIELD", "SUPERCURRENT"])
+@pytest.mark.parametrize("ext", [".gif", ".mp4"])
+def test_animate(solution, observable, ext):
+    animate(
+        solution.path,
+        output_file=solution.path.replace(".h5", ext),
+        observable=observable,
+        fps=30,
+        dpi=200,
+        skip=2,
+    )
+
+
+@pytest.mark.parametrize("observables", [None, "complex_field phase"])
+@pytest.mark.parametrize("ext", ["-m.gif", "-m.mp4"])
+@pytest.mark.parametrize("max_cols", [4, 2])
+def test_multi_animate(solution, observables, ext, max_cols):
+    kwargs = dict(
+        output_file=solution.path.replace(".h5", ext),
+        full_title=False,
+        dpi=200,
+        fps=20,
+        max_cols=max_cols,
+    )
+    if observables is not None:
+        kwargs["observables"] = observables.split(" ")
+    multi_animate(solution.path, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "observables", [None, "all", "complex_field phase vorticity supercurrent"]
+)
+def test_animate_cli(solution, observables):
+    parser = visualize.make_parser()
+    cmd = [
+        "--input",
+        solution.path,
+        "animate",
+        "--output",
+        solution.path.replace(".h5", "-cli.gif"),
+        "--skip",
+        "3",
+        "--fps",
+        "30",
+        "--dpi",
+        "200",
+    ]
     if observables is not None:
         cmd.extend(["--observables"] + observables.split(" "))
     args = parser.parse_args(cmd)
