@@ -14,13 +14,13 @@ def make_squid():
     xi = 50  # GL coherence length
     london_lambda = 200  # London penetration depth
     d = 20  # Film thickness
-
     ri = 75  # SQUID annulus inner radis
-    ro = 125  # SQUID annulus outer radius
-    link_width = 20  # width of the weak links
+    ro = 200  # SQUID annulus outer radius
+    link_width = 30  # width of the weak links
+    link_angle = 60  # included angle of the triangular constriction
     link_radius = 10  # radius of curvature of the weak links
     # Length and width of the current leads
-    lead_length = 3 * ro
+    lead_length = 2 * ro
     lead_width = ro
 
     # Define the material properties of the superconducting layer
@@ -37,14 +37,14 @@ def make_squid():
         tdgl.Polygon(points=box(ro))
         .rotate(45)
         .translate(dx=(ri + ro * np.sqrt(2) / 2 + link_width - link_radius - 2))
-        .scale(yfact=0.5)
+        .scale(yfact=np.tan(np.radians(link_angle / 2)))
         .buffer(-link_radius)
         .buffer(link_radius, join_style="round")
     )
     left_notch = right_notch.scale(xfact=-1)
     # SQUID
     film = tdgl.Polygon("film", points=circle(ro)).union(top_lead, bottom_lead)
-    film = film.difference(right_notch, left_notch).resample(301)
+    film = film.difference(right_notch, left_notch).resample(501)
     hole = tdgl.Polygon("hole", points=circle(ri)).resample(101)
 
     # Define the current terminals and voltage measurement points
@@ -52,7 +52,7 @@ def make_squid():
         "source", points=box(lead_width, lead_length / 100)
     ).translate(dy=lead_length)
     drain = source.scale(yfact=-1).set_name("drain")
-    voltage_points = [(0, +0.5 * lead_length), (0, -0.5 * lead_length)]
+    voltage_points = [(0, +0.6 * lead_length), (0, -0.6 * lead_length)]
 
     # Build the Device
     device = tdgl.Device(

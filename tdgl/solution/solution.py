@@ -752,8 +752,14 @@ class Solution:
             positions[:, 0],
             positions[:, 1],
             zs.squeeze(),
-        ) * ureg(f"{self.field_units} * {device.length_units}")
-        applied.ito(units)
+        )
+        if applied.shape[1] == 2:
+            applied = A = np.concatenate(
+                [applied, np.zeros_like(applied[:, :1])], axis=1
+            )
+        applied = (applied * ureg(f"{self.field_units} * {device.length_units}")).to(
+            units
+        )
         if not with_units:
             applied = applied.magnitude
         vector_potentials["applied"] = applied

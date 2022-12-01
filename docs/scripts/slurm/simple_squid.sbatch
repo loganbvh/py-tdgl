@@ -23,12 +23,12 @@ cp -u $0 $outdir/
 
 python $pyscript \
     --output=$outdir/$SLURM_ARRAY_TASK_ID \
-    --currents 0 100 101 \
+    --currents 50 150 101 \
     --fields -200 200 $SLURM_ARRAY_TASK_COUNT \
     --index=$SLURM_ARRAY_TASK_ID \
     --min-points=3000 \
     --lead-angle=60 \
-    --solve-time=200 \
+    --solve-time=500 \
     --field-units="mT" \
     --current-units="uA"
 
