@@ -598,15 +598,19 @@ class Polygon:
 
     def to_hdf5(self, h5_group: h5py.Group) -> None:
         """Save the ``Polygon`` to an :class:`h5py.Group`."""
-        h5_group.attrs["name"] = self.name
+        if self.name is not None:
+            h5_group.attrs["name"] = self.name
         h5_group.attrs["mesh"] = self.mesh
         h5_group["points"] = self.points
 
     @classmethod
     def from_hdf5(cls, h5_group: h5py.Group) -> "Polygon":
         """Load a ``Polygon`` from an :class:`h5py.Group`."""
+        name = None
+        if "name" in h5_group.attrs:
+            name = h5_group.attrs["name"]
         return Polygon(
-            h5_group.attrs["name"],
+            name=name,
             points=np.array(h5_group["points"]),
             mesh=h5_group.attrs["mesh"],
         )

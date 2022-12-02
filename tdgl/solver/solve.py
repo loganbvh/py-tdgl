@@ -240,9 +240,7 @@ def solve(
         ).astype(np.int64)
     else:
         normal_boundary_index = np.array([], dtype=np.int64)
-    interior_indices = np.setdiff1d(
-        np.arange(mesh.x.shape[0], dtype=int), normal_boundary_index
-    )
+    interior_indices = np.setdiff1d(np.arange(mesh.x.shape[0]), normal_boundary_index)
     # Define the source-drain current.
     if terminal_currents and device.voltage_points is None:
         logger.warning(
@@ -282,7 +280,7 @@ def solve(
     psi = np.ones_like(mesh.x, dtype=np.complex128)
     psi[fixed_sites] = 0
     mu = np.zeros(len(mesh.x))
-    mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=np.float64)
+    mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the alpha parameter, which is the maximum value of |psi| at each position.
     if not callable(disorder_alpha):
         disorder_alpha_val = disorder_alpha
@@ -448,14 +446,19 @@ def solve(
 
     # Set the initial conditions.
     if seed_solution is None:
+        num_edges = len(mesh.edge_mesh.edges)
         parameters = {
             "psi": psi,
             "mu": mu,
-            "supercurrent": np.zeros(len(mesh.edge_mesh.edges)),
-            "normal_current": np.zeros(len(mesh.edge_mesh.edges)),
-            "induced_vector_potential": np.zeros((len(mesh.edge_mesh.edges), 2)),
+            "supercurrent": np.zeros(num_edges),
+            "normal_current": np.zeros(num_edges),
+            "induced_vector_potential": np.zeros((num_edges, 2)),
         }
     else:
+        if seed_solution.device != device:
+            raise ValueError(
+                "The seed_solution.device must be equal to the device being simulated."
+            )
         seed_data = seed_solution.tdgl_data
         parameters = {
             "psi": seed_data.psi,
@@ -475,15 +478,7 @@ def solve(
             names=list(parameters),
             fixed_values=(vector_potential, alpha),
             fixed_names=("applied_vector_potential", "alpha"),
-            state={
-                "u": u,
-                "gamma": gamma,
-            },
-            running_names=(
-                "voltage",
-                "phase_difference",
-                "dt",
-            ),
+            running_names=("voltage", "phase_difference", "dt"),
             logger=logger,
         ).run()
         end_time = datetime.now()

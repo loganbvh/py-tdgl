@@ -801,13 +801,12 @@ class Device:
                 terminal.to_hdf5(terminals_grp.create_group(terminal.name))
             if self.voltage_points is not None:
                 f["voltage_points"] = self.voltage_points
-            for label, polygons in dict(
-                holes=self.holes, abstract_regions=self.abstract_regions
-            ).items():
-                if polygons:
-                    group = f.create_group(label)
-                    for i, polygon in enumerate(polygons):
-                        polygon.to_hdf5(group.create_group(str(i)))
+            for hole in sorted(self.holes, key=attrgetter("name")):
+                group = f.require_group("holes")
+                hole.to_hdf5(group.create_group(hole.name))
+            for i, polygon in enumerate(self.abstract_regions):
+                group = f.require_group("abstract_regions")
+                polygon.to_hdf5(group.create_group(str(i)))
             if save_mesh and self.mesh is not None:
                 self.mesh.to_hdf5(f.create_group("mesh"))
 
