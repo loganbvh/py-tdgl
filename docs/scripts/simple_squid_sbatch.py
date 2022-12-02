@@ -14,8 +14,9 @@ def make_squid():
     xi = 50  # GL coherence length
     london_lambda = 200  # London penetration depth
     d = 20  # Film thickness
+
     ri = 75  # SQUID annulus inner radis
-    ro = 200  # SQUID annulus outer radius
+    ro = 150  # SQUID annulus outer radius
     link_width = 30  # width of the weak links
     link_angle = 60  # included angle of the triangular constriction
     link_radius = 10  # radius of curvature of the weak links

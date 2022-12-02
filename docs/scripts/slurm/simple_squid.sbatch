@@ -4,7 +4,7 @@
 #SBATCH --output=slurm-%A_%a.out
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=8GB
-#SBATCH --time=16:00:00
+#SBATCH --time=20:00:00
 
 set -x
 
@@ -23,12 +23,12 @@ cp -u $0 $outdir/
 
 python $pyscript \
     --output=$outdir/$SLURM_ARRAY_TASK_ID \
-    --currents 50 150 101 \
+    --currents 0 150 151 \
     --fields -200 200 $SLURM_ARRAY_TASK_COUNT \
     --index=$SLURM_ARRAY_TASK_ID \
     --min-points=3000 \
-    --lead-angle=60 \
-    --solve-time=500 \
+    --lead-angle=75 \
+    --solve-time=400 \
     --field-units="mT" \
     --current-units="uA"
 
