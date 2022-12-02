@@ -88,7 +88,7 @@ class EdgeMesh:
             dual_edge_lengths,
         )
 
-    def save_to_hdf5(self, h5group: h5py.Group) -> None:
+    def to_hdf5(self, h5group: h5py.Group) -> None:
         """Save the data to a HDF5 file.
 
         Args:
@@ -103,7 +103,7 @@ class EdgeMesh:
         h5group["dual_edge_lengths"] = self.dual_edge_lengths
 
     @classmethod
-    def load_from_hdf5(cls, h5group: h5py.Group) -> "EdgeMesh":
+    def from_hdf5(cls, h5group: h5py.Group) -> "EdgeMesh":
         """Load edge mesh from file.
 
         Args:

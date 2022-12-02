@@ -40,7 +40,7 @@ class DualMesh:
         xc, yc = generate_voronoi_vertices(x, y, elements)
         return DualMesh(xc, yc)
 
-    def save_to_hdf5(self, h5group: h5py.Group) -> None:
+    def to_hdf5(self, h5group: h5py.Group) -> None:
         """Save the mesh to file.
 
         Args:
@@ -50,7 +50,7 @@ class DualMesh:
         h5group["y"] = self.y
 
     @classmethod
-    def load_from_hdf5(cls, h5group: h5py.Group) -> "DualMesh":
+    def from_hdf5(cls, h5group: h5py.Group) -> "DualMesh":
         """Load mesh from file.
 
         Args:
@@ -59,8 +59,6 @@ class DualMesh:
         Returns:
             The loaded dual mesh
         """
-        # Check if the mesh may be loaded
         if not ("x" in h5group and "y" in h5group):
             raise IOError("Could not load dual mesh due to missing data.")
-
         return DualMesh(x=h5group["x"], y=h5group["y"])

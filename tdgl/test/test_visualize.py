@@ -90,7 +90,7 @@ def test_interactive(solution, observables, verbose, silent, allow_save):
 
 
 @pytest.mark.parametrize("observable", ["COMPLEX_FIELD", "SUPERCURRENT"])
-@pytest.mark.parametrize("ext", [".gif", ".mp4"])
+@pytest.mark.parametrize("ext", [".gif"])
 def test_animate(solution, observable, ext):
     animate(
         solution.path,
@@ -102,8 +102,9 @@ def test_animate(solution, observable, ext):
     )
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("observables", [None, "complex_field phase"])
-@pytest.mark.parametrize("ext", ["-m.gif", "-m.mp4"])
+@pytest.mark.parametrize("ext", ["-m.gif"])
 @pytest.mark.parametrize("max_cols", [4, 2])
 def test_multi_animate(solution, observables, ext, max_cols):
     kwargs = dict(

@@ -197,18 +197,18 @@ class Mesh:
             return vector_val
         return vector_val[:, 0]
 
-    def save_to_hdf5(self, h5group: h5py.Group, compress: bool = True) -> None:
+    def to_hdf5(self, h5group: h5py.Group, compress: bool = False) -> None:
         h5group["x"] = self.x
         h5group["y"] = self.y
         h5group["elements"] = self.elements
         if not compress:
             h5group["boundary_indices"] = self.boundary_indices
             h5group["areas"] = self.areas
-            self.edge_mesh.save_to_hdf5(h5group.create_group("edge_mesh"))
-            self.dual_mesh.save_to_hdf5(h5group.create_group("dual_mesh"))
+            self.edge_mesh.to_hdf5(h5group.create_group("edge_mesh"))
+            self.dual_mesh.to_hdf5(h5group.create_group("dual_mesh"))
 
     @staticmethod
-    def load_from_hdf5(h5group: h5py.Group) -> "Mesh":
+    def from_hdf5(h5group: h5py.Group) -> "Mesh":
         """Load mesh from HDF5 file.
 
         Args:
@@ -230,8 +230,8 @@ class Mesh:
                 elements=h5group["elements"],
                 boundary_indices=h5group["boundary_indices"],
                 areas=h5group["areas"],
-                dual_mesh=DualMesh.load_from_hdf5(h5group["dual_mesh"]),
-                edge_mesh=EdgeMesh.load_from_hdf5(h5group["edge_mesh"]),
+                dual_mesh=DualMesh.from_hdf5(h5group["dual_mesh"]),
+                edge_mesh=EdgeMesh.from_hdf5(h5group["edge_mesh"]),
             )
         # Recreate mesh from triangulation data if not all data is available
         return Mesh.from_triangulation(

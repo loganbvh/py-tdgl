@@ -3,7 +3,6 @@ from typing import List, Tuple, Union
 
 import numpy as np
 import optimesh
-from matplotlib.tri import Triangulation
 from meshpy import triangle
 from scipy import spatial
 from shapely.geometry import MultiLineString
@@ -166,25 +165,6 @@ def optimize_mesh(
         **kwargs,
     )
     return points, triangles
-
-
-def boundary_edges(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
-    """Returns an array of boundary edges.
-
-    Args:
-        points: Shape ``(n, 2)`` array of vertex coordinates.
-        triangles: Shape ``(m, 3)`` array of triangle indices.
-
-    Returns:
-        An array of boundary edges.
-    """
-    tri = Triangulation(points[:, 0], points[:, 1], triangles)
-    boundary_edges = set()
-    for i, neighbors in enumerate(tri.neighbors):
-        for k in range(3):
-            if neighbors[k] == -1:
-                boundary_edges.add((triangles[i, k], triangles[i, (k + 1) % 3]))
-    return np.array(list(boundary_edges))
 
 
 def oriented_boundary(
