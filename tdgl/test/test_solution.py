@@ -31,7 +31,7 @@ def solution(transport_device, tempdir):
         field_units="uT",
         current_units="uA",
     )
-    field = tdgl.sources.ConstantField(10)
+    field = tdgl.sources.ConstantField(1)
 
     def terminal_currents(time):
         return dict(source=10, drain=-10)

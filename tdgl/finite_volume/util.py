@@ -320,7 +320,7 @@ def mass_matrix(
     Returns:
         Shape (n, n) sparse mass matrix or shape (n,) vector of diagonals.
     """
-    # Adapted from spharaphy.TriMesh:
+    # Adapted from spharapy.TriMesh:
     # https://spharapy.readthedocs.io/en/latest/modules/trimesh.html
     # https://gitlab.com/uwegra/spharapy/-/blob/master/spharapy/trimesh.py
     N = points.shape[0]
