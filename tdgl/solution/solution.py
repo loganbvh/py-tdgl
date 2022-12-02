@@ -808,7 +808,7 @@ class Solution:
             data_grp = f.require_group("data")
             if save_tdgl_data:
                 self.tdgl_data.to_hdf5(data_grp)
-                self.dynamics.to_hdf5(data_grp, str(self.tdgl_data.step))
+                self.dynamics.to_hdf5(data_grp.require_group(str(self.tdgl_data.step)))
             for k, v in dataclasses.asdict(self.options).items():
                 if v is not None:
                     data_grp.attrs[k] = v

@@ -1,10 +1,14 @@
 import os
 import tempfile
 
+import h5py
+import numpy as np
 import pint
 import pytest
 
 import tdgl
+from tdgl.solution.data import DynamicsData
+from tdgl.solution.plot_solution import non_gui_backend
 
 
 @pytest.fixture(scope="module")
@@ -65,3 +69,39 @@ def test_hole_fluxoid(solution, hole, with_units, units):
             assert isinstance(sum(fluxoid), pint.Quantity)
         else:
             assert isinstance(sum(fluxoid), float)
+
+
+def test_tdgl_data(solution):
+    tdgl_data = solution.tdgl_data
+    with h5py.File(solution.path, "r+") as f:
+        tdgl_data.to_hdf5(f.create_group("tdgl_data"))
+
+
+def test_dynamics(solution):
+    dynamics = solution.dynamics
+    ix = dynamics.time_slice()
+    ts = dynamics.time[ix]
+    assert np.array_equal(ts, dynamics.time)
+
+    ix = dynamics.time_slice(tmin=10, tmax=90)
+    ts = dynamics.time[ix]
+    assert np.all(ts >= 10)
+    assert np.all(ts <= 90)
+
+    V0 = dynamics.mean_voltage()
+    d2 = dynamics.resample()
+    dt = np.diff(d2.time)
+    assert np.allclose(dt, dt[0])
+    V1 = d2.mean_voltage()
+
+    assert np.isclose(V0, V1, rtol=1e-6)
+
+    with non_gui_backend():
+        _ = dynamics.plot(legend=True)
+        _ = dynamics.plot_dt()
+
+    with h5py.File(solution.path, "r+") as f:
+        dynamics.to_hdf5(f.create_group("dynamics"))
+        loaded_dynamics = DynamicsData.from_hdf5(f["dynamics"])
+
+    assert loaded_dynamics == dynamics

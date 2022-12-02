@@ -90,7 +90,7 @@ class TDGLData:
     state: Dict[str, Any]
 
     @staticmethod
-    def from_hdf5(h5file: h5py.File, step: int) -> "TDGLData":
+    def from_hdf5(h5file: Union[h5py.File, h5py.Group], step: int) -> "TDGLData":
         """Load a :class:`TDGLData` instance from an output :class:`h5py.File`.
 
         Args:
@@ -110,7 +110,7 @@ class TDGLData:
             if key in h5file:
                 return np.asarray(h5file[key])
             if key in h5file["data"][step]:
-                return np.asarray(h5file["data"][step][key])
+                return np.array(h5file["data"][step][key])
             return default
 
         return TDGLData(
@@ -304,7 +304,7 @@ class DynamicsData:
 
     @staticmethod
     def from_hdf5(
-        h5file: h5py.File,
+        h5file: Union[h5py.File, h5py.Group],
         step_min: Union[int, None] = None,
         step_max: Union[int, None] = None,
     ) -> "DynamicsData":
@@ -318,34 +318,38 @@ class DynamicsData:
         Returns:
             A new :class:`DynamicsData` instance.
         """
-        dts = []
-        voltages = []
-        phases = []
-        if step_min is None:
-            step_min, step_max = get_data_range(h5file)
-        for i in range(step_min, step_max + 1):
-            grp = h5file[f"data/{i}"]
-            if "dt" in grp:
-                dts.append(np.asarray(grp["dt"]))
-                voltages.append(np.asarray(grp["voltage"]))
-                phases.append(np.asarray(grp["phase_difference"]))
-        dt = np.concatenate(dts)
-        mask = dt > 0
-        dt = dt[mask]
-        voltage = np.concatenate(voltages)[mask]
-        phase = np.concatenate(phases)[mask]
+        if "phase_difference" in h5file:
+            # Load from DynamicsData.to_hdf5().
+            dt = np.array(h5file["dt"])
+            voltage = np.array(h5file["voltage"])
+            phase = np.array(h5file["phase_difference"])
+        else:
+            dts = []
+            voltages = []
+            phases = []
+            if step_min is None:
+                step_min, step_max = get_data_range(h5file)
+            for i in range(step_min, step_max + 1):
+                grp = h5file[f"data/{i}"]
+                if "dt" in grp:
+                    dts.append(np.array(grp["dt"]))
+                    voltages.append(np.array(grp["voltage"]))
+                    phases.append(np.array(grp["phase_difference"]))
+            dt = np.concatenate(dts)
+            mask = dt > 0
+            dt = dt[mask]
+            voltage = np.concatenate(voltages)[mask]
+            phase = np.concatenate(phases)[mask]
         return DynamicsData(dt, voltage, phase)
 
-    def to_hdf5(self, h5group: h5py.Group, subgroup: str) -> None:
+    def to_hdf5(self, h5group: h5py.Group) -> None:
         """Save a :class:`DynamicsData` instance to an :class:`h5py.Group`.
 
         Args:
             h5group: An open :class:`h5py.Group` in which to save the data.
-            subgroup: The name of the subgroup into which to save the data.
         """
-        grp = h5group.require_group(str(subgroup))
         for key in ("dt", "voltage", "phase_difference"):
-            grp[key] = getattr(self, key)
+            h5group[key] = getattr(self, key)
 
     def __eq__(self, other: Any) -> bool:
         return dataclass_equals(self, other)
