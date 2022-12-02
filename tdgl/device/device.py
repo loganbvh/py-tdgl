@@ -809,7 +809,7 @@ class Device:
                     for i, polygon in enumerate(polygons):
                         polygon.to_hdf5(group.create_group(str(i)))
             if save_mesh and self.mesh is not None:
-                self.mesh.save_to_hdf5(f.create_group("mesh"))
+                self.mesh.to_hdf5(f.create_group("mesh"))
 
     @classmethod
     def from_hdf5(cls, path_or_group: Union[str, h5py.File, h5py.Group]) -> "Device":

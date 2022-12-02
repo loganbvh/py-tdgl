@@ -117,7 +117,7 @@ class DataHandler:
             mesh: The ``Mesh`` to save.
         """
         self.mesh_group = self.output_file.create_group("mesh")
-        mesh.save_to_hdf5(self.mesh_group)
+        mesh.to_hdf5(self.mesh_group)
 
     def save_fixed_values(self, fixed_data: Dict[str, np.ndarray]) -> None:
         """Save the fixed values, i.e., those that aren't updated at each solve step."""
