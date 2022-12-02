@@ -45,9 +45,9 @@ def animate(
         with plt.ioff():
             # Get the mesh
             if "mesh" in h5file:
-                mesh = Mesh.load_from_hdf5(h5file["mesh"])
+                mesh = Mesh.from_hdf5(h5file["mesh"])
             else:
-                mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
+                mesh = Mesh.from_hdf5(h5file["solution/device/mesh"])
             # Get the ranges for the frame
             min_frame, max_frame = get_data_range(h5file)
             min_frame += skip
@@ -144,11 +144,11 @@ def multi_animate(
             # Get the mesh
             if "mesh" in h5file:
                 if "mesh" in h5file["mesh"]:
-                    mesh = Mesh.load_from_hdf5(h5file["mesh/mesh"])
+                    mesh = Mesh.from_hdf5(h5file["mesh/mesh"])
                 else:
-                    mesh = Mesh.load_from_hdf5(h5file["mesh"])
+                    mesh = Mesh.from_hdf5(h5file["mesh"])
             else:
-                mesh = Mesh.load_from_hdf5(h5file["solution/device/mesh"])
+                mesh = Mesh.from_hdf5(h5file["solution/device/mesh"])
 
             # Get the ranges for the frame
             min_frame, max_frame = get_data_range(h5file)
