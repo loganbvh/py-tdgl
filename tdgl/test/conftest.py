@@ -22,8 +22,29 @@ def transport_device():
         film=film,
         holes=[hole, hole.scale(xfact=-1, yfact=-1).set_name("hole2")],
         terminals=[source, drain],
+        voltage_points=[(-10, 0), (10, 0)],
     )
+
+    assert device.mesh is None
+    assert device.points is None
+    assert device.triangles is None
+    assert device.edges is None
+    assert device.edge_lengths is None
+    assert device.areas is None
+    assert device.voltage_point_indices is None
+    assert device.boundary_sites() is None
+
+    _ = device.mesh_stats_dict()
+    _ = device.mesh_stats()
+
     device.make_mesh(min_points=2000, optimesh_steps=100, max_edge_length=xi / 2)
+    device.coherence_length = xi
+
+    _ = device.areas
+    _ = device.boundary_sites()
+    _ = device.mesh_stats_dict()
+    _ = device.mesh_stats()
+
     return device
 
 

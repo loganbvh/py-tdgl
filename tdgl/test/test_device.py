@@ -321,3 +321,15 @@ def test_pickle_device(device, device_with_mesh):
     assert loaded_device_with_mesh == device_with_mesh
 
     assert loaded_device.ureg("1 m") == loaded_device.ureg("1000 mm")
+
+
+@pytest.mark.parametrize("origin", [(0, 0), (4, 5)])
+def test_transforms(transport_device: tdgl.Device, origin):
+
+    device = transport_device
+    device.scale(xfact=2, yfact=0.5, origin=origin)
+    device.rotate(-40, origin=origin)
+    device.translate(dx=-10, dy=10)
+
+    with device.translation(dx=5, dy=-10):
+        device == device.translate(dx=5, dy=-10)
