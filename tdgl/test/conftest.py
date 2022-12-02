@@ -6,7 +6,7 @@ from tdgl.geometry import box, circle
 
 @pytest.fixture(scope="package")
 def transport_device():
-    london_lambda = 5
+    london_lambda = 10
     xi = 1
     d = 0.5
 

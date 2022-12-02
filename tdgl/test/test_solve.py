@@ -9,12 +9,9 @@ import tdgl
 def test_source_drain_current(transport_device, current, field):
 
     device = transport_device
-    dt = 1e-3
     total_time = 100
 
     options = tdgl.SolverOptions(
-        dt_init=dt,
-        dt_max=10 * dt,
         solve_time=total_time,
         field_units="uT",
         current_units="uA",
@@ -32,6 +29,7 @@ def test_source_drain_current(transport_device, current, field):
         options,
         applied_vector_potential=field,
         terminal_currents=terminal_currents,
+        pinning_sites=lambda r: False,
     )
 
     if callable(current):

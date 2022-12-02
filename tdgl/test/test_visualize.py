@@ -98,7 +98,7 @@ def test_animate(solution, observable, ext):
         observable=observable,
         fps=30,
         dpi=200,
-        skip=2,
+        skip=5,
     )
 
 
@@ -131,7 +131,7 @@ def test_animate_cli(solution, observables):
         "--output",
         solution.path.replace(".h5", "-cli.gif"),
         "--skip",
-        "3",
+        "6",
         "--fps",
         "30",
         "--dpi",
