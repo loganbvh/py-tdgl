@@ -812,6 +812,8 @@ class Solution:
             for k, v in dataclasses.asdict(self.options).items():
                 if v is not None:
                     data_grp.attrs[k] = v
+            if "solution" in f:
+                del f["solution"]
             group = f.create_group("solution")
             group.attrs["time_created"] = self.time_created.isoformat()
             group.attrs["current_units"] = self.current_units
