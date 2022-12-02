@@ -857,7 +857,7 @@ class Device:
             if "voltage_points" in f:
                 voltage_points = np.array(f["voltage_points"])
             if "mesh" in f:
-                mesh = Mesh.load_from_hdf5(f["mesh"])
+                mesh = Mesh.from_hdf5(f["mesh"])
 
         device = Device(
             name,
