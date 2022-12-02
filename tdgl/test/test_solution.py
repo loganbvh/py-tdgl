@@ -21,12 +21,10 @@ def tempdir():
 @pytest.fixture(scope="module")
 def solution(transport_device, tempdir):
     device = transport_device
-    dt = 1e-3
     total_time = 100
 
     fname = os.path.join(tempdir, "output.h5")
     options = tdgl.SolverOptions(
-        dt_init=dt,
         solve_time=total_time,
         output_file=fname,
         save_every=100,
@@ -45,6 +43,11 @@ def solution(transport_device, tempdir):
         terminal_currents=terminal_currents,
     )
 
+    _, phases = solution.boundary_phases()[device.film.name]
+    assert np.isclose((phases[-1] - phases[0]) / (2 * np.pi), 0, atol=5e-2)
+
+    _, phases = solution.boundary_phases(delta=True)[device.film.name]
+    assert np.isclose(phases[-1] / (2 * np.pi), 0, atol=5e-2)
     return solution
 
 
@@ -94,7 +97,7 @@ def test_dynamics(solution):
     assert np.allclose(dt, dt[0])
     V1 = d2.mean_voltage()
 
-    assert np.isclose(V0, V1, rtol=1e-6)
+    assert np.isclose(V0, V1, rtol=1e-2)
 
     with non_gui_backend():
         _ = dynamics.plot(legend=True)
