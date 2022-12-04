@@ -343,5 +343,5 @@ def uniform_Bz_vector_potential(
     ys = ys - (ys.min() + dy / 2)
     Ax = -Bz * ys / 2
     Ay = Bz * xs / 2
-    A = np.array([Ax, Ay, np.zeros_like(Ax)]).T
+    A = np.stack([Ax, Ay, np.zeros_like(Ax)], axis=1)
     return A.to("tesla * meter")
