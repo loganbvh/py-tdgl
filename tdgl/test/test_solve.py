@@ -44,3 +44,40 @@ def test_source_drain_current(transport_device, current, field):
         )
     measured_currents = np.array(measured_currents)
     assert np.allclose(measured_currents, current, rtol=0.1)
+
+
+def test_screening(box_device):
+    device = box_device
+    total_time = 50
+
+    options = tdgl.SolverOptions(
+        solve_time=total_time,
+        field_units="uT",
+        current_units="uA",
+    )
+    field = tdgl.sources.ConstantField(50)
+
+    options.include_screening = False
+    solution = tdgl.solve(
+        device,
+        options,
+        applied_vector_potential=field,
+    )
+
+    circle = tdgl.geometry.circle(2, points=401)
+    centers = [(0, 0), (-1.5, -2.5), (2.5, 2), (0, 1)]
+
+    for r0 in centers:
+        fluxoid = solution.polygon_fluxoid(circle + np.atleast_2d(r0), with_units=False)
+        assert abs(sum(fluxoid) / fluxoid.flux_part) >= 2e-2
+
+    options.include_screening = True
+    solution = tdgl.solve(
+        device,
+        options,
+        applied_vector_potential=field,
+    )
+
+    for r0 in centers:
+        fluxoid = solution.polygon_fluxoid(circle + np.atleast_2d(r0), with_units=False)
+        assert abs(sum(fluxoid) / fluxoid.flux_part) < 2e-2
