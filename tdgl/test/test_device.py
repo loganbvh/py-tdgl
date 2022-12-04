@@ -206,7 +206,7 @@ def device_with_mesh():
     device.make_mesh(min_points=3000)
     assert isinstance(device.edge_lengths, np.ndarray)
     assert isinstance(device.triangles, np.ndarray)
-    centroids = tdgl.finite_volume.util.centroids(device.points, device.triangles)
+    centroids = device.points[device.triangles].mean(axis=1)
     assert centroids.shape[0] == device.triangles.shape[0]
 
     print(device)

@@ -3,7 +3,6 @@ from .edge_mesh import EdgeMesh
 from .mesh import Mesh
 from .operators import MeshOperators
 from .util import (
-    centroids,
     compute_surrounding_area,
     generate_voronoi_vertices,
     get_convex_polygon_area,
@@ -12,6 +11,4 @@ from .util import (
     get_edges,
     get_supercurrent,
     get_surrounding_voronoi_polygons,
-    mass_matrix,
-    triangle_areas,
 )

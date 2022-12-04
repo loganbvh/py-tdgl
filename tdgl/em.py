@@ -5,7 +5,7 @@ import pint
 from scipy import spatial, special
 from scipy.constants import mu_0
 
-from .finite_volume.util import mass_matrix
+from .finite_volume.mesh import Mesh
 
 ureg = pint.UnitRegistry()
 
@@ -195,7 +195,8 @@ def biot_savart_2d(
     if areas is None:
         # Triangulate the current sheet to assign an effective area to each vertex.
         triangles = spatial.Delaunay(positions).simplices
-        areas = mass_matrix(positions, triangles)
+        mesh = Mesh.from_triangulation(positions[:, 0], positions[:, 1], triangles)
+        areas = mesh.areas
     else:
         areas = areas * to_meter**2
     # Evaluate the Biot-Savart integral.
