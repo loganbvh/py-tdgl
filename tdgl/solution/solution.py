@@ -4,20 +4,17 @@ import operator
 import os
 import pickle
 import shutil
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import nullcontext
 from datetime import datetime
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Union
 
 import cloudpickle
 import h5py
-import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pint
 from scipy import interpolate
 from scipy.spatial import distance
-from tqdm import tqdm
 
 from ..about import version_dict
 from ..device.device import Device
@@ -792,47 +789,6 @@ class Solution:
         if return_sum:
             return sum(vector_potentials.values())
         return vector_potentials
-
-    def map_over_solve_steps(
-        self,
-        func: Callable,
-        step_min: Union[int, None] = None,
-        step_max: Union[int, None] = None,
-        args: Union[Tuple[Any, ...], None] = None,
-        kwargs: Union[Dict[str, Any], None] = None,
-        ntasks: Union[int, None] = None,
-        progressbar: bool = True,
-    ) -> List[Any]:
-        if step_min is None:
-            step_min = self.data_range[0]
-        if step_max is None:
-            step_max = self.data_range[1]
-        step_min = max(step_min, self.data_range[0])
-        step_max = min(step_max, self.data_range[1])
-        iterable = range(step_min, step_max)
-        if args is None:
-            args = tuple()
-        if kwargs is None:
-            kwargs = dict()
-        ncpus = joblib.cpu_count(only_physical_cores=True)
-        if ntasks is None:
-            ntasks = ncpus
-        ntasks = min(ncpus, ntasks)
-
-        items = list(iterable)
-        N = len(items)
-        results = [None for _ in items]
-        executor = ProcessPoolExecutor(max_workers=ntasks)
-        future_to_index = {
-            executor.submit(func, self, item, *args, **kwargs): i
-            for i, item in enumerate(items)
-        }
-        with tqdm(total=N, disable=(not progressbar)) as pbar:
-            for future in as_completed(future_to_index):
-                index = future_to_index[future]
-                results[index] = future.result()
-                pbar.update(1)
-        return results
 
     def _save_to_hdf5_file(
         self,
