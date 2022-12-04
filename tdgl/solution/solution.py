@@ -4,17 +4,20 @@ import operator
 import os
 import pickle
 import shutil
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import nullcontext
 from datetime import datetime
-from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import cloudpickle
 import h5py
+import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pint
 from scipy import interpolate
 from scipy.spatial import distance
+from tqdm import tqdm
 
 from ..about import version_dict
 from ..device.device import Device
@@ -72,6 +75,7 @@ class Solution:
         disorder_alpha: Union[float, Callable],
         pinning_sites: Union[str, Callable],
         total_seconds: float,
+        _solve_step: int = -1,
     ):
         self.device = device.copy()
         self.device.mesh = device.mesh
@@ -102,7 +106,7 @@ class Solution:
         """A container for the raw TDGL data (in dimensionless units)."""
         self.dynamics: Union[DynamicsData, None] = None
         """A container for the time dynamics of the solution (in dimensionless units)."""
-        self._solve_step: int = -1
+        self._solve_step = _solve_step
         self.load_tdgl_data(self._solve_step)
         self._version_info = version_dict()
 
@@ -124,14 +128,20 @@ class Solution:
     def solve_step(self, step: int) -> None:
         self.load_tdgl_data(solve_step=step)
 
-    def load_tdgl_data(self, solve_step: int = -1) -> None:
+    def load_tdgl_data(
+        self, solve_step: int = -1, h5file: Union[h5py.File, None] = None
+    ) -> None:
         """Loads the TDGL results from file for a given solve step.
 
         Args:
             solve_step: The step index for which to load data.
                 Defaults to -1, i.e. the final step.
         """
-        with h5py.File(self.path, "r", libver="latest") as f:
+        if h5file is None:
+            read_context = h5py.File(self.path, "r", libver="latest")
+        else:
+            read_context = nullcontext(h5file)
+        with read_context as f:
             self.data_range = step_min, step_max = get_data_range(f)
             if solve_step == 0:
                 step = step_min
@@ -783,6 +793,47 @@ class Solution:
             return sum(vector_potentials.values())
         return vector_potentials
 
+    def map_over_solve_steps(
+        self,
+        func: Callable,
+        step_min: Union[int, None] = None,
+        step_max: Union[int, None] = None,
+        args: Union[Tuple[Any, ...], None] = None,
+        kwargs: Union[Dict[str, Any], None] = None,
+        ntasks: Union[int, None] = None,
+        progressbar: bool = True,
+    ) -> List[Any]:
+        if step_min is None:
+            step_min = self.data_range[0]
+        if step_max is None:
+            step_max = self.data_range[1]
+        step_min = max(step_min, self.data_range[0])
+        step_max = min(step_max, self.data_range[1])
+        iterable = range(step_min, step_max)
+        if args is None:
+            args = tuple()
+        if kwargs is None:
+            kwargs = dict()
+        ncpus = joblib.cpu_count(only_physical_cores=True)
+        if ntasks is None:
+            ntasks = ncpus
+        ntasks = min(ncpus, ntasks)
+
+        items = list(iterable)
+        N = len(items)
+        results = [None for _ in items]
+        executor = ProcessPoolExecutor(max_workers=ntasks)
+        future_to_index = {
+            executor.submit(func, self, item, *args, **kwargs): i
+            for i, item in enumerate(items)
+        }
+        with tqdm(total=N, disable=(not progressbar)) as pbar:
+            for future in as_completed(future_to_index):
+                index = future_to_index[future]
+                results[index] = future.result()
+                pbar.update(1)
+        return results
+
     def _save_to_hdf5_file(
         self,
         h5file: Union[h5py.File, str],
@@ -869,7 +920,7 @@ class Solution:
         self._save_to_hdf5_file(h5path, save_tdgl_data=True, save_mesh=save_mesh)
 
     @staticmethod
-    def from_hdf5(path: os.PathLike) -> "Solution":
+    def from_hdf5(path: os.PathLike, solve_step: int = -1) -> "Solution":
         """Loads a :class:`tdgl.Solution` from file.
 
         Args:
@@ -910,6 +961,7 @@ class Solution:
             disorder_alpha=disorder_alpha,
             pinning_sites=pinning_sites,
             total_seconds=total_seconds,
+            _solve_step=solve_step,
         )
         solution._time_created = time_created
         return solution

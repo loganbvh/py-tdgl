@@ -230,6 +230,8 @@ def current_loop_vector_potential(
         loop_center: (x, y, z) coordinates of the current loop center.
         loop_radius: radius of the current loop.
         current: Magnitude of the current flowing in the loop.
+        length_units: A string specifying the length units.
+        current_units: A string specifying the current units.
 
     Returns:
         Shape (n, 3) array of the vector potential [Ax, Ay, Az] at ``positions``.
@@ -268,10 +270,12 @@ def current_loop_field(
     loop_radius: float = 1e-6,
     current: float = 1e-3,
     num_segments: int = 101,
+    length_units: str = "um",
+    current_units: str = "uA",
 ):
     """Calculates the vector magnetic field [Bx, By, Bz] at ``positions``
-    due to a 1D current loop.
-    Input units are meters and Amperes, and output units are Tesla.
+    due to a 1D current loop, in units of tesla.
+
     Args:
         positions: Shape (n, 3) array of (x, y, z) positions at which to
             evaluate the vector potential.
@@ -279,27 +283,30 @@ def current_loop_field(
         loop_radius: radius of the current loop.
         current: Magnitude of the current flowing in the loop.
         num_segments: Number of current elements used to model the loop.
+        length_units: A string specifying the length units.
+        current_units: A string specifying the current units.
+
     Returns:
         Shape (n, 3) array of the magnetic field [Bx, By, Bz] at ``positions``.
     """
-    positions = np.atleast_2d(positions)
-    loop_center = np.atleast_2d(loop_center)
+    to_meter = ureg(length_units).to("m").magnitude
+    to_amp = ureg(current_units).to("A").magnitude
+    positions = np.atleast_2d(positions) * to_meter
+    loop_center = np.atleast_2d(loop_center) * to_meter
+    loop_radius = loop_radius * to_meter
+    current = current * to_amp
     # Create loop positions
     thetas = np.linspace(0, 2 * np.pi, num_segments)
     circ = np.array([np.cos(thetas), np.sin(thetas), np.zeros_like(thetas)]).T
     loop = loop_radius * circ + loop_center
     dloop = np.diff(loop, axis=0)
     loop = loop[:-1]
-    return (
-        biot_savart(
-            positions,
-            current_positions=loop,
-            current_vectors=dloop,
-            currents=current,
-        )
-        .to("tesla")
-        .magnitude
-    )
+    return biot_savart(
+        positions,
+        current_positions=loop,
+        current_vectors=dloop,
+        currents=current,
+    ).to("tesla")
 
 
 def uniform_Bz_vector_potential(
@@ -336,5 +343,5 @@ def uniform_Bz_vector_potential(
     ys = ys - (ys.min() + dy / 2)
     Ax = -Bz * ys / 2
     Ay = Bz * xs / 2
-    A = np.stack([Ax, Ay, np.zeros_like(Ax)], axis=1)
+    A = np.array([Ax, Ay, np.zeros_like(Ax)]).T
     return A.to("tesla * meter")

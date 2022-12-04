@@ -1,6 +1,5 @@
 import inspect
 import operator
-import pickle
 from typing import Callable, Optional, Union
 
 import cloudpickle
@@ -319,8 +318,8 @@ class CompositeParameter(Parameter):
         return state
 
     def __setstate__(self, state):
-        state["left"] = pickle.loads(state["left"])
-        state["right"] = pickle.loads(state["right"])
+        state["left"] = cloudpickle.loads(state["left"])
+        state["right"] = cloudpickle.loads(state["right"])
         self.__dict__.update(state)
 
 

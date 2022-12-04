@@ -282,13 +282,10 @@ def solve(
     mu = np.zeros(len(mesh.x))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the alpha parameter, which is the maximum value of |psi| at each position.
-    if not callable(disorder_alpha):
-        disorder_alpha_val = disorder_alpha
-
-        def disorder_alpha(r: Tuple[float, float]) -> float:
-            return disorder_alpha_val
-
-    alpha = np.apply_along_axis(disorder_alpha, 1, sites).astype(float)
+    if callable(disorder_alpha):
+        alpha = np.apply_along_axis(disorder_alpha, 1, sites).astype(float)
+    else:
+        alpha = disorder_alpha * np.ones(len(sites))
     if np.any(alpha < 0) or np.any(alpha > 1):
         raise ValueError("The disorder parameter alpha must be in range [0, 1].")
 
