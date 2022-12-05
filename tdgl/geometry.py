@@ -85,7 +85,7 @@ def circle(
 def box(
     width: float,
     height: Optional[float] = None,
-    points_per_side: int = 25,
+    points: int = 101,
     center: Tuple[float, float] = (0, 0),
     angle: float = 0,
 ) -> np.ndarray:
@@ -96,33 +96,38 @@ def box(
         width: Width of the rectangle (in the x direction).
         height: Height of the rectangle (in the y direction). If None is given,
             then height is set to width and the function returns a square.
-        points_per_side: Number of points on each side of the box.
+        points: The target number of points making up the box. The actual number of
+            points may be slightly different than this value.
         center: Coordinates of the center of the rectangle.
         angle: Angle (in degrees) by which to rotate counterclockwise about (0, 0)
             **after** translating to the specified center.
 
     Returns:
-        A shape ``(4 * points_per_side, 2)`` array of (x, y) coordinates
+        A shape ``(m, 2)`` or array of (x, y) coordinates.
     """
     width = abs(width)
     if height is None:
         height = width
     height = abs(height)
     x0, y0 = center
+    perimeter = 2 * (width + height)
+    x_points = round(points * width / perimeter)
+    y_points = round(points * height / perimeter)
+
     xs = np.concatenate(
         [
-            width / 2 * np.ones(points_per_side),
-            np.linspace(width / 2, -width / 2, points_per_side),
-            -width / 2 * np.ones(points_per_side),
-            np.linspace(-width / 2, width / 2, points_per_side),
+            width / 2 * np.ones(y_points),
+            np.linspace(width / 2, -width / 2, x_points),
+            -width / 2 * np.ones(y_points),
+            np.linspace(-width / 2, width / 2, x_points),
         ]
     )
     ys = np.concatenate(
         [
-            np.linspace(-height / 2, height / 2, points_per_side),
-            height / 2 * np.ones(points_per_side),
-            np.linspace(height / 2, -height / 2, points_per_side),
-            -height / 2 * np.ones(points_per_side),
+            np.linspace(-height / 2, height / 2, y_points),
+            height / 2 * np.ones(x_points),
+            np.linspace(height / 2, -height / 2, y_points),
+            -height / 2 * np.ones(x_points),
         ]
     )
     coords = np.array([xs, ys]).T + np.array([[x0, y0]])
@@ -145,6 +150,17 @@ def close_curve(points: np.ndarray) -> np.ndarray:
     if not np.allclose(points[0], points[-1]):
         points = np.concatenate([points, points[:1]], axis=0)
     return points
+
+
+def ensure_unique(coords: np.ndarray) -> np.ndarray:
+    # Coords is a shape (n, 2) array of vertex coordinates.
+    coords = np.asarray(coords)
+    # Remove duplicate coordinates, otherwise triangle.build() will segfault.
+    # By default, np.unique() does not preserve order, so we have to remove
+    # duplicates this way:
+    _, ix = np.unique(coords, return_index=True, axis=0)
+    coords = coords[np.sort(ix)]
+    return coords
 
 
 def unit_vector(vector: np.ndarray) -> np.ndarray:

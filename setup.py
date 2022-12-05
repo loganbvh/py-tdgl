@@ -24,7 +24,6 @@ INSTALL_REQUIRES = [
     "matplotlib",
     "meshpy",
     "numpy",
-    "optimesh",
     "pint",
     "pytest",
     "pytest-cov",

@@ -179,7 +179,7 @@ def simulate_iv_curve(
     )
 
     device, ro = make_squid()
-    device.make_mesh(min_points=min_points, optimesh_steps=100)
+    device.make_mesh(min_points=min_points, smooth=100)
 
     ncpus = joblib.cpu_count(only_physical_cores=True)
     if ntasks is None:

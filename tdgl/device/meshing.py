@@ -2,27 +2,14 @@ import logging
 from typing import List, Tuple, Union
 
 import numpy as np
-import optimesh
 from meshpy import triangle
 from scipy import spatial
-from shapely.geometry import MultiLineString
-from shapely.geometry.polygon import Polygon, orient
-from shapely.ops import polygonize
+from shapely.geometry.polygon import Polygon
 
 from ..finite_volume.util import get_edge_lengths
+from ..geometry import ensure_unique
 
 logger = logging.getLogger(__name__)
-
-
-def ensure_unique(coords: np.ndarray) -> np.ndarray:
-    # Coords is a shape (n, 2) array of vertex coordinates.
-    coords = np.asarray(coords)
-    # Remove duplicate coordinates, otherwise triangle.build() will segfault.
-    # By default, np.unique() does not preserve order, so we have to remove
-    # duplicates this way:
-    _, ix = np.unique(coords, return_index=True, axis=0)
-    coords = coords[np.sort(ix)]
-    return coords
 
 
 def generate_mesh(
@@ -32,6 +19,7 @@ def generate_mesh(
     max_edge_length: Union[float, None] = None,
     convex_hull: bool = False,
     boundary: Union[np.ndarray, None] = None,
+    min_angle: float = 32.5,
     **kwargs,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Generates a Delaunay mesh for a given set of polygon vertex coordinates.
@@ -47,6 +35,9 @@ def generate_mesh(
             will be meshed. Otherwise, only the polygon interior is meshed.
         boundary: Shape ``(m, 2)`` (where ``m <= n``) array of ``(x, y)`` coordinates
             for points on the boundary of the polygon.
+        min_angle: The minimum angle in the mesh's triangles. Setting a larger value
+            will make the triangles closer to equilateral, but the mesh generation
+            may fail if the value is too large.
 
     Returns:
         Mesh vertex coordinates and triangle indices.
@@ -105,6 +96,8 @@ def generate_mesh(
     if min_points is None and (max_edge_length is None or max_edge_length <= 0):
         return points, triangles
 
+    if "min_angle" not in kwargs:
+        kwargs["min_angle"] = min_angle
     kwargs = kwargs.copy()
     kwargs["max_volume"] = dx * dy / 100
     i = 1
@@ -129,64 +122,3 @@ def generate_mesh(
             kwargs["max_volume"] *= 0.98
         i += 1
     return points, triangles
-
-
-def optimize_mesh(
-    points: np.ndarray,
-    triangles: np.ndarray,
-    steps: int,
-    method: str = "cvt-block-diagonal",
-    tolerance: float = 1e-3,
-    verbose: bool = False,
-    **kwargs,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Optimizes an existing mesh using ``optimesh``.
-
-    See ``optimesh`` documentation for additional options.
-
-    Args:
-        points: Mesh vertex coordinates.
-        triangles: Mesh triangle indices.
-        steps: Number of optimesh steps to perform.
-        method: See ``optimesh`` documentation.
-        tolerance: See ``optimesh`` documentation.
-        verbose: See ``optimesh`` documentation.
-
-    Returns:
-        Optimized mesh vertex coordinates and triangle indices.
-    """
-    points, triangles = optimesh.optimize_points_cells(
-        points,
-        triangles,
-        method,
-        tolerance,
-        steps,
-        verbose=verbose,
-        **kwargs,
-    )
-    return points, triangles
-
-
-def oriented_boundary(
-    points: np.ndarray, boundary_edges: np.ndarray
-) -> List[np.ndarray]:
-    """Returns arrays of boundary vertex indices, ordered counterclockwise.
-
-    Args:
-        points: Shape ``(n, 2)``, float array of vertex coordinates.
-        boundary_edges: Shape ``(m, 2)`` integer array of boundary edges.
-
-    Returns:
-        A list of arrays of boundary vertex indices (ordered counterclockwise).
-        The length of the list will be 1 plus the number of holes in the polygon,
-        as each hole has a boundary.
-    """
-    points_list = [tuple(xy) for xy in points]
-    edges = MultiLineString([points[edge, :] for edge in boundary_edges])
-    polygons = list(polygonize(edges))
-    polygon_indices = []
-    for p in polygons:
-        polygon = orient(p)
-        indices = np.array([points_list.index(xy) for xy in polygon.exterior.coords])
-        polygon_indices.append(indices[:-1])
-    return polygon_indices

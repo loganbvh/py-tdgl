@@ -99,5 +99,3 @@ Mesh Generation
 ---------------
 
 .. autofunction:: tdgl.generate_mesh
-
-.. autofunction:: tdgl.optimize_mesh

@@ -1,7 +1,7 @@
 from .about import version_dict, version_table
 from .device.device import Device
 from .device.layer import Layer
-from .device.mesh import generate_mesh, optimize_mesh
+from .device.meshing import generate_mesh
 from .device.polygon import Polygon
 from .em import ureg
 from .fluxoid import Fluxoid, make_fluxoid_polygons

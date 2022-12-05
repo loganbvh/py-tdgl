@@ -1,11 +1,13 @@
 import multiprocessing as mp
 from functools import partial
-from typing import Dict, Tuple
+from typing import List, Tuple
 
 import joblib
 import numpy as np
 import scipy.sparse as sp
-from scipy.spatial import ConvexHull, QhullError
+from scipy.spatial import ConvexHull, Delaunay, QhullError
+from shapely.geometry import MultiLineString
+from shapely.ops import orient, polygonize
 
 
 def get_edges(elements: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -124,7 +126,7 @@ def _get_polygon_indices(
     elements: np.ndarray, site_index: int
 ) -> Tuple[int, np.ndarray]:
     """Helper function for get_surrounding_voronoi_polygons()."""
-    return site_index, np.where((elements == site_index).any(axis=1))[0]
+    return np.where((elements == site_index).any(axis=1))[0]
 
 
 def get_surrounding_voronoi_polygons(
@@ -132,7 +134,7 @@ def get_surrounding_voronoi_polygons(
     num_sites: int,
     parallel: bool = True,
     min_sites_for_multiprocessing: int = 10_000,
-) -> Dict[int, np.ndarray]:
+) -> List[np.ndarray]:
     """Find the polygons surrounding each site.
 
     Args:
@@ -144,8 +146,7 @@ def get_surrounding_voronoi_polygons(
             is greater than this value, then use multiprocessing.
 
     Returns:
-        A dict where the keys are the indices for the sites and the values
-        are lists of the Voronoi polygon indices.
+        A list of arrays of Voronoi polygon indices.
     """
     # Iterate over all sites and find the triangles that the site belongs to
     # The indices for the triangles are the same as the indices for the
@@ -161,8 +162,8 @@ def get_surrounding_voronoi_polygons(
             results = pool.map(
                 partial(_get_polygon_indices, elements), range(num_sites)
             )
-        return dict(results)
-    return dict((i, np.where((elements == i).any(axis=1))[0]) for i in range(num_sites))
+        return results
+    return [np.where((elements == i).any(axis=1))[0] for i in range(num_sites)]
 
 
 def compute_surrounding_area(
@@ -173,7 +174,7 @@ def compute_surrounding_area(
     boundary: np.ndarray,
     edges: np.ndarray,
     boundary_edge_indices: np.ndarray,
-    polygons: Dict[int, np.ndarray],
+    polygons: List[np.ndarray],
 ) -> np.ndarray:
     """Compute the areas of the surrounding polygons.
 
@@ -198,30 +199,32 @@ def compute_surrounding_area(
     boundary_edges = edges[boundary_edge_indices]
     areas = np.zeros(len(polygons))
 
-    for i, polygon in polygons.items():
+    for site, polygon in enumerate(polygons):
         # Get the polygon points
         poly_x = x_dual[polygon]
         poly_y = y_dual[polygon]
         # Handle points not on the boundary
-        if i not in boundary_set:
-            areas[i], _ = get_convex_polygon_area(poly_x, poly_y)
+        if site not in boundary_set:
+            areas[site], is_convex = get_convex_polygon_area(poly_x, poly_y)
+            assert is_convex
             continue
         # TODO: First computing a dict where the key is the boundary index
         #  and the value is a list of neighbouring
         #  points would be more effective. Consider changing to that instead.
-        connected_boundary_edges = boundary_edges[(boundary_edges == i).any(axis=1)]
+        connected_boundary_edges = boundary_edges[(boundary_edges == site).any(axis=1)]
         x_mid = x[connected_boundary_edges].mean(axis=1)
         y_mid = y[connected_boundary_edges].mean(axis=1)
-        poly_x = np.concatenate([poly_x, [x[i]], x_mid])
-        poly_y = np.concatenate([poly_y, [y[i]], y_mid])
-        areas[i], is_convex = get_convex_polygon_area(poly_x, poly_y)
+        poly_x = np.concatenate([poly_x, [x[site]], x_mid])
+        poly_y = np.concatenate([poly_y, [y[site]], y_mid])
+        areas[site], is_convex = get_convex_polygon_area(poly_x, poly_y)
         # If the polygon is non-convex we need to subtract the area of the
         # concave part, which is the triangle on the boundary.
         if not is_convex:
-            concave_area, _ = get_convex_polygon_area(
-                np.concatenate([[x[i]], x_mid]), np.concatenate([[y[i]], y_mid])
+            concave_area, is_convex = get_convex_polygon_area(
+                np.concatenate([[x[site]], x_mid]), np.concatenate([[y[site]], y_mid])
             )
-            areas[i] -= concave_area
+            assert is_convex
+            areas[site] -= concave_area
     return areas
 
 
@@ -243,8 +246,94 @@ def get_convex_polygon_area(x: np.ndarray, y: np.ndarray) -> Tuple[float, bool]:
         # Handle error when all points lie on a line
         return 0, True
     else:
-        is_convex = len(hull.vertices) == len(x)
+        # is_convex = len(hull.vertices) == len(x)
+        is_convex = len(hull.coplanar) == 0
         return hull.volume, is_convex
+
+
+def triangle_areas(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
+    """Calculates the area of each triangle.
+
+    Args:
+        points: Shape (n, 2) array of x, y coordinates of vertices
+        triangles: Shape (m, 3) array of triangle indices
+
+    Returns:
+        Shape (m, ) array of triangle areas
+    """
+    xy = points[triangles]
+    # s1 = xy[:, 2, :] - xy[:, 1, :]
+    # s2 = xy[:, 0, :] - xy[:, 2, :]
+    # s3 = xy[:, 1, :] - xy[:, 0, :]
+    # which can be simplified to
+    # s = xy[:, [2, 0, 1]] - xy[:, [1, 2, 0]]  # 3D
+    s = xy[:, [2, 0]] - xy[:, [1, 2]]  # 2D
+    a = np.linalg.det(s)
+    return a * 0.5
+
+
+def orient_convex_polygon_vertices(
+    vertices: np.ndarray, indices: np.ndarray
+) -> np.ndarray:
+    """Returns counterclockwise-oriented vertex indices for a convex polygon.
+
+    Args:
+        vertices: The vertex positions (x, y), shape ``(n, 2)``.
+        indices: Indices into ``vertices`` that define a convex polygon,
+            but for which the ordering is unknown.
+
+    Returns:
+        ``indices``, sorted so as to orient ``vertices`` counterclockwise.
+    """
+    # Sort the vertices by the angle between each vertex and some point in the
+    # interior of the polygon. Here we use the mean of the vertices.
+    vertices = vertices[indices]
+    r0 = vertices.mean(axis=0)
+    diffs = vertices - r0
+    return indices[np.argsort(np.arctan2(diffs[:, 1], diffs[:, 0]))]
+
+
+def convex_polygon_centroid(points: np.ndarray) -> Tuple[float, float]:
+    """Calculates the ``(x, y)`` position of the centroid of a convex polygon.
+
+    Args:
+        points: An array of vertex coordinates.
+
+    Returns:
+        The ``(x, y)`` position of the centroid of the polygon defined by ``points``.
+    """
+    # Find a Delaunay triangulation of the polygon
+    triangles = Delaunay(points).simplices
+    # Find the area and centroid of each triangle
+    areas = triangle_areas(points, triangles)
+    centroids = points[triangles].mean(axis=1)
+    # Return the weighted average of the triangle centroids.
+    return np.average(centroids, weights=areas, axis=0)
+
+
+def get_oriented_boundary(
+    points: np.ndarray, boundary_edges: np.ndarray
+) -> List[np.ndarray]:
+    """Returns arrays of boundary vertex indices, ordered counterclockwise.
+
+    Args:
+        points: Shape ``(n, 2)``, float array of vertex coordinates.
+        boundary_edges: Shape ``(m, 2)`` integer array of boundary edges.
+
+    Returns:
+        A list of arrays of boundary vertex indices (ordered counterclockwise).
+        The length of the list will be 1 plus the number of holes in the polygon,
+        as each hole has a boundary.
+    """
+    points_list = [tuple(xy) for xy in points]
+    edges = MultiLineString([points[edge, :] for edge in boundary_edges])
+    polygons = list(polygonize(edges))
+    polygon_indices = []
+    for p in polygons:
+        polygon = orient(p)
+        indices = np.array([points_list.index(xy) for xy in polygon.exterior.coords])
+        polygon_indices.append(indices[:-1])
+    return polygon_indices
 
 
 def get_supercurrent(

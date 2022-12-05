@@ -1,4 +1,3 @@
-from .dual_mesh import DualMesh
 from .edge_mesh import EdgeMesh
 from .mesh import Mesh
 from .operators import MeshOperators

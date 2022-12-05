@@ -3,14 +3,15 @@ from typing import Sequence, Tuple
 import h5py
 import numpy as np
 
-from .dual_mesh import DualMesh
 from .util import get_dual_edge_lengths, get_edges
 
 
 class EdgeMesh:
     """Mesh for the edges in the original mesh.
 
-    **Note**: Use :meth:`EdgeMesh.from_mesh` to create from an existing mesh.
+    .. note::
+
+        Use :meth:`EdgeMesh.from_mesh` to create from an existing mesh.
 
     Args:
         x: Coordinates for the mesh points.
@@ -19,7 +20,7 @@ class EdgeMesh:
         boundary_edge_indices: Edges on the boundary.
         directions: Directions of the edges.
         edge_lengths: Lengths of the edges.
-        dual_edge_lengths: Length of the edge duals.
+        dual_edge_lengths: Length of the dual edges.
     """
 
     def __init__(
@@ -42,15 +43,21 @@ class EdgeMesh:
 
     @classmethod
     def from_mesh(
-        cls, x: np.ndarray, y: np.ndarray, elements: np.ndarray, dual_mesh: DualMesh
+        cls,
+        x: np.ndarray,
+        y: np.ndarray,
+        elements: np.ndarray,
+        x_dual: np.ndarray,
+        y_dual: np.ndarray,
     ) -> "EdgeMesh":
         """Create edge mesh from mesh.
 
         Args:
-            x: Coordinates for the mesh points.
-            y: Coordinates for the mesh points.
+            x: The x coordinates for the mesh vertices.
+            y: The y coordinates for the mesh vertices.
             elements: Elements for the mesh.
-            dual_mesh: The dual mesh.
+            x_dual: The x coordinates for the dual mesh vertices.
+            y_dual: The y coordinates for the dual mesh vertices.
 
         Returns:
             The edge mesh.
@@ -74,8 +81,8 @@ class EdgeMesh:
             xe=xe,
             ye=ye,
             elements=elements,
-            x_dual=dual_mesh.x,
-            y_dual=dual_mesh.y,
+            x_dual=x_dual,
+            y_dual=y_dual,
             edges=edges,
         )
         return EdgeMesh(

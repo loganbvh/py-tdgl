@@ -1,6 +1,5 @@
 import logging
 import os
-import warnings
 from contextlib import contextmanager, nullcontext
 from operator import attrgetter, itemgetter
 from typing import Any, Dict, List, NamedTuple, Sequence, Tuple, Union
@@ -17,8 +16,10 @@ from shapely.geometry import Point
 
 from ..em import ureg
 from ..finite_volume.mesh import Mesh
-from . import mesh
+from ..finite_volume.util import get_oriented_boundary
+from ..geometry import ensure_unique
 from .layer import Layer
+from .meshing import generate_mesh
 from .polygon import Polygon
 
 logger = logging.getLogger(__name__)
@@ -284,7 +285,7 @@ class Device:
                 polygon.on_boundary(points[boundary_edges[:, 0]], radius=1e-6),
                 polygon.on_boundary(points[boundary_edges[:, 1]], radius=1e-6),
             )
-            boundary_sites = mesh.oriented_boundary(points, boundary_edges[on_boundary])
+            boundary_sites = get_oriented_boundary(points, boundary_edges[on_boundary])
             assert len(boundary_sites) == 1, len(boundary_sites)
             boundary[polygon.name] = boundary_sites[0]
         return boundary
@@ -329,8 +330,7 @@ class Device:
         # Remove duplicate points to avoid meshing issues.
         # If you don't do this and there are duplicate points,
         # meshpy.triangle will segfault.
-        points = mesh.ensure_unique(points)
-        return points
+        return ensure_unique(points)
 
     def copy(self, with_mesh: bool = True) -> "Device":
         """Copy this Device to create a new one.
@@ -495,10 +495,7 @@ class Device:
         self,
         max_edge_length: Union[float, None] = None,
         min_points: Union[float, None] = None,
-        optimesh_steps: Union[int, None] = None,
-        optimesh_method: str = "cvt-block-diagonal",
-        optimesh_tolerance: float = 1e-3,
-        optimesh_verbose: bool = False,
+        smooth: int = 0,
         **meshpy_kwargs,
     ) -> None:
         """Generates and optimizes the triangular mesh.
@@ -511,18 +508,14 @@ class Device:
                 Passing a value <= 0 means that the number of mesh points will be
                 determined solely by the density of points in the Device's film
                 and abstract regions. Defaults to 1.5 * self.coherence_length.
-            optimesh_steps: Maximum number of optimesh steps. If None, then no
-                optimization is done.
-            optimesh_method: Name of the optimization method to use.
-            optimesh_tolerance: Optimesh quality tolerance.
-            optimesh_verbose: Whether to use verbose mode in optimesh.
+            smooth: Number of Laplacian smoothing iterations to perform.
             **meshpy_kwargs: Passed to meshpy.triangle.build().
         """
         logger.info("Generating mesh...")
         boundary = self.film.points
         if max_edge_length is None:
             max_edge_length = 1.5 * self.coherence_length
-        points, triangles = mesh.generate_mesh(
+        points, triangles = generate_mesh(
             self.poly_points,
             hole_coords=[hole.points for hole in self.holes],
             min_points=min_points,
@@ -530,25 +523,12 @@ class Device:
             boundary=boundary,
             **meshpy_kwargs,
         )
-        if optimesh_steps:
-            logger.info(f"Optimizing mesh with {points.shape[0]} vertices.")
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", category=UserWarning)
-                    points, triangles = mesh.optimize_mesh(
-                        points,
-                        triangles,
-                        optimesh_steps,
-                        method=optimesh_method,
-                        tolerance=optimesh_tolerance,
-                        verbose=optimesh_verbose,
-                    )
-            except np.linalg.LinAlgError as e:
-                err = (
-                    "LinAlgError encountered in optimesh. Try reducing min_points "
-                    "or increasing the number of points in the device's important polygons."
-                )
-                raise RuntimeError(err) from e
+        if smooth:
+            mesh = Mesh.from_triangulation(
+                points[:, 0], points[:, 1], triangles, create_submesh=False
+            ).smooth(smooth, create_submesh=False)
+            points = mesh.sites
+            triangles = mesh.elements
         logger.info(
             f"Finished generating mesh with {points.shape[0]} points and "
             f"{triangles.shape[0]} triangles."
@@ -571,6 +551,7 @@ class Device:
             points[:, 0] / self.coherence_length,
             points[:, 1] / self.coherence_length,
             triangles,
+            create_submesh=True,
         )
 
     def mesh_stats_dict(self) -> Dict[str, Union[int, float, str]]:

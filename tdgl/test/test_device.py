@@ -109,8 +109,8 @@ def test_polygon_join():
         bowtie = [(0, 0), (0, 2), (1, 1), (2, 2), (2, 0), (1, 1), (0, 0)]
         _ = tdgl.Polygon(name="bowtie", points=bowtie)
 
-    for min_points, optimesh_steps in [(None, None), (500, None), (500, 10)]:
-        mesh = square1.make_mesh(min_points=min_points, optimesh_steps=optimesh_steps)
+    for min_points, smooth in [(None, None), (500, None), (500, 10)]:
+        mesh = square1.make_mesh(min_points=min_points, smooth=smooth)
         if min_points:
             assert mesh.x.shape[0] > min_points
 
@@ -284,13 +284,13 @@ def test_draw_device(device, legend):
 
 
 @pytest.mark.parametrize(
-    ", ".join(["min_points", "optimesh_steps"]),
+    ", ".join(["min_points", "smooth"]),
     [(None, None), (None, 20), (1200, None), (1200, 20)],
 )
-def test_make_mesh(device, min_points, optimesh_steps):
+def test_make_mesh(device, min_points, smooth):
     device.make_mesh(
         min_points=min_points,
-        optimesh_steps=optimesh_steps,
+        smooth=smooth,
     )
 
     assert device.points is not None

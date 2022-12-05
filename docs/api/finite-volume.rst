@@ -16,9 +16,6 @@ Finite Volume Meshes
 .. autoclass:: tdgl.finite_volume.EdgeMesh
     :members:
 
-.. autoclass:: tdgl.finite_volume.DualMesh
-    :members:
-
 Matrices
 --------
 

@@ -124,7 +124,7 @@ def simulate_iv_curve(
     device.make_mesh(
         min_points=min_points,
         max_edge_length=device.coherence_length / 3,
-        optimesh_steps=100,
+        smooth=100,
     )
 
     zero_current_solution = tdgl.solve(

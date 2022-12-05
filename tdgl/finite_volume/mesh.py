@@ -1,11 +1,16 @@
-from typing import Sequence, Tuple
+from typing import List, Sequence, Tuple, Union
 
 import h5py
 import numpy as np
 
-from .dual_mesh import DualMesh
 from .edge_mesh import EdgeMesh
-from .util import compute_surrounding_area, get_edges, get_surrounding_voronoi_polygons
+from .util import (
+    compute_surrounding_area,
+    generate_voronoi_vertices,
+    get_edges,
+    get_surrounding_voronoi_polygons,
+    orient_convex_polygon_vertices,
+)
 
 
 class Mesh:
@@ -25,7 +30,8 @@ class Mesh:
             0, 1, and 3.
         boundary_indices: Indices corresponding to the boundary.
         areas: The areas corresponding to the sites.
-        dual_mesh: The dual mesh.
+        x_dual: The x coordinates of the dual mesh vertices.
+        y_dual: The y coordinates of the dual mesh vertices.
         edge_mesh: The edge mesh.
     """
 
@@ -35,9 +41,11 @@ class Mesh:
         y: Sequence[float],
         elements: Sequence[Tuple[int, int, int]],
         boundary_indices: Sequence[int],
-        areas: Sequence[float],
-        dual_mesh: DualMesh,
-        edge_mesh: EdgeMesh,
+        areas: Union[Sequence[float], None] = None,
+        voronoi_polygons: Union[List[Sequence[int]], None] = None,
+        x_dual: Union[Sequence[float], None] = None,
+        y_dual: Union[Sequence[float], None] = None,
+        edge_mesh: Union[EdgeMesh, None] = None,
     ):
         self.x = np.asarray(x).squeeze()
         self.y = np.asarray(y).squeeze()
@@ -46,14 +54,36 @@ class Mesh:
         # instances.
         self.elements = np.asarray(elements, dtype=np.int64)
         self.boundary_indices = np.asarray(boundary_indices, dtype=np.int64)
-        self.dual_mesh = dual_mesh
+        if areas is not None:
+            areas = np.asarray(areas)
+        if x_dual is not None:
+            x_dual = np.asarray(x_dual)
+        if y_dual is not None:
+            y_dual = np.asarray(y_dual)
+        self.areas = areas
+        self.x_dual = x_dual
+        self.y_dual = y_dual
         self.edge_mesh = edge_mesh
-        self.areas = np.asarray(areas)
+        self.voronoi_polygons = voronoi_polygons
+        if self.voronoi_polygons is not None and self.x_dual is not None:
+            self.voronoi_polygons = [
+                orient_convex_polygon_vertices(self.dual_sites, indices)
+                for indices in self.voronoi_polygons
+            ]
 
     @property
     def sites(self) -> np.ndarray:
         """The mesh sites as a shape ``(n, 2)`` array."""
         return np.array([self.x, self.y]).T
+
+    @property
+    def dual_sites(self) -> Union[np.ndarray, None]:
+        """Returns the dual mesh sites (Voronoi polygon vertices) as
+        a shape ``(m, 2)`` array.
+        """
+        if self.x_dual is None:
+            return None
+        return np.array([self.x_dual, self.y_dual]).T
 
     def closest_site(self, xy: Tuple[float, float]) -> int:
         """Returns the index of the mesh site closest to ``(x, y)``.
@@ -71,6 +101,7 @@ class Mesh:
         x: Sequence[float],
         y: Sequence[float],
         elements: Sequence[Tuple[int, int, int]],
+        create_submesh: bool = True,
     ) -> "Mesh":
         """Create a triangular mesh from the coordinates of the triangle vertices
         and a list of indices corresponding to the vertices that connect to triangles.
@@ -103,18 +134,22 @@ class Mesh:
         if elements.ndim != 2 or (elements.shape[0] != 3 and elements.shape[1] != 3):
             raise ValueError("The elements need to be a (n, 3)-vector.")
         boundary_indices = Mesh.find_boundary_indices(elements)
-        dual_mesh = DualMesh.from_mesh(x, y, elements)
-        edge_mesh = EdgeMesh.from_mesh(x, y, elements, dual_mesh)
-        areas = Mesh.compute_voronoi_areas(
-            x, y, elements, dual_mesh, edge_mesh, boundary_indices
-        )
+        x_dual = y_dual = edge_mesh = polygons = areas = None
+        if create_submesh:
+            x_dual, y_dual = generate_voronoi_vertices(x, y, elements)
+            edge_mesh = EdgeMesh.from_mesh(x, y, elements, x_dual, y_dual)
+            areas, polygons = Mesh.compute_voronoi_areas_polygons(
+                x, y, elements, x_dual, y_dual, edge_mesh, boundary_indices
+            )
         return Mesh(
             x=x,
             y=y,
             elements=elements,
             boundary_indices=boundary_indices,
             edge_mesh=edge_mesh,
-            dual_mesh=dual_mesh,
+            voronoi_polygons=polygons,
+            x_dual=x_dual,
+            y_dual=y_dual,
             areas=areas,
         )
 
@@ -134,30 +169,31 @@ class Mesh:
         return np.unique(boundary_edges.flatten())
 
     @staticmethod
-    def compute_voronoi_areas(
+    def compute_voronoi_areas_polygons(
         x: np.ndarray,
         y: np.ndarray,
         elements: np.ndarray,
-        dual_mesh: DualMesh,
+        x_dual: np.ndarray,
+        y_dual: np.ndarray,
         edge_mesh: EdgeMesh,
         boundary_indices: np.ndarray,
-    ) -> np.ndarray:
-        """Compute the area of the Voronoi region for each vertex."""
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute the area and indices of the Voronoi region for each vertex."""
 
         # Compute polygons to use when computing area
         polygons = get_surrounding_voronoi_polygons(elements, len(x))
-
         # Get the areas for each vertex
-        return compute_surrounding_area(
+        areas = compute_surrounding_area(
             x=x,
             y=y,
             boundary=boundary_indices,
             edges=edge_mesh.edges,
             boundary_edge_indices=edge_mesh.boundary_edge_indices,
-            x_dual=dual_mesh.x,
-            y_dual=dual_mesh.y,
+            x_dual=x_dual,
+            y_dual=y_dual,
             polygons=polygons,
         )
+        return areas, polygons
 
     def get_observable_on_site(
         self, observable_on_edge: np.ndarray, vector: bool = True
@@ -197,6 +233,47 @@ class Mesh:
             return vector_val
         return vector_val[:, 0]
 
+    def smooth(self, iterations: int, create_submesh: bool = True) -> "Mesh":
+        """Perform Laplacian smoothing of the mesh, i.e., moving each interior vertex
+        to the arithmetic average of its neighboring points.
+
+        Args:
+            iterations: The number of smoothing iterations to perform.
+            create_submesh: Whether to create the dual mesh and edge mesh.
+
+        Returns:
+            A new :class:`tdgl.finit_volume.Mesh` with relaxed vertex positions.
+        """
+        mesh = self
+        elements = mesh.elements
+        edges, _ = get_edges(elements)
+        n = mesh.x.shape[0]
+        shape = (n, 2)
+        boundary = mesh.boundary_indices
+        for i in range(iterations):
+            sites = mesh.sites
+            num_neighbors = np.bincount(edges.ravel(), minlength=shape[0])
+
+            new_points = np.zeros(shape)
+            vals = sites[edges[:, 1]].T
+            new_points += np.array(
+                [np.bincount(edges[:, 0], val, minlength=n) for val in vals]
+            ).T
+            vals = sites[edges[:, 0]].T
+            new_points += np.array(
+                [np.bincount(edges[:, 1], val, minlength=n) for val in vals]
+            ).T
+            new_points /= num_neighbors[:, np.newaxis]
+            # reset boundary points
+            new_points[boundary] = sites[boundary]
+            mesh = Mesh.from_triangulation(
+                new_points[:, 0],
+                new_points[:, 1],
+                elements,
+                create_submesh=(create_submesh and (i == (iterations - 1))),
+            )
+        return mesh
+
     def to_hdf5(self, h5group: h5py.Group, compress: bool = False) -> None:
         h5group["x"] = self.x
         h5group["y"] = self.y
@@ -205,7 +282,10 @@ class Mesh:
             h5group["boundary_indices"] = self.boundary_indices
             h5group["areas"] = self.areas
             self.edge_mesh.to_hdf5(h5group.create_group("edge_mesh"))
-            self.dual_mesh.to_hdf5(h5group.create_group("dual_mesh"))
+            if self.x_dual is not None:
+                h5group["x_dual"] = self.x_dual
+            if self.y_dual is not None:
+                h5group["y_dual"] = self.y_dual
 
     @staticmethod
     def from_hdf5(h5group: h5py.Group) -> "Mesh":
@@ -230,7 +310,8 @@ class Mesh:
                 elements=h5group["elements"],
                 boundary_indices=h5group["boundary_indices"],
                 areas=h5group["areas"],
-                dual_mesh=DualMesh.from_hdf5(h5group["dual_mesh"]),
+                x_dual=h5group["x_dual"],
+                y_dual=h5group["y_dual"],
                 edge_mesh=EdgeMesh.from_hdf5(h5group["edge_mesh"]),
             )
         # Recreate mesh from triangulation data if not all data is available
@@ -249,5 +330,6 @@ class Mesh:
             and "boundary_indices" in h5group
             and "areas" in h5group
             and "edge_mesh" in h5group
-            and "dual_mesh" in h5group
+            and "x_dual" in h5group
+            and "y_dual" in h5group
         )

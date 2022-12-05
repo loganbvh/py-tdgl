@@ -11,7 +11,7 @@ def transport_device():
     d = 0.5
 
     layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
-    film = tdgl.Polygon("film", points=box(10)).union(box(30, 4, points_per_side=101))
+    film = tdgl.Polygon("film", points=box(10)).union(box(30, 4, points=400))
     hole = tdgl.Polygon("hole1", points=circle(1.5, center=(2, 2)))
     source = tdgl.Polygon(points=box(1e-2, 4, center=(-15, 0))).set_name("source")
     drain = source.scale(xfact=-1).set_name("drain")
@@ -37,7 +37,7 @@ def transport_device():
     _ = device.mesh_stats_dict()
     _ = device.mesh_stats()
 
-    device.make_mesh(min_points=2000, optimesh_steps=100, max_edge_length=xi / 2)
+    device.make_mesh(min_points=2000, smooth=100, max_edge_length=xi / 2)
     device.coherence_length = xi
 
     _ = device.areas
@@ -80,7 +80,7 @@ def box_device():
     layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
     film = tdgl.Polygon("film", points=box(10))
     device = tdgl.Device("film", layer=layer, film=film)
-    device.make_mesh(min_points=2000, optimesh_steps=40, max_edge_length=xi / 2)
+    device.make_mesh(min_points=2000, smooth=40, max_edge_length=xi / 2)
     return device
 
 
