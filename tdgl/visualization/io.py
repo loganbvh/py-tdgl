@@ -125,4 +125,4 @@ def get_state_string(h5file: h5py.File, frame: int, max_frame: int) -> str:
 
         i += 1
 
-    return state_string[:-1]
+    return state_string
