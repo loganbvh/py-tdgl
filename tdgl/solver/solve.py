@@ -240,7 +240,9 @@ def solve(
         ).astype(np.int64)
     else:
         normal_boundary_index = np.array([], dtype=np.int64)
-    interior_indices = np.setdiff1d(np.arange(mesh.x.shape[0]), normal_boundary_index)
+    interior_indices = np.setdiff1d(
+        np.arange(mesh.sites.shape[0]), normal_boundary_index
+    )
     # Define the source-drain current.
     if terminal_currents and device.voltage_points is None:
         logger.warning(
@@ -277,9 +279,9 @@ def solve(
     mu_laplacian_lu = operators.mu_laplacian_lu
     mu_gradient = operators.mu_gradient
 
-    psi = np.ones_like(mesh.x, dtype=np.complex128)
+    psi = np.ones(mesh.sites.shape[0], dtype=np.complex128)
     psi[fixed_sites] = 0
-    mu = np.zeros(len(mesh.x))
+    mu = np.zeros(mesh.sites.shape[0])
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the alpha parameter, which is the maximum value of |psi| at each position.
     if callable(disorder_alpha):
@@ -291,12 +293,12 @@ def solve(
 
     if options.include_screening:
         # Pre-compute the kernel for the screening integral.
-        edge_points = np.array([mesh.edge_mesh.x, mesh.edge_mesh.y]).T
+        edge_points = mesh.edge_mesh.centers
         edge_directions = mesh.edge_mesh.directions
         edge_directions = (
             edge_directions / np.linalg.norm(edge_directions, axis=1)[:, np.newaxis]
         )
-        site_points = np.array([mesh.x, mesh.y]).T
+        site_points = mesh.sites
         weights = mesh.areas
         inv_rho = 1 / spatial.distance.cdist(edge_points, site_points)
         # (edges, sites, spatial dimensions)
@@ -347,7 +349,7 @@ def solve(
         if options.include_screening:
             # 3D current density
             J_edge = supercurrent_val + normal_current_val
-            J_site = mesh.get_observable_on_site(J_edge)
+            J_site = mesh.get_quantity_on_site(J_edge)
             # i: edges, j: sites, k: spatial dimensions
             induced_vector_potential_val = np.asarray(
                 einsum("jk, ijk -> ik", J_site, inv_rho)

@@ -112,7 +112,7 @@ def test_polygon_join():
     for min_points, smooth in [(None, None), (500, None), (500, 10)]:
         mesh = square1.make_mesh(min_points=min_points, smooth=smooth)
         if min_points:
-            assert mesh.x.shape[0] > min_points
+            assert mesh.sites.shape[0] > min_points
 
 
 def test_plot_polygon():
@@ -256,7 +256,9 @@ def device_with_mesh():
 
 
 @pytest.mark.parametrize("legend", [False, True])
-def test_plot_device(device, device_with_mesh, legend, mesh=True):
+def test_plot_device(
+    device: tdgl.Device, device_with_mesh: tdgl.Device, legend, mesh=True
+):
     with non_gui_backend():
         fig, axes = device.plot(legend=legend)
         with pytest.raises(RuntimeError):
@@ -266,7 +268,7 @@ def test_plot_device(device, device_with_mesh, legend, mesh=True):
 
 
 @pytest.mark.parametrize("legend", [False, True])
-def test_draw_device(device, legend):
+def test_draw_device(device: tdgl.Device, legend):
     with non_gui_backend():
         fig, axes = device.draw(exclude="disk", legend=legend)
         fig, axes = device.draw(
@@ -283,11 +285,39 @@ def test_draw_device(device, legend):
         plt.close("all")
 
 
+@pytest.mark.parametrize("show_sites", [False, True])
+@pytest.mark.parametrize("show_edges", [False, True])
+@pytest.mark.parametrize("show_dual_edges", [False, True])
+@pytest.mark.parametrize("show_voronoi_centroids", [False, True])
+@pytest.mark.parametrize("ax", [None, "new"])
+def test_plot_mesh(
+    device_with_mesh: tdgl.Device,
+    show_sites,
+    show_edges,
+    show_dual_edges,
+    show_voronoi_centroids,
+    ax,
+):
+    mesh = device_with_mesh.mesh
+    kwargs = dict(
+        show_sites=show_sites,
+        show_edges=show_edges,
+        show_dual_edges=show_dual_edges,
+        show_voronoi_centroids=show_voronoi_centroids,
+    )
+    with non_gui_backend():
+        if ax is not None:
+            _, ax = plt.subplots()
+            kwargs["ax"] = ax
+        ax = mesh.plot(**kwargs)
+        assert isinstance(ax, plt.Axes)
+
+
 @pytest.mark.parametrize(
     ", ".join(["min_points", "smooth"]),
     [(None, None), (None, 20), (1200, None), (1200, 20)],
 )
-def test_make_mesh(device, min_points, smooth):
+def test_make_mesh(device: tdgl.Device, min_points, smooth):
     device.make_mesh(
         min_points=min_points,
         smooth=smooth,
@@ -300,7 +330,7 @@ def test_make_mesh(device, min_points, smooth):
 
 
 @pytest.mark.parametrize("save_mesh", [False, True])
-def test_device_to_file(device, device_with_mesh, save_mesh):
+def test_device_to_file(device: tdgl.Device, device_with_mesh: tdgl.Device, save_mesh):
 
     with tempfile.TemporaryDirectory() as directory:
         path = os.path.join(directory, "device.h5")
@@ -315,7 +345,7 @@ def test_device_to_file(device, device_with_mesh, save_mesh):
     assert device_with_mesh == loaded_device
 
 
-def test_pickle_device(device, device_with_mesh):
+def test_pickle_device(device: tdgl.Device, device_with_mesh: tdgl.Device):
 
     loaded_device = pickle.loads(pickle.dumps(device))
     loaded_device_with_mesh = pickle.loads(pickle.dumps(device_with_mesh))

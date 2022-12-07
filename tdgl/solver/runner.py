@@ -91,7 +91,7 @@ class DataHandler:
         self.output_file, self.output_path = self._create_output_file(
             self._base_output_file
         )
-        self.time_step_group = self.output_file.create_group("data")
+        self.time_step_group = self.output_file.create_group("data", track_order=True)
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback) -> None:

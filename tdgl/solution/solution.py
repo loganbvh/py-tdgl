@@ -25,7 +25,7 @@ from ..fluxoid import Fluxoid
 from ..geometry import path_vectors
 from ..parameter import Parameter
 from ..solver.runner import SolverOptions
-from .data import DynamicsData, TDGLData, get_data_range, get_edge_observable_data
+from .data import DynamicsData, TDGLData, get_data_range, get_edge_quantity_data
 
 logger = logging.getLogger(__name__)
 
@@ -151,10 +151,10 @@ class Solution:
         mesh = self.device.mesh
         device = self.device
         self._solve_step = step
-        supercurrent, sc_direc, _ = get_edge_observable_data(
+        supercurrent, sc_direc, _ = get_edge_quantity_data(
             self.tdgl_data.supercurrent, mesh
         )
-        normal_current, nc_direc, _ = get_edge_observable_data(
+        normal_current, nc_direc, _ = get_edge_quantity_data(
             self.tdgl_data.normal_current, mesh
         )
         K0 = self.device.K0.to(f"{self.current_units} / {self.device.length_units}")
@@ -163,8 +163,8 @@ class Solution:
         self.normal_current_density = K0 * normal_current[:, np.newaxis] * nc_direc
         # Calculate the vorticity, evaluates on mesh sites.
         # The vorticity is the curl of the current density.
-        j_sc_site = mesh.get_observable_on_site(self.tdgl_data.supercurrent)
-        j_nm_site = mesh.get_observable_on_site(self.tdgl_data.normal_current)
+        j_sc_site = mesh.get_quantity_on_site(self.tdgl_data.supercurrent)
+        j_nm_site = mesh.get_quantity_on_site(self.tdgl_data.normal_current)
         j_site = j_sc_site + j_nm_site
         gradient = build_gradient(mesh)
         normalized_directions = (
@@ -176,7 +176,7 @@ class Solution:
         djy_dx = grad_jy * normalized_directions[:, 0]
         djx_dy = grad_jx * normalized_directions[:, 1]
         vorticity_on_edges = djy_dx - djx_dy
-        vorticity = mesh.get_observable_on_site(vorticity_on_edges, vector=False)
+        vorticity = mesh.get_quantity_on_site(vorticity_on_edges, vector=False)
         scale = (
             device.K0 / (device.coherence_length * device.ureg(device.length_units))
         ).to(f"{self.current_units} / {self.device.length_units}**2")
@@ -525,8 +525,7 @@ class Solution:
         number for the polygon, i.e., the fluxoid in units of ``Phi_0``.
 
         Args:
-            delta: If True, ``boundary_phases[boundary_indices[0]]`` will be subtracted
-                for each polygon.
+            delta: If True, ``boundary_phases[0]`` will be subtracted for each polygon.
 
         Returns:
             ``{polygon_name: (boundary_indices, boundary_phases)}``

@@ -42,21 +42,21 @@ def dataclass_equals(dc1: Any, dc2: Any) -> bool:
     return all(array_safe_equals(a1, a2) for a1, a2 in zip(t1, t2))
 
 
-def get_edge_observable_data(
-    observable_on_edges: np.ndarray, mesh: Mesh
+def get_edge_quantity_data(
+    quantity_on_edges: np.ndarray, mesh: Mesh
 ) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float]]:
-    """Returns the value of a vector observable living on the edges of the mesh,
+    """Returns the value of a vector quantity living on the edges of the mesh,
     evaluated at sites in the mesh.
 
     Args:
-        observable_on_edges: An array of observable values on the mesh edges.
+        quantity_on_edges: An array of quantity values on the mesh edges.
         mesh: The :class:`tdgl.finite_volume.mesh.Mesh` instance.
 
     Returns:
-        The magnitude and directions of the observable on the sites, and a tuple
+        The magnitude and directions of the quantity on the sites, and a tuple
         of the (min, max) of the data.
     """
-    directions = mesh.get_observable_on_site(observable_on_edges)
+    directions = mesh.get_quantity_on_site(quantity_on_edges)
     norm = np.linalg.norm(directions, axis=1)
     directions /= np.maximum(norm, 1e-12)[:, np.newaxis]
     return norm, directions, (np.min(norm), np.max(norm))

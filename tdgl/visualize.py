@@ -1,9 +1,13 @@
 import argparse
 import logging
 
-from .visualization.animate import multi_animate
-from .visualization.defaults import Observable
-from .visualization.interactive_plot import InteractivePlot, MultiInteractivePlot
+from .visualization.animate import animate
+from .visualization.defaults import Quantity
+from .visualization.interactive_plot import (
+    InteractivePlot,
+    MultiInteractivePlot,
+    _default_quantities,
+)
 
 logger = logging.getLogger("visualize")
 console_stream = logging.StreamHandler()
@@ -31,7 +35,7 @@ def make_parser():
     )
 
     interactive_parser = subparsers.add_parser(
-        "interactive", help="Create an interactive plot of one or more observables."
+        "interactive", help="Create an interactive plot of one or more quantities."
     )
     interactive_parser.add_argument(
         "-a",
@@ -42,11 +46,11 @@ def make_parser():
     )
     interactive_parser.add_argument(
         "-o",
-        "--observables",
+        "--quantities",
         type=lambda s: str(s).upper(),
-        choices=Observable.get_keys() + ["ALL"],
+        choices=Quantity.get_keys() + ["ALL"],
         nargs="*",
-        help="Name(s) of the observable(s) to show.",
+        help="Name(s) of the quantities to show.",
     )
 
     interactive_parser.set_defaults(func=visualize_tdgl)
@@ -62,26 +66,34 @@ def make_parser():
         "-d", "--dpi", type=float, default=200, help="Resolution in dots per inch."
     )
     animate_parser.add_argument(
-        "-s",
-        "--skip",
+        "--min-frame",
         type=int,
         default=0,
-        help="Number of frames to skip at the beginning of the animation.",
+        help="The first frame to render.",
     )
     animate_parser.add_argument(
-        "-g",
-        "--gpu",
+        "--max-frame",
+        type=int,
+        default=-1,
+        help="The last frame to render (-1 indicates the last step in the simulation).",
+    )
+    animate_parser.add_argument(
+        "--axes-off",
         action="store_true",
-        default=False,
-        help="Enable NVIDIA GPU acceleration.",
+        help="Turn the axes off.",
+    )
+    animate_parser.add_argument(
+        "--title-off",
+        action="store_true",
+        help="Turn figure title off.",
     )
     animate_parser.add_argument(
         "-o",
-        "--observables",
+        "--quantities",
         type=lambda s: str(s).upper(),
-        choices=Observable.get_keys() + ["ALL"],
+        choices=Quantity.get_keys() + ["ALL"],
         nargs="*",
-        help="Name(s) of the observable(s) to show.",
+        help="Name(s) of the quantities to show.",
     )
 
     animate_parser.set_defaults(func=animate_tdgl)
@@ -97,16 +109,20 @@ def animate_tdgl(args):
         silent=args.silent,
         dpi=args.dpi,
         fps=args.fps,
-        gpu=args.gpu,
-        skip=args.skip,
+        min_frame=args.min_frame,
+        max_frame=args.max_frame,
+        axes_off=args.axes_off,
+        title_off=args.title_off,
     )
-    if args.observables is not None and "ALL" not in args.observables:
-        kwargs["observables"] = args.observables
-    multi_animate(**kwargs)
+    if args.quantities is None or "ALL" in args.quantities:
+        kwargs["quantities"] = _default_quantities
+    else:
+        kwargs["quantities"] = args.quantities
+    animate(**kwargs)
 
 
 def visualize_tdgl(args):
-    if args.observables is None:
+    if args.quantities is None:
         InteractivePlot(
             input_file=args.input,
             enable_save=args.allow_save,
@@ -117,8 +133,8 @@ def visualize_tdgl(args):
         input_file=args.input,
         logger=logger,
     )
-    if "ALL" not in args.observables:
-        kwargs["observables"] = args.observables
+    if "ALL" not in args.quantities:
+        kwargs["quantities"] = args.quantities
     MultiInteractivePlot(**kwargs).show()
 
 

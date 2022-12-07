@@ -7,6 +7,7 @@ from .em import ureg
 from .fluxoid import Fluxoid, make_fluxoid_polygons
 from .parameter import Constant, Parameter
 from .solution.plot_solution import (
+    non_gui_backend,
     plot_currents,
     plot_field_at_positions,
     plot_order_parameter,

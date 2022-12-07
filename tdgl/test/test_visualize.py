@@ -9,7 +9,8 @@ import pytest
 import tdgl
 from tdgl import visualize
 from tdgl.solution.plot_solution import non_gui_backend
-from tdgl.visualization.animate import animate, multi_animate
+from tdgl.visualization.animate import animate
+from tdgl.visualization.interactive_plot import _default_quantities
 
 
 @pytest.fixture(scope="module")
@@ -67,12 +68,12 @@ def test_bad_input():
 
 
 @pytest.mark.parametrize(
-    "observables", [None, "all", "complex_field phase vorticity supercurrent"]
+    "quantities", [None, "all", "order_parameter phase vorticity supercurrent"]
 )
 @pytest.mark.parametrize("allow_save", [False, True])
 @pytest.mark.parametrize("silent", [False, True])
 @pytest.mark.parametrize("verbose", [False, True])
-def test_interactive(solution, observables, verbose, silent, allow_save):
+def test_interactive(solution, quantities, verbose, silent, allow_save):
     parser = visualize.make_parser()
     cmd = ["--input", solution.path, "interactive"]
     if verbose:
@@ -81,32 +82,18 @@ def test_interactive(solution, observables, verbose, silent, allow_save):
         cmd.insert(2, "--silent")
     if allow_save:
         cmd.append("--allow-save")
-    if observables is not None:
-        cmd.extend(["--observables"] + observables.split(" "))
+    if quantities is not None:
+        cmd.extend(["--quantities"] + quantities.split(" "))
     args = parser.parse_args(cmd)
     with non_gui_backend():
         tdgl.visualize.main(args)
         plt.close("all")
 
 
-@pytest.mark.parametrize("observable", ["COMPLEX_FIELD", "SUPERCURRENT"])
-@pytest.mark.parametrize("ext", [".gif"])
-def test_animate(solution, observable, ext):
-    animate(
-        solution.path,
-        output_file=solution.path.replace(".h5", ext),
-        observable=observable,
-        fps=30,
-        dpi=200,
-        skip=5,
-    )
-
-
-@pytest.mark.skip
-@pytest.mark.parametrize("observables", [None, "complex_field phase"])
+@pytest.mark.parametrize("quantities", [None, "order_parameter phase", "supercurrent"])
 @pytest.mark.parametrize("ext", ["-m.gif"])
 @pytest.mark.parametrize("max_cols", [4, 2])
-def test_multi_animate(solution, observables, ext, max_cols):
+def test_animate(solution, quantities, ext, max_cols):
     kwargs = dict(
         output_file=solution.path.replace(".h5", ext),
         full_title=False,
@@ -114,15 +101,17 @@ def test_multi_animate(solution, observables, ext, max_cols):
         fps=20,
         max_cols=max_cols,
     )
-    if observables is not None:
-        kwargs["observables"] = observables.split(" ")
-    multi_animate(solution.path, **kwargs)
+    if quantities is None:
+        kwargs["quantities"] = _default_quantities
+    if quantities is not None:
+        kwargs["quantities"] = quantities.split(" ")
+    animate(solution.path, **kwargs)
 
 
 @pytest.mark.parametrize(
-    "observables", [None, "all", "complex_field phase vorticity supercurrent"]
+    "quantities", [None, "all", "order_parameter phase vorticity supercurrent"]
 )
-def test_animate_cli(solution, observables):
+def test_animate_cli(solution, quantities):
     parser = visualize.make_parser()
     cmd = [
         "--input",
@@ -130,15 +119,17 @@ def test_animate_cli(solution, observables):
         "animate",
         "--output",
         solution.path.replace(".h5", "-cli.gif"),
-        "--skip",
-        "6",
+        "--min-frame",
+        "2",
+        "--max-frame",
+        "-1",
         "--fps",
         "30",
         "--dpi",
         "200",
     ]
-    if observables is not None:
-        cmd.extend(["--observables"] + observables.split(" "))
+    if quantities is not None:
+        cmd.extend(["--quantities"] + quantities.split(" "))
     args = parser.parse_args(cmd)
     with non_gui_backend():
         tdgl.visualize.main(args)

@@ -5,26 +5,19 @@ import numpy as np
 
 from ..finite_volume.mesh import Mesh
 from ..finite_volume.operators import build_gradient
-from ..solution.data import TDGLData, get_edge_observable_data, load_state_data
-from ..visualization.defaults import Observable
-
-
-def get_alpha(h5file: h5py.File) -> np.ndarray:
-    """Returns the array for the disorder alpha parameter."""
-    if "alpha" in h5file:
-        return np.asarray(h5file["alpha"])
-    return None
+from ..solution.data import TDGLData, get_edge_quantity_data, load_state_data
+from ..visualization.defaults import Quantity
 
 
 def get_plot_data(
-    h5file: h5py.File, mesh: Mesh, observable: Observable, frame: int
+    h5file: h5py.File, mesh: Mesh, quantity: Quantity, frame: int
 ) -> Tuple[np.ndarray, np.ndarray, Sequence[float]]:
     """Get data to plot.
 
     Args:
         h5file: The data file.
         mesh: The mesh used in the simulation.
-        observable: The observable to return.
+        quantity: The quantity to return.
         frame: The current frame.
 
     Returns:
@@ -38,57 +31,48 @@ def get_plot_data(
     a_induced = tdgl_data.induced_vector_potential
     supercurrent = tdgl_data.supercurrent
     normal_current = tdgl_data.normal_current
+    nsites = mesh.sites.shape[0]
 
-    if observable is Observable.COMPLEX_FIELD and psi is not None:
-        return np.abs(psi), np.zeros((len(mesh.x), 2)), [0, 1]
+    if quantity is Quantity.ORDER_PARAMETER and psi is not None:
+        return np.abs(psi), np.zeros((nsites, 2)), [0, 1]
 
-    elif observable is Observable.PHASE and psi is not None:
-        return np.angle(psi) / np.pi, np.zeros((len(mesh.x), 2)), [-1, 1]
+    elif quantity is Quantity.PHASE and psi is not None:
+        return np.angle(psi) / np.pi, np.zeros((nsites, 2)), [-1, 1]
 
-    elif observable is Observable.SUPERCURRENT and supercurrent is not None:
-        return get_edge_observable_data(supercurrent, mesh)
+    elif quantity is Quantity.SUPERCURRENT and supercurrent is not None:
+        return get_edge_quantity_data(supercurrent, mesh)
 
-    elif observable is Observable.NORMAL_CURRENT and normal_current is not None:
-        return get_edge_observable_data(normal_current, mesh)
+    elif quantity is Quantity.NORMAL_CURRENT and normal_current is not None:
+        return get_edge_quantity_data(normal_current, mesh)
 
-    elif observable is Observable.SCALAR_POTENTIAL and mu is not None:
+    elif quantity is Quantity.SCALAR_POTENTIAL and mu is not None:
         mu = mu - np.nanmin(mu)
-        return mu, np.zeros((len(mesh.x), 2)), [np.min(mu), np.max(mu)]
+        return mu, np.zeros((nsites, 2)), [np.min(mu), np.max(mu)]
 
-    elif observable is Observable.APPLIED_VECTOR_POTENTIAL and a_applied is not None:
-        return get_edge_observable_data(
+    elif quantity is Quantity.APPLIED_VECTOR_POTENTIAL and a_applied is not None:
+        return get_edge_quantity_data(
             (a_applied * mesh.edge_mesh.directions).sum(axis=1), mesh
         )
 
-    elif observable is Observable.INDUCED_VECTOR_POTENTIAL and a_induced is not None:
-        return get_edge_observable_data(
+    elif quantity is Quantity.INDUCED_VECTOR_POTENTIAL and a_induced is not None:
+        return get_edge_quantity_data(
             (a_induced * mesh.edge_mesh.directions).sum(axis=1), mesh
         )
 
-    elif (
-        observable is Observable.TOTAL_VECTOR_POTENTIAL
-        and a_applied is not None
-        and a_induced is not None
-    ):
-        return get_edge_observable_data(
-            ((a_applied + a_induced) * mesh.edge_mesh.directions).sum(axis=1), mesh
-        )
-
-    elif observable is Observable.ALPHA:
-        alpha = get_alpha(h5file)
-
-        if alpha is None:
+    elif quantity is Quantity.ALPHA:
+        if "alpha" in h5file:
+            alpha = np.asarray(h5file["alpha"])
+        else:
             alpha = np.ones_like(mu)
-
-        return alpha, np.zeros((len(mesh.x), 2)), [np.min(alpha), np.max(alpha)]
+        return alpha, np.zeros((nsites, 2)), [np.min(alpha), np.max(alpha)]
 
     elif (
-        observable is Observable.VORTICITY
+        quantity is Quantity.VORTICITY
         and supercurrent is not None
         and normal_current is not None
     ):
-        j_sc_site = mesh.get_observable_on_site(supercurrent)
-        j_nm_site = mesh.get_observable_on_site(normal_current)
+        j_sc_site = mesh.get_quantity_on_site(supercurrent)
+        j_nm_site = mesh.get_quantity_on_site(normal_current)
         j_site = j_sc_site + j_nm_site
         gradient = build_gradient(mesh)
         normalized_directions = (
@@ -100,11 +84,11 @@ def get_plot_data(
         djy_dx = grad_jy * normalized_directions[:, 0]
         djx_dy = grad_jx * normalized_directions[:, 1]
         vorticity_on_edges = djy_dx - djx_dy
-        vorticity = mesh.get_observable_on_site(vorticity_on_edges, vector=False)
+        vorticity = mesh.get_quantity_on_site(vorticity_on_edges, vector=False)
         vmax = max(np.abs(np.max(vorticity)), np.abs(np.min(vorticity)))
-        return vorticity, np.zeros((len(mesh.x), 2)), [-vmax, vmax]
+        return vorticity, np.zeros((nsites, 2)), [-vmax, vmax]
 
-    return np.zeros_like(mesh.x), np.zeros((len(mesh.x), 2)), [0, 0]
+    return np.zeros(nsites), np.zeros((nsites, 2)), [0, 0]
 
 
 def get_state_string(h5file: h5py.File, frame: int, max_frame: int) -> str:

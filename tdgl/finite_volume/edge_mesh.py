@@ -7,15 +7,14 @@ from .util import get_dual_edge_lengths, get_edges
 
 
 class EdgeMesh:
-    """Mesh for the edges in the original mesh.
+    """Mesh for the edges in a triangular mesh.
 
-    .. note::
+    .. tip::
 
         Use :meth:`EdgeMesh.from_mesh` to create from an existing mesh.
 
     Args:
-        x: Coordinates for the mesh points.
-        y: Coordinates for the mesh points.
+        centers: The (x, y) coordinates for the edge_centers.
         edges: The edges as a sequence of indices.
         boundary_edge_indices: Edges on the boundary.
         directions: Directions of the edges.
@@ -25,69 +24,63 @@ class EdgeMesh:
 
     def __init__(
         self,
-        x: Sequence[float],
-        y: Sequence[float],
+        centers: Sequence[Tuple[float, float]],
         edges: Sequence[Tuple[int, int]],
         boundary_edge_indices: Sequence[int],
         directions: Sequence[Tuple[float, float]],
         edge_lengths: Sequence[float],
         dual_edge_lengths: Sequence[float],
     ):
-        self.x = np.asarray(x)
-        self.y = np.asarray(y)
+        self.centers = np.asarray(centers)
         self.edges = np.asarray(edges)
         self.boundary_edge_indices = np.asarray(boundary_edge_indices, dtype=np.int64)
         self.directions = np.asarray(directions)
         self.edge_lengths = np.asarray(edge_lengths)
         self.dual_edge_lengths = np.asarray(dual_edge_lengths)
 
+    @property
+    def x(self) -> np.ndarray:
+        """The x-coordinates of the edge centers."""
+        return self.centers[:, 0]
+
+    @property
+    def y(self) -> np.ndarray:
+        """The y-coordinates of the edge centers."""
+        return self.centers[:, 1]
+
     @classmethod
     def from_mesh(
         cls,
-        x: np.ndarray,
-        y: np.ndarray,
+        sites: np.ndarray,
         elements: np.ndarray,
-        x_dual: np.ndarray,
-        y_dual: np.ndarray,
+        dual_sites: np.ndarray,
     ) -> "EdgeMesh":
         """Create edge mesh from mesh.
 
         Args:
-            x: The x coordinates for the mesh vertices.
-            y: The y coordinates for the mesh vertices.
+            sites: The (x, y) coordinates for the mesh vertices.
             elements: Elements for the mesh.
-            x_dual: The x coordinates for the dual mesh vertices.
-            y_dual: The y coordinates for the dual mesh vertices.
+            dual_sites: The (xm y) coordinates for the dual mesh vertices.
 
         Returns:
             The edge mesh.
         """
-        # Get the edges and the boundary edges
         edges, is_boundary = get_edges(elements)
         # Get the indices of the boundary edges
         boundary_edge_indices = np.where(is_boundary)[0]
-        # Get the coordinates
-        xe = np.mean(x[edges], axis=1)
-        ye = np.mean(y[edges], axis=1)
-
-        # Get the directions
-        directions = np.concatenate(
-            [np.diff(x[edges], axis=1), np.diff(y[edges], axis=1)], axis=1
-        )
-        # Get the lengths of the edges
+        # Shape (m, 2, 2), (sites, edges, spatial dimensions)
+        edge_coords = sites[edges]
+        edge_centers = edge_coords.mean(axis=1)
+        directions = np.diff(edge_coords, axis=1).squeeze()
         edge_lengths = np.linalg.norm(directions, axis=1)
-        # Get the lengths of the edge duals
         dual_edge_lengths = get_dual_edge_lengths(
-            xe=xe,
-            ye=ye,
-            elements=elements,
-            x_dual=x_dual,
-            y_dual=y_dual,
-            edges=edges,
+            edge_centers,
+            elements,
+            dual_sites,
+            edges,
         )
         return EdgeMesh(
-            xe,
-            ye,
+            edge_centers,
             edges,
             boundary_edge_indices,
             directions,
@@ -101,8 +94,7 @@ class EdgeMesh:
         Args:
             h5group: The HDF5 group to write the data to.
         """
-        h5group["x"] = self.x
-        h5group["y"] = self.y
+        h5group["centers"] = self.centers
         h5group["edges"] = self.edges
         h5group["boundary_edge_indices"] = self.boundary_edge_indices
         h5group["directions"] = self.directions
@@ -120,8 +112,7 @@ class EdgeMesh:
             The loaded edge mesh.
         """
         if not (
-            "x" in h5group
-            and "y" in h5group
+            "centers" in h5group
             and "edges" in h5group
             and "boundary_edge_indices" in h5group
             and "directions" in h5group
@@ -130,8 +121,7 @@ class EdgeMesh:
         ):
             raise IOError("Could not load edge mesh due to missing data.")
         return EdgeMesh(
-            x=h5group["x"],
-            y=h5group["y"],
+            centers=h5group["centers"],
             edges=h5group["edges"],
             boundary_edge_indices=h5group["boundary_edge_indices"],
             directions=h5group["directions"],

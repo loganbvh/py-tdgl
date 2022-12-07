@@ -1,25 +1,27 @@
 from typing import List, Sequence, Tuple, Union
 
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 
+from ..geometry import close_curve
 from .edge_mesh import EdgeMesh
 from .util import (
     compute_surrounding_area,
+    convex_polygon_centroid,
     generate_voronoi_vertices,
     get_edges,
     get_surrounding_voronoi_polygons,
-    orient_convex_polygon_vertices,
+    orient_convex_polygon,
 )
 
 
 class Mesh:
     """A triangular mesh of a simply- or multiply-connected polygon.
 
-    .. note::
+    .. tip::
 
-        Use :meth:`Mesh.from_triangulation` to create a new mesh.
-        The ``__init__`` constructor requires that all parameters to be known.
+        Use :meth:`Mesh.from_triangulation` to create a new mesh from a triangulation.
 
     Args:
         x: The x coordinates for the triangle vertices.
@@ -37,18 +39,15 @@ class Mesh:
 
     def __init__(
         self,
-        x: Sequence[float],
-        y: Sequence[float],
+        sites: Sequence[Tuple[float, float]],
         elements: Sequence[Tuple[int, int, int]],
         boundary_indices: Sequence[int],
         areas: Union[Sequence[float], None] = None,
-        voronoi_polygons: Union[List[Sequence[int]], None] = None,
-        x_dual: Union[Sequence[float], None] = None,
-        y_dual: Union[Sequence[float], None] = None,
+        voronoi_polygons: Union[List[Sequence[Tuple[float, float]]], None] = None,
+        dual_sites: Union[Sequence[Tuple[float, float]], None] = None,
         edge_mesh: Union[EdgeMesh, None] = None,
     ):
-        self.x = np.asarray(x).squeeze()
-        self.y = np.asarray(y).squeeze()
+        self.sites = np.asarray(sites).squeeze()
         # Setting dtype to int64 is important when running on Windows.
         # Using default dtype uint64 does not work as Scipy indices in some
         # instances.
@@ -56,34 +55,26 @@ class Mesh:
         self.boundary_indices = np.asarray(boundary_indices, dtype=np.int64)
         if areas is not None:
             areas = np.asarray(areas)
-        if x_dual is not None:
-            x_dual = np.asarray(x_dual)
-        if y_dual is not None:
-            y_dual = np.asarray(y_dual)
+        if dual_sites is not None:
+            dual_sites = np.asarray(dual_sites)
         self.areas = areas
-        self.x_dual = x_dual
-        self.y_dual = y_dual
+        self.dual_sites = dual_sites
         self.edge_mesh = edge_mesh
         self.voronoi_polygons = voronoi_polygons
-        if self.voronoi_polygons is not None and self.x_dual is not None:
+        if self.voronoi_polygons is not None:
             self.voronoi_polygons = [
-                orient_convex_polygon_vertices(self.dual_sites, indices)
-                for indices in self.voronoi_polygons
+                orient_convex_polygon(polygon) for polygon in self.voronoi_polygons
             ]
 
     @property
-    def sites(self) -> np.ndarray:
-        """The mesh sites as a shape ``(n, 2)`` array."""
-        return np.array([self.x, self.y]).T
+    def x(self) -> np.ndarray:
+        """The x-coordinates of the mesh sites."""
+        return self.sites[:, 0]
 
     @property
-    def dual_sites(self) -> Union[np.ndarray, None]:
-        """Returns the dual mesh sites (Voronoi polygon vertices) as
-        a shape ``(m, 2)`` array.
-        """
-        if self.x_dual is None:
-            return None
-        return np.array([self.x_dual, self.y_dual]).T
+    def y(self) -> np.ndarray:
+        """The y-coordinates of the mesh sites."""
+        return self.sites[:, 1]
 
     def closest_site(self, xy: Tuple[float, float]) -> int:
         """Returns the index of the mesh site closest to ``(x, y)``.
@@ -98,8 +89,7 @@ class Mesh:
 
     @staticmethod
     def from_triangulation(
-        x: Sequence[float],
-        y: Sequence[float],
+        sites: Sequence[Tuple[float, float]],
         elements: Sequence[Tuple[int, int, int]],
         create_submesh: bool = True,
     ) -> "Mesh":
@@ -113,43 +103,38 @@ class Mesh:
                 that form a triangle.   E.g. [[0, 1, 2], [0, 1, 3]] corresponds to a
                 triangle connecting vertices 0, 1, and 2 and another triangle
                 connecting vertices 0, 1, and 3.
+            create_submesh: Whether to generate the corresponding
+                :class`tdgl.finit_volume.EdgeMesh` and Voronoi dual mesh.
+
+        Returns:
+            A new :class:`tdgl.finite_volume.Mesh` instance
         """
         # Store the data
-        x = np.asarray(x).squeeze()
-        y = np.asarray(y).squeeze()
+        sites = np.asarray(sites).squeeze()
         elements = np.asarray(elements).squeeze()
-        if x.ndim != 1:
+        if sites.ndim != 2 or sites.shape[1] != 2:
             raise ValueError(
-                "The x coordinates need to be stored in " "an one dimensional array."
+                f"The site coordinates must have shape (n, 2), got {sites.shape!r}"
             )
-        if y.ndim != 1:
+        if elements.ndim != 2 or elements.shape[1] != 3:
             raise ValueError(
-                "The y coordinates need to be stored in " "an one dimensional array."
+                f"The elements must have shape (m, 3), got {elements.shape!r}."
             )
-        if np.size(x) != np.size(y):
-            raise ValueError(
-                "The number of x coordinates need to be equal to the "
-                "number of y coordinates."
-            )
-        if elements.ndim != 2 or (elements.shape[0] != 3 and elements.shape[1] != 3):
-            raise ValueError("The elements need to be a (n, 3)-vector.")
         boundary_indices = Mesh.find_boundary_indices(elements)
-        x_dual = y_dual = edge_mesh = polygons = areas = None
+        dual_sites = edge_mesh = polygons = areas = None
         if create_submesh:
-            x_dual, y_dual = generate_voronoi_vertices(x, y, elements)
-            edge_mesh = EdgeMesh.from_mesh(x, y, elements, x_dual, y_dual)
+            dual_sites = generate_voronoi_vertices(sites, elements)
+            edge_mesh = EdgeMesh.from_mesh(sites, elements, dual_sites)
             areas, polygons = Mesh.compute_voronoi_areas_polygons(
-                x, y, elements, x_dual, y_dual, edge_mesh, boundary_indices
+                sites, elements, dual_sites, edge_mesh, boundary_indices
             )
         return Mesh(
-            x=x,
-            y=y,
+            sites=sites,
             elements=elements,
             boundary_indices=boundary_indices,
             edge_mesh=edge_mesh,
             voronoi_polygons=polygons,
-            x_dual=x_dual,
-            y_dual=y_dual,
+            dual_sites=dual_sites,
             areas=areas,
         )
 
@@ -161,7 +146,7 @@ class Mesh:
             elements: The triangular elements.
 
         Returns:
-            A list of vertex indices corresponding to the boundary.
+            An array of site indices corresponding to the boundary.
         """
         edges, is_boundary = get_edges(elements)
         # Get the boundary edges and all boundary points
@@ -170,42 +155,50 @@ class Mesh:
 
     @staticmethod
     def compute_voronoi_areas_polygons(
-        x: np.ndarray,
-        y: np.ndarray,
+        sites: np.ndarray,
         elements: np.ndarray,
-        x_dual: np.ndarray,
-        y_dual: np.ndarray,
+        dual_sites: np.ndarray,
         edge_mesh: EdgeMesh,
         boundary_indices: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Compute the area and indices of the Voronoi region for each vertex."""
+        """Compute the area and indices of the Voronoi region for each vertex.
 
+        Args:
+            sites: The (x, y) coordinates of the mesh sites.
+            elements: The mesh triangle indices.
+            dual_sites: The (x, y) coordinates of the dual mesh vertices.
+            edge_mesh: A :class:`tdgl.finite_volume.EdgeMesh` instance for the
+                triangulation defined by ``sites`` and ``elements``.
+            boundary_indices: The site indices corresponding to the boundary.
+
+        Returns:
+            The Voronoi cell areas and the (unordered) vertices of the Voronoi cells.
+        """
         # Compute polygons to use when computing area
-        polygons = get_surrounding_voronoi_polygons(elements, len(x))
+        polygons = get_surrounding_voronoi_polygons(elements, sites.shape[0])
         # Get the areas for each vertex
-        areas = compute_surrounding_area(
-            x=x,
-            y=y,
+        areas, voronoi_sites = compute_surrounding_area(
+            sites=sites,
+            dual_sites=dual_sites,
             boundary=boundary_indices,
             edges=edge_mesh.edges,
             boundary_edge_indices=edge_mesh.boundary_edge_indices,
-            x_dual=x_dual,
-            y_dual=y_dual,
             polygons=polygons,
         )
-        return areas, polygons
+        return areas, voronoi_sites
 
-    def get_observable_on_site(
-        self, observable_on_edge: np.ndarray, vector: bool = True
+    def get_quantity_on_site(
+        self, quantity_on_edge: np.ndarray, vector: bool = True
     ) -> np.ndarray:
-        """Compute the observable on site by averaging over all edges
+        """Compute the quantity on site by averaging over all edges
         connecting to each site.
 
         Args:
-            observable_on_edge: Observable on the edges.
+            quantity_on_edge: Observable on the edges.
+            vector: Whether ``quantity_on_edge`` is a vector quantity.
 
         Returns:
-            The observable vector or scalar at each site.
+            The quantity vector or scalar at each site.
         """
         # Normalize the edge direction
         directions = self.edge_mesh.directions
@@ -213,21 +206,19 @@ class Mesh:
             directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
         )
         if vector:
-            flux_x = observable_on_edge * normalized_directions[:, 0]
-            flux_y = observable_on_edge * normalized_directions[:, 1]
+            flux_x = quantity_on_edge * normalized_directions[:, 0]
+            flux_y = quantity_on_edge * normalized_directions[:, 1]
         else:
-            flux_x = flux_y = observable_on_edge
+            flux_x = flux_y = quantity_on_edge
         # Sum x and y components for every edge connecting to the vertex
         vertices = np.concatenate(
             [self.edge_mesh.edges[:, 0], self.edge_mesh.edges[:, 1]]
         )
         x_values = np.concatenate([flux_x, flux_x])
         y_values = np.concatenate([flux_y, flux_y])
-
         counts = np.bincount(vertices)
         x_group_values = np.bincount(vertices, weights=x_values) / counts
         y_group_values = np.bincount(vertices, weights=y_values) / counts
-
         vector_val = np.array([x_group_values, y_group_values]).T / 2
         if vector:
             return vector_val
@@ -247,45 +238,116 @@ class Mesh:
         mesh = self
         elements = mesh.elements
         edges, _ = get_edges(elements)
-        n = mesh.x.shape[0]
+        n = mesh.sites.shape[0]
         shape = (n, 2)
         boundary = mesh.boundary_indices
         for i in range(iterations):
             sites = mesh.sites
             num_neighbors = np.bincount(edges.ravel(), minlength=shape[0])
 
-            new_points = np.zeros(shape)
+            new_sites = np.zeros(shape)
             vals = sites[edges[:, 1]].T
-            new_points += np.array(
+            new_sites += np.array(
                 [np.bincount(edges[:, 0], val, minlength=n) for val in vals]
             ).T
             vals = sites[edges[:, 0]].T
-            new_points += np.array(
+            new_sites += np.array(
                 [np.bincount(edges[:, 1], val, minlength=n) for val in vals]
             ).T
-            new_points /= num_neighbors[:, np.newaxis]
+            new_sites /= num_neighbors[:, np.newaxis]
             # reset boundary points
-            new_points[boundary] = sites[boundary]
+            new_sites[boundary] = sites[boundary]
             mesh = Mesh.from_triangulation(
-                new_points[:, 0],
-                new_points[:, 1],
+                new_sites,
                 elements,
                 create_submesh=(create_submesh and (i == (iterations - 1))),
             )
         return mesh
 
+    def plot(
+        self,
+        ax: Union[plt.Axes, None] = None,
+        show_sites: bool = True,
+        show_edges: bool = False,
+        show_dual_edges: bool = True,
+        show_voronoi_centroids: bool = False,
+        site_color: Union[str, Sequence[float], None] = None,
+        edge_color: Union[str, Sequence[float], None] = "k",
+        centroid_color: Union[str, Sequence[float], None] = None,
+        dual_edge_color: Union[str, Sequence[float], None] = "k",
+        linewidth: float = 0.75,
+        linestyle: str = "-",
+        marker: str = ".",
+    ) -> plt.Axes:
+        """Plot the mesh.
+
+        Args:
+            ax: A :class:`plt.Axes` instance on which to plot the mesh.
+            show_sites: Whether to show the mesh sites.
+            show_edges: Whether to show the mesh edges.
+            show_dual_edges: Whether to show the dual mesh edges.
+            show_voronoi_centroids: Whether to show the centroid of each Voronoi cell.
+            site_color: The color for the sites.
+            edge_color: The color for the edges.
+            dual_edge_color: The color for the dual edges.
+            centroid_color: The color for the Voronoi centroids.
+            linewidth: The line width for all edges.
+            linestyle: The line style for all edges.
+            marker: The marker to use for the mesh sites and Voronoi centroids.
+
+        Returns:
+            The resulting :class:`plt.Axes`
+        """
+
+        if ax is None:
+            _, ax = plt.subplots()
+        ax.set_aspect("equal")
+
+        x, y = self.sites.T
+        tri = self.elements
+
+        if show_edges:
+            ax.triplot(x, y, tri, color=edge_color, ls=linestyle, lw=linewidth)
+        if show_dual_edges:
+            for poly in self.voronoi_polygons:
+                ax.plot(
+                    *close_curve(poly).T,
+                    color=dual_edge_color,
+                    ls=linestyle,
+                    lw=linewidth,
+                )
+        if show_sites:
+            ax.plot(x, y, marker=marker, ls="", color=site_color)
+        if show_voronoi_centroids:
+            centroids = [convex_polygon_centroid(p) for p in self.voronoi_polygons]
+            ax.plot(*np.array(centroids).T, marker=marker, ls="", color=centroid_color)
+
+        return ax
+
     def to_hdf5(self, h5group: h5py.Group, compress: bool = False) -> None:
-        h5group["x"] = self.x
-        h5group["y"] = self.y
+        """Save the mesh to a :class:`h5py.Group`.
+
+        Args:
+            h5group: The :class`h5py.Group` into which to store the mesh.
+            compress: If ``True``, store only the sites and elements.
+        """
+        h5group["sites"] = self.sites
         h5group["elements"] = self.elements
         if not compress:
             h5group["boundary_indices"] = self.boundary_indices
             h5group["areas"] = self.areas
             self.edge_mesh.to_hdf5(h5group.create_group("edge_mesh"))
-            if self.x_dual is not None:
-                h5group["x_dual"] = self.x_dual
-            if self.y_dual is not None:
-                h5group["y_dual"] = self.y_dual
+            if self.dual_sites is not None:
+                h5group["dual_sites"] = self.dual_sites
+            # Save the Voronoi indices as two flat arrays.
+            # The ragged list of polygon vertices can be recovered by calling
+            # np.split(vertices_flat, split_indices)
+            split_indices = np.cumsum(
+                [len(polygon) for polygon in self.voronoi_polygons]
+            )
+            polygons_flat = np.concatenate(self.voronoi_polygons, axis=0)
+            h5group["voronoi_polygons_flat"] = polygons_flat
+            h5group["voronoi_split_indices"] = split_indices
 
     @staticmethod
     def from_hdf5(h5group: h5py.Group) -> "Mesh":
@@ -297,39 +359,41 @@ class Mesh:
         Returns:
             The loaded mesh.
         """
-        # Check that the required attributes x, y, and elements are in the group
-        if not ("x" in h5group and "y" in h5group and "elements" in h5group):
+        if not ("sites" in h5group and "elements" in h5group):
             raise IOError("Could not load mesh due to missing data.")
 
-        # Check if the mesh can be restored
         if Mesh.is_restorable(h5group):
-            # Restore the mesh with the data
+            polygons_flat = np.asarray(h5group["voronoi_polygons_flat"])
+            voronoi_indices = np.asarray(h5group["voronoi_split_indices"])
+            voronoi_polygons = np.split(polygons_flat, voronoi_indices)
             return Mesh(
-                x=h5group["x"],
-                y=h5group["y"],
+                sites=h5group["sites"],
                 elements=h5group["elements"],
                 boundary_indices=h5group["boundary_indices"],
                 areas=h5group["areas"],
-                x_dual=h5group["x_dual"],
-                y_dual=h5group["y_dual"],
+                dual_sites=h5group["dual_sites"],
+                voronoi_polygons=voronoi_polygons,
                 edge_mesh=EdgeMesh.from_hdf5(h5group["edge_mesh"]),
             )
         # Recreate mesh from triangulation data if not all data is available
         return Mesh.from_triangulation(
-            x=np.asarray(h5group["x"]).flatten(),
-            y=np.asarray(h5group["y"]).flatten(),
+            sites=np.asarray(h5group["sites"]).squeeze(),
             elements=h5group["elements"],
         )
 
     @staticmethod
     def is_restorable(h5group: h5py.Group) -> bool:
+        """Returns ``True`` if the :class:`h5py.Group` contains all of the data
+        necessary to create a :class:`tdgl.finite_volume.Mesh` without re-computing
+        any values.
+        """
         return (
-            "x" in h5group
-            and "y" in h5group
+            "sites" in h5group
             and "elements" in h5group
             and "boundary_indices" in h5group
             and "areas" in h5group
             and "edge_mesh" in h5group
-            and "x_dual" in h5group
-            and "y_dual" in h5group
+            and "dual_sites" in h5group
+            and "voronoi_polygons_flat" in h5group
+            and "voronoi_split_indices" in h5group
         )

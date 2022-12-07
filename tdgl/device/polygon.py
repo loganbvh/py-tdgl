@@ -193,12 +193,12 @@ class Polygon:
         )
         if smooth:
             mesh = Mesh.from_triangulation(
-                points[:, 0], points[:, 1], triangles, create_submesh=False
+                points, triangles, create_submesh=False
             ).smooth(smooth)
         else:
-            mesh = Mesh.from_triangulation(points[:, 0], points[:, 1], triangles)
+            mesh = Mesh.from_triangulation(points, triangles)
         logger.debug(
-            f"Finished generating mesh with {mesh.x.shape[0]} points and "
+            f"Finished generating mesh with {mesh.sites.shape[0]} points and "
             f"{mesh.elements.shape[0]} triangles."
         )
         return mesh

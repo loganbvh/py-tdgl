@@ -178,7 +178,7 @@ class Device:
         xi = self.layer.coherence_length
         mesh = self.mesh
         sites = self.points
-        edge_positions = xi * np.array([mesh.edge_mesh.x, mesh.edge_mesh.y]).T
+        edge_positions = xi * mesh.edge_mesh.centers
         ix_boundary = mesh.edge_mesh.boundary_edge_indices
         edge_lengths = self.edge_lengths[ix_boundary]
         boundary_edge_positions = edge_positions[ix_boundary]
@@ -525,7 +525,7 @@ class Device:
         )
         if smooth:
             mesh = Mesh.from_triangulation(
-                points[:, 0], points[:, 1], triangles, create_submesh=False
+                points, triangles, create_submesh=False
             ).smooth(smooth, create_submesh=False)
             points = mesh.sites
             triangles = mesh.elements
@@ -548,10 +548,7 @@ class Device:
             The dimensionless ``Mesh`` object.
         """
         self.mesh = Mesh.from_triangulation(
-            points[:, 0] / self.coherence_length,
-            points[:, 1] / self.coherence_length,
-            triangles,
-            create_submesh=True,
+            points / self.coherence_length, triangles, create_submesh=True
         )
 
     def mesh_stats_dict(self) -> Dict[str, Union[int, float, str]]:
@@ -572,8 +569,8 @@ class Device:
                 return arr.mean()
 
         return dict(
-            num_sites=len(self.mesh.x) if self.mesh else None,
-            num_elements=len(self.mesh.elements) if self.mesh else None,
+            num_sites=self.mesh.sites.shape[0] if self.mesh else None,
+            num_elements=self.mesh.elements.shape[0] if self.mesh else None,
             min_edge_length=_min(edge_lengths),
             max_edge_length=_max(edge_lengths),
             mean_edge_length=_mean(edge_lengths),

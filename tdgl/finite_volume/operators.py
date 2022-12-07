@@ -31,7 +31,7 @@ def build_divergence(mesh: Mesh) -> sp.csr_matrix:
         [weights / mesh.areas[edges0], -weights / mesh.areas[edges1]]
     )
     return sp.csr_matrix(
-        (values, (rows, cols)), shape=(len(mesh.x), len(edge_mesh.edges))
+        (values, (rows, cols)), shape=(len(mesh.sites), len(edge_mesh.edges))
     )
 
 
@@ -64,7 +64,7 @@ def build_gradient(
     cols = np.concatenate([edge_mesh.edges[:, 1], edge_mesh.edges[:, 0]])
     values = np.concatenate([link_variable_weights * weights, -weights])
     return sp.csr_matrix(
-        (values, (rows, cols)), shape=(len(edge_mesh.edges), len(mesh.x))
+        (values, (rows, cols)), shape=(len(edge_mesh.edges), len(mesh.sites))
     )
 
 
@@ -130,7 +130,9 @@ def build_laplacian(
     values = np.concatenate(
         [values, fixed_sites_eigenvalues * np.ones(len(fixed_sites))]
     )
-    laplacian = sp.csc_matrix((values, (rows, cols)), shape=(len(mesh.x), len(mesh.x)))
+    laplacian = sp.csc_matrix(
+        (values, (rows, cols)), shape=(len(mesh.sites), len(mesh.sites))
+    )
     return laplacian, free_rows
 
 
@@ -166,7 +168,7 @@ def build_neumann_boundary_laplacian(
     )
     # Build the matrix
     neumann_laplacian = sp.csr_matrix(
-        (values, (rows, cols)), shape=(len(mesh.x), len(boundary_index))
+        (values, (rows, cols)), shape=(len(mesh.sites), len(boundary_index))
     )
     # Change the rows corresponding to fixed sites to identity
     if fixed_sites is not None:
