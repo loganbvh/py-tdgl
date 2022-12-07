@@ -259,26 +259,6 @@ def triangle_areas(points: np.ndarray, triangles: np.ndarray) -> np.ndarray:
     return a * 0.5
 
 
-def orient_convex_polygon_vertices(
-    vertices: np.ndarray, indices: np.ndarray
-) -> np.ndarray:
-    """Returns counterclockwise-oriented vertex indices for a convex polygon.
-
-    Args:
-        vertices: The vertex positions (x, y), shape ``(n, 2)``.
-        indices: Indices into ``vertices`` that define a convex polygon,
-            but for which the ordering is unknown.
-
-    Returns:
-        ``indices``, sorted so as to orient ``vertices`` counterclockwise.
-    """
-    # Sort the vertices by the angle between each vertex and some point in the
-    # interior of the polygon. Here we use the mean of the vertices.
-    vertices = vertices[indices]
-    diffs = vertices - vertices.mean(axis=0)
-    return indices[np.argsort(np.arctan2(diffs[:, 1], diffs[:, 0]))]
-
-
 def orient_convex_polygon(vertices: np.ndarray) -> np.ndarray:
     """Returns counterclockwise-oriented vertices for a convex polygon.
 
@@ -288,6 +268,8 @@ def orient_convex_polygon(vertices: np.ndarray) -> np.ndarray:
     Returns:
         The ``vertices`` sorted counterclockwise.
     """
+    # Sort the vertices by the angle between each vertex and some point in the
+    # interior of the polygon. Here we use the mean of the vertices.
     diffs = vertices - vertices.mean(axis=0)
     return vertices[np.argsort(np.arctan2(diffs[:, 1], diffs[:, 0]))]
 

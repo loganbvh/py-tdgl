@@ -10,7 +10,7 @@ import tdgl
 from tdgl import visualize
 from tdgl.solution.plot_solution import non_gui_backend
 from tdgl.visualization.animate import animate
-from tdgl.visualization.interactive_plot import _default_quantities
+from tdgl.visualization.interactive_plot import Quantity, _default_quantities
 
 
 @pytest.fixture(scope="module")
@@ -68,7 +68,7 @@ def test_bad_input():
 
 
 @pytest.mark.parametrize(
-    "quantities", [None, "all", "order_parameter phase vorticity supercurrent"]
+    "quantities", [None, "all"] + [name.lower() for name in Quantity.get_keys()]
 )
 @pytest.mark.parametrize("allow_save", [False, True])
 @pytest.mark.parametrize("silent", [False, True])
