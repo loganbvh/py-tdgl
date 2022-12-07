@@ -88,6 +88,7 @@ def test_plot_field_at_positions(
         units=units,
         cross_section_coords=cross_section_coords,
         auto_range_cutoff=auto_range_cutoff,
+        share_color_scale=True,
     )
     plt.close(fig)
 

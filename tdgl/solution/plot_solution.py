@@ -261,9 +261,7 @@ def plot_currents(
         auto_range_cutoff: Cutoff percentile for :func:`tdgl.solution.plot_solution.auto_range_iqr`.
         symmetric_color_scale: Whether to use a symmetric color scale (vmin = -vmax).
         vmin: Color scale minimum to use for all layers
-            (ignored if share_color_scale is True).
         vmax: Color scale maximum to use for all layers
-            (ignored if share_color_scale is True).
         streamplot: Whether to overlay current streamlines on the plot.
         min_stream_amp: Streamlines will not be drawn anywhere the
             current density is less than min_stream_amp * max(current_density).
