@@ -341,7 +341,7 @@ class Mesh:
             # The ragged list of polygon vertices can be recovered by calling
             # np.split(polygons_flat, split_indices)
             split_indices = np.cumsum(
-                [len(polygon) for polygon in self.voronoi_polygons[::-1]]
+                [len(polygon) for polygon in self.voronoi_polygons[:-1]]
             )
             polygons_flat = np.concatenate(self.voronoi_polygons, axis=0)
             h5group["voronoi_polygons_flat"] = polygons_flat
