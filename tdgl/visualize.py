@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from .visualization.animate import animate
+from .visualization.animate import create_animation
 from .visualization.defaults import Quantity
 from .visualization.interactive_plot import (
     InteractivePlot,
@@ -10,9 +10,6 @@ from .visualization.interactive_plot import (
 )
 
 logger = logging.getLogger("visualize")
-console_stream = logging.StreamHandler()
-console_stream.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-logger.addHandler(console_stream)
 
 
 def make_parser():
@@ -38,19 +35,15 @@ def make_parser():
         "interactive", help="Create an interactive plot of one or more quantities."
     )
     interactive_parser.add_argument(
-        "-a",
-        "--allow-save",
-        action="store_true",
-        default=False,
-        help="Allow saving file.",
-    )
-    interactive_parser.add_argument(
-        "-o",
+        "-q",
         "--quantities",
         type=lambda s: str(s).upper(),
         choices=Quantity.get_keys() + ["ALL"],
         nargs="*",
-        help="Name(s) of the quantities to show.",
+        help=(
+            "Name(s) of the quantities to show. Because ``quantities`` takes a "
+            "variable number of arguments, it must be the last argument provided."
+        ),
     )
 
     interactive_parser.set_defaults(func=visualize_tdgl)
@@ -58,7 +51,9 @@ def make_parser():
     animate_parser = subparsers.add_parser(
         "animate", help="Create an animation of the TDGL data."
     )
-    animate_parser.add_argument("--output", type=str, help="Output file for animation.")
+    animate_parser.add_argument(
+        "-o", "--output", type=str, help="Output file for animation."
+    )
     animate_parser.add_argument(
         "-f", "--fps", type=int, default=30, help="Frame rate of the animation."
     )
@@ -88,12 +83,15 @@ def make_parser():
         help="Turn figure title off.",
     )
     animate_parser.add_argument(
-        "-o",
+        "-q",
         "--quantities",
         type=lambda s: str(s).upper(),
         choices=Quantity.get_keys() + ["ALL"],
         nargs="*",
-        help="Name(s) of the quantities to show.",
+        help=(
+            "Name(s) of the quantities to show. Because 11quantities11 takes a "
+            "variable number of arguments, it must be the last argument provided."
+        ),
     )
 
     animate_parser.set_defaults(func=animate_tdgl)
@@ -118,21 +116,14 @@ def animate_tdgl(args):
         kwargs["quantities"] = _default_quantities
     else:
         kwargs["quantities"] = args.quantities
-    animate(**kwargs)
+    create_animation(**kwargs)
 
 
 def visualize_tdgl(args):
     if args.quantities is None:
-        InteractivePlot(
-            input_file=args.input,
-            enable_save=args.allow_save,
-            logger=logger,
-        ).show()
+        InteractivePlot(input_file=args.input, logger=logger).show()
         return
-    kwargs = dict(
-        input_file=args.input,
-        logger=logger,
-    )
+    kwargs = dict(input_file=args.input, logger=logger)
     if "ALL" not in args.quantities:
         kwargs["quantities"] = args.quantities
     MultiInteractivePlot(**kwargs).show()

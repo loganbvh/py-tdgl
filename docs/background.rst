@@ -183,7 +183,7 @@ than to any other site in the mesh. The side of the Voronoi region that intersec
 `dual <https://en.wikipedia.org/wiki/Dual_graph>`_ to the triangular Delaunay mesh.
 
 .. image:: images/voronoi.png
-  :width: 400
+  :width: 300
   :alt: Schematic of a mesh.
   :align: center
 

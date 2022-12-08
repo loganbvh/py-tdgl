@@ -7,7 +7,7 @@ from .util import get_dual_edge_lengths, get_edges
 
 
 class EdgeMesh:
-    """Mesh for the edges in a triangular mesh.
+    """A mesh composed of the edges in a triangular mesh.
 
     .. tip::
 
@@ -48,9 +48,8 @@ class EdgeMesh:
         """The y-coordinates of the edge centers."""
         return self.centers[:, 1]
 
-    @classmethod
+    @staticmethod
     def from_mesh(
-        cls,
         sites: np.ndarray,
         elements: np.ndarray,
         dual_sites: np.ndarray,

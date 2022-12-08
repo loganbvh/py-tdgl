@@ -173,6 +173,17 @@ class DynamicsData:
         (indices,) = np.where((ts >= tmin) & (ts <= tmax))
         return indices
 
+    def closest_time(self, time: float) -> int:
+        """Returns the index of the time step closest to ``time``.
+
+        Args:
+            time: The time for which to find the index.
+
+        Returns:
+            The index of the time step closest to ``time``.
+        """
+        return np.argmin(np.abs(self.time - time))
+
     def mean_voltage(self, tmin: float = -np.inf, tmax: float = np.inf) -> float:
         """Returns the time-averaged voltage :math:`\\langle V/V_0\\rangle`
         over the specified time interval.

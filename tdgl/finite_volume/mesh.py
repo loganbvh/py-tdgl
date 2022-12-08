@@ -24,17 +24,17 @@ class Mesh:
         Use :meth:`Mesh.from_triangulation` to create a new mesh from a triangulation.
 
     Args:
-        x: The x coordinates for the triangle vertices.
-        y: The x coordinates for the triangle vertices.
+        sites: The (x, y) coordinates of the mesh vertices.
         elements: A list of triplets that correspond to the indices of he vertices that
             form a triangle. [[0, 1, 2], [0, 1, 3]] corresponds to a triangle
             connecting vertices 0, 1, and 2 and another triangle connecting vertices
             0, 1, and 3.
         boundary_indices: Indices corresponding to the boundary.
         areas: The areas corresponding to the sites.
-        x_dual: The x coordinates of the dual mesh vertices.
-        y_dual: The y coordinates of the dual mesh vertices.
+        dual_sites: The (x, y) coordinates of the dual (Voronoi) mesh vertices
         edge_mesh: The edge mesh.
+        voronoi_polygons: A list of Voronoi polygon vertices. There is one set of
+            Voronoi polygon vertices for each mesh site.
     """
 
     def __init__(
@@ -43,9 +43,9 @@ class Mesh:
         elements: Sequence[Tuple[int, int, int]],
         boundary_indices: Sequence[int],
         areas: Union[Sequence[float], None] = None,
-        voronoi_polygons: Union[List[Sequence[Tuple[float, float]]], None] = None,
         dual_sites: Union[Sequence[Tuple[float, float]], None] = None,
         edge_mesh: Union[EdgeMesh, None] = None,
+        voronoi_polygons: Union[List[Sequence[Tuple[float, float]]], None] = None,
     ):
         self.sites = np.asarray(sites).squeeze()
         # Setting dtype to int64 is important when running on Windows.
@@ -97,19 +97,17 @@ class Mesh:
         and a list of indices corresponding to the vertices that connect to triangles.
 
         Args:
-            x: The x coordinates for the triangle vertices.
-            y: The x coordinates for the triangle vertices.
+            sites: The (x, y) coordinates of the mesh sites.
             elements: A list of triplets that correspond to the indices of the vertices
                 that form a triangle.   E.g. [[0, 1, 2], [0, 1, 3]] corresponds to a
                 triangle connecting vertices 0, 1, and 2 and another triangle
                 connecting vertices 0, 1, and 3.
             create_submesh: Whether to generate the corresponding
-                :class`tdgl.finit_volume.EdgeMesh` and Voronoi dual mesh.
+                :class:`tdgl.finit_volume.EdgeMesh` and Voronoi dual mesh.
 
         Returns:
             A new :class:`tdgl.finite_volume.Mesh` instance
         """
-        # Store the data
         sites = np.asarray(sites).squeeze()
         elements = np.asarray(elements).squeeze()
         if sites.ndim != 2 or sites.shape[1] != 2:
@@ -328,7 +326,7 @@ class Mesh:
         """Save the mesh to a :class:`h5py.Group`.
 
         Args:
-            h5group: The :class`h5py.Group` into which to store the mesh.
+            h5group: The :class:`h5py.Group` into which to store the mesh.
             compress: If ``True``, store only the sites and elements.
         """
         h5group["sites"] = self.sites
@@ -339,11 +337,11 @@ class Mesh:
             self.edge_mesh.to_hdf5(h5group.create_group("edge_mesh"))
             if self.dual_sites is not None:
                 h5group["dual_sites"] = self.dual_sites
-            # Save the Voronoi indices as two flat arrays.
+            # Save the Voronoi polygon vertices in a single shape (n, 2) array.
             # The ragged list of polygon vertices can be recovered by calling
-            # np.split(vertices_flat, split_indices)
+            # np.split(polygons_flat, split_indices)
             split_indices = np.cumsum(
-                [len(polygon) for polygon in self.voronoi_polygons]
+                [len(polygon) for polygon in self.voronoi_polygons[::-1]]
             )
             polygons_flat = np.concatenate(self.voronoi_polygons, axis=0)
             h5group["voronoi_polygons_flat"] = polygons_flat
@@ -351,7 +349,7 @@ class Mesh:
 
     @staticmethod
     def from_hdf5(h5group: h5py.Group) -> "Mesh":
-        """Load mesh from HDF5 file.
+        """Load a mesh from an HDF5 file.
 
         Args:
             h5group: The HDF5 group to load the mesh from.
@@ -386,6 +384,12 @@ class Mesh:
         """Returns ``True`` if the :class:`h5py.Group` contains all of the data
         necessary to create a :class:`tdgl.finite_volume.Mesh` without re-computing
         any values.
+
+        Args:
+            h5group: The :class:`h5py.Group` to check.
+
+        Returns:
+            Whether the mesh can be restored from the given group.
         """
         return (
             "sites" in h5group

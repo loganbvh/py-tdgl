@@ -23,7 +23,7 @@ cp -u $0 $outdir/
 
 python $pyscript \
     --output=$outdir/$SLURM_ARRAY_TASK_ID \
-    --currents 0 150 151 \
+    --currents 0 150 101 \
     --fields -200 200 $SLURM_ARRAY_TASK_COUNT \
     --index=$SLURM_ARRAY_TASK_ID \
     --min-points=3000 \

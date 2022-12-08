@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import nullcontext
 from logging import Logger
 from typing import Any, Dict, Sequence, Union
 
@@ -17,10 +18,10 @@ from .defaults import PLOT_DEFAULTS, Quantity
 from .io import get_plot_data, get_state_string
 
 
-def animate(
-    input_file: str,
+def create_animation(
+    input_file: Union[str, h5py.File],
     *,
-    output_file: str,
+    output_file: Union[str, None] = None,
     quantities: Union[str, Sequence[str]],
     fps: int = 30,
     dpi: float = 100,
@@ -36,8 +37,8 @@ def animate(
     figure_kwargs: Union[Dict[str, Any], None] = None,
     writer: Union[str, animation.MovieWriter, None] = None,
 ):
-    input_file = os.path.join(os.getcwd(), input_file)
-    output_file = os.path.join(os.getcwd(), output_file)
+    if isinstance(input_file, str):
+        input_file = os.path.join(os.getcwd(), input_file)
     if quantities is None:
         quantities = Quantity.get_keys()
     if isinstance(quantities, str):
@@ -55,8 +56,14 @@ def animate(
 
     logger.info(f"Creating animation for {[obs.name for obs in quantities]!r}.")
 
-    with h5py.File(input_file, "r", libver="latest") as h5file:
-        with plt.ioff():
+    mpl_context = nullcontext() if output_file is None else plt.ioff()
+    if isinstance(input_file, str):
+        h5_context = h5py.File(input_file, "r", libver="latest")
+    else:
+        h5_context = nullcontext(input_file)
+
+    with h5_context as h5file:
+        with mpl_context:
             # Get the mesh
             if "mesh" in h5file:
                 mesh = Mesh.from_hdf5(h5file["mesh"])
@@ -132,31 +139,34 @@ def animate(
                     collection.set_clim(vmins[i], vmaxs[i])
                 if quiver:
                     quiver.set_UVC(direction[:, 0], direction[:, 1])
-                fig.canvas.draw()
+                # fig.canvas.draw()
 
-            if writer is None:
-                kwargs = dict(fps=fps)
-            else:
-                kwargs = dict(writer=writer)
+            anim = animation.FuncAnimation(
+                fig,
+                update,
+                frames=max_frame - min_frame,
+                interval=1e3 / fps,
+                blit=False,
+            )
+            if output_file is None:
+                return anim
 
-            fname = os.path.basename(output_file)
-            with tqdm(
-                total=len(range(min_frame, max_frame)),
-                unit="frames",
-                disable=silent,
-                desc=f"Saving to {fname}",
-            ) as progress:
-                ani = animation.FuncAnimation(
-                    fig,
-                    update,
-                    frames=max_frame - min_frame,
-                    interval=1e3 / fps,
-                    blit=False,
-                )
-                ani.save(
-                    output_file,
-                    dpi=dpi,
-                    progress_callback=lambda frame, total: progress.update(1),
-                    **kwargs,
-                )
-    return ani
+        if output_file is not None:
+            output_file = os.path.join(os.getcwd(), output_file)
+        if writer is None:
+            kwargs = dict(fps=fps)
+        else:
+            kwargs = dict(writer=writer)
+        fname = os.path.basename(output_file)
+        with tqdm(
+            total=len(range(min_frame, max_frame)),
+            unit="frames",
+            disable=silent,
+            desc=f"Saving to {fname}",
+        ) as progress:
+            anim.save(
+                output_file,
+                dpi=dpi,
+                progress_callback=lambda frame, total: progress.update(1),
+                **kwargs,
+            )

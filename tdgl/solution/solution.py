@@ -43,6 +43,18 @@ class BiotSavartField(NamedTuple):
     normal_current: np.ndarray
 
 
+class BoundaryPhases(NamedTuple):
+    """A container for the phase of the order parameter along a polygon boundary.
+
+    Args:
+        indices: The mesh vertex indices of the boundary.
+        phase: The phase of the order parameter at each vertex on the boundary.
+    """
+
+    indices: np.ndarray
+    phases: np.ndarray
+
+
 class Solution:
     """A container for the results of a TDGL simulation.
 
@@ -124,6 +136,27 @@ class Solution:
     @solve_step.setter
     def solve_step(self, step: int) -> None:
         self.load_tdgl_data(solve_step=step)
+
+    @property
+    def times(self) -> Union[np.ndarray, None]:
+        """The time associated with each solve step."""
+        if self.dynamics is None:
+            return None
+        times = self.dynamics.time
+        step = self.options.save_every
+        # Append the final time step in the simulation, which is always saved.
+        return np.concatenate([times[::step], times[-1:]])
+
+    def closest_solve_step(self, time: float) -> int:
+        """Returns the index of the saved step closest in time to ``time``.
+
+        Args:
+            time: The time for which to find the closest index.
+
+        Returns:
+            The index of the saved solve step whose time is closest to ``time``
+        """
+        return np.argmin(np.abs(self.times - time))
 
     def load_tdgl_data(
         self, solve_step: int = -1, h5file: Union[h5py.File, None] = None
@@ -486,6 +519,10 @@ class Solution:
     ) -> Fluxoid:
         """Calculcates the fluxoid for a polygon enclosing the specified hole.
 
+        .. seealso::
+
+            :meth:`tdgl.Solution.polygon_fluxoid`, :meth:`tdgl.Solution.boundary_phases`
+
         Args:
             hole_name: The name of the hole for which to calculate the fluxoid.
             points: The vertices of the polygon enclosing the hole. If None is given,
@@ -519,10 +556,14 @@ class Solution:
     def boundary_phases(
         self, delta: bool = False
     ) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
-        """Return a dict of ``{polygon_name: (boundary_indices, boundary_phases)}``.
+        """Returns a dict of ``{polygon_name: (boundary_indices, boundary_phases)}``.
 
         ``(boundary_phases[-1] - boundary_phases[0]) / (2 * np.pi)`` gives the winding
         number for the polygon, i.e., the fluxoid in units of ``Phi_0``.
+
+        .. seealso::
+
+            :meth:`tdgl.Solution.hole_fluxoid`
 
         Args:
             delta: If True, ``boundary_phases[0]`` will be subtracted for each polygon.
@@ -539,7 +580,7 @@ class Solution:
             phase = np.unwrap(theta[indices])
             if delta:
                 phase -= phase[0]
-            phases[name] = (indices, phase)
+            phases[name] = BoundaryPhases(indices, phase)
         return phases
 
     def current_through_path(

@@ -253,6 +253,8 @@ def plot_currents(
 
     Args:
         solution: The Solution from which to extract sheet current.
+        dataset: The dataset to plot, either ``"supercurrent"`` or
+            ``"normal_current"``. ``None`` indicates the total current density.
         ax: Matplotlib axes on which to plot.
         units: Units in which to plot the current density. Defaults to
             ``solution.current_units / solution.device.length_units``.

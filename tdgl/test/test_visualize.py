@@ -9,7 +9,7 @@ import pytest
 import tdgl
 from tdgl import visualize
 from tdgl.solution.plot_solution import non_gui_backend
-from tdgl.visualization.animate import animate
+from tdgl.visualization.animate import create_animation
 from tdgl.visualization.interactive_plot import Quantity, _default_quantities
 
 
@@ -70,18 +70,15 @@ def test_bad_input():
 @pytest.mark.parametrize(
     "quantities", [None, "all"] + [name.lower() for name in Quantity.get_keys()]
 )
-@pytest.mark.parametrize("allow_save", [False, True])
 @pytest.mark.parametrize("silent", [False, True])
 @pytest.mark.parametrize("verbose", [False, True])
-def test_interactive(solution, quantities, verbose, silent, allow_save):
+def test_interactive(solution, quantities, verbose, silent):
     parser = visualize.make_parser()
     cmd = ["--input", solution.path, "interactive"]
     if verbose:
         cmd.insert(2, "--verbose")
     if silent:
         cmd.insert(2, "--silent")
-    if allow_save:
-        cmd.append("--allow-save")
     if quantities is not None:
         cmd.extend(["--quantities"] + quantities.split(" "))
     args = parser.parse_args(cmd)
@@ -93,7 +90,7 @@ def test_interactive(solution, quantities, verbose, silent, allow_save):
 @pytest.mark.parametrize("quantities", [None, "order_parameter phase", "supercurrent"])
 @pytest.mark.parametrize("ext", ["-m.gif"])
 @pytest.mark.parametrize("max_cols", [4, 2])
-def test_animate(solution, quantities, ext, max_cols):
+def test_animation(solution, quantities, ext, max_cols):
     kwargs = dict(
         output_file=solution.path.replace(".h5", ext),
         full_title=False,
@@ -105,7 +102,7 @@ def test_animate(solution, quantities, ext, max_cols):
         kwargs["quantities"] = _default_quantities
     if quantities is not None:
         kwargs["quantities"] = quantities.split(" ")
-    animate(solution.path, **kwargs)
+    create_animation(solution.path, **kwargs)
 
 
 @pytest.mark.parametrize(

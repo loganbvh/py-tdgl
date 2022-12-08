@@ -7,6 +7,9 @@
 Finite Volume Methods
 *********************
 
+The :mod:`tdgl.finite_volume` module contains the implementation of the finite volume methods described
+in the `Theoretical Background <../background.rst>`_.
+
 Finite Volume Meshes
 --------------------
 

@@ -1,4 +1,3 @@
-import datetime
 import logging
 import os
 from typing import Any, Dict, Sequence, Union
@@ -26,14 +25,12 @@ class InteractivePlot:
     def __init__(
         self,
         input_file: str,
-        enable_save: Union[bool, None] = False,
         logger: logging.Logger = None,
     ):
 
         self.input_file = os.path.join(os.getcwd(), input_file)
         self.frame = 0
         self.quantity = Quantity.ORDER_PARAMETER
-        self.enable_save = enable_save
         self.logger = logger or logging.getLogger()
 
     def show(self):
@@ -103,20 +100,6 @@ class InteractivePlot:
 
                 elif event.key == "9":
                     self.quantity = Quantity.VORTICITY
-
-                elif event.key == "w" and self.enable_save:
-                    file_name = f"data-{datetime.datetime.now()}.npz"
-                    value, direction, limits = get_plot_data(
-                        h5file, mesh, self.quantity, self.frame
-                    )
-                    np.savez(
-                        file_name,
-                        value=value,
-                        limits=limits,
-                        sites=mesh.sites,
-                        elements=mesh.elements,
-                    )
-                    self.logger.info(f"Saved data to file {file_name}.")
 
                 draw()
 

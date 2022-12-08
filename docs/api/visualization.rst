@@ -7,8 +7,26 @@
 Visualization
 *************
 
-Plot Solutions
+``tdgl.visualize`` CLI tool
+----------------------------
+
+``tdgl.visualize`` is a command line interface (CLI) for animating and interactively viewing the
+time- and space-dependent results of TDGL simulations.
+
+.. argparse::
+    :module: tdgl.visualize
+    :func: make_parser
+    :prog: python -m tdgl.visualize
+
+
+Plot solutions
 --------------
+
+.. seealso::
+
+    :meth:`tdgl.Solution.plot_currents`, :meth:`tdgl.Solution.plot_order_parameter`,
+    :meth:`tdgl.Solution.plot_field_at_positions`, :meth:`tdgl.Solution.plot_scalar_potential`
+    :meth:`tdgl.Solution.plot_vorticity`
 
 .. autofunction:: tdgl.plot_currents
 
@@ -20,7 +38,7 @@ Plot Solutions
 
 .. autofunction:: tdgl.plot_scalar_potential
 
-Plotting Utilities
+Plotting utilities
 ------------------
 
 .. autofunction:: tdgl.solution.plot_solution.auto_range_iqr
@@ -28,13 +46,3 @@ Plotting Utilities
 .. autofunction:: tdgl.solution.plot_solution.auto_grid
 
 .. autofunction:: tdgl.solution.plot_solution.non_gui_backend
-
-CLI Tool
---------
-
-The ``tdgl.visualize`` module provides a command line interface (CLI) for animating and exploring TDGL data.
-
-.. argparse::
-    :module: tdgl.visualize
-    :func: make_parser
-    :prog: python -m tdgl.visualize

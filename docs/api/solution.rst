@@ -6,9 +6,6 @@
 Post-processing
 ***************
 
-Solution
---------
-
 The :class:`tdgl.Solution` class provides a convenient container for the results of a TDGL simulation,
 including methods for post-processing and visualization results. Calls to :func:`tdgl.solve` return an
 instance of :class:`tdgl.Solution`, which can be used for post-processing. A :class:`tdgl.Solution`
@@ -20,6 +17,9 @@ that is measured at each time step in the simulation, i.e., the measured voltage
 the :class:`tdgl.Device`'s ``voltage_points``, are stored in ``solution.dynamics``, which is an instance of
 :class:`tdgl.solution.data.DynamicsData`.
 
+Overview
+--------
+
 Post-processing methods:
 
 - :meth:`tdgl.Solution.interp_current_density`
@@ -27,6 +27,7 @@ Post-processing methods:
 - :meth:`tdgl.Solution.interp_order_parameter`
 - :meth:`tdgl.Solution.polygon_fluxoid`
 - :meth:`tdgl.Solution.hole_fluxoid`
+- :meth:`tdgl.Solution.boundary_phases`
 - :meth:`tdgl.Solution.current_through_path`
 - :meth:`tdgl.Solution.field_at_position`
 - :meth:`tdgl.Solution.vector_potential_at_position`
@@ -48,6 +49,9 @@ I/O methods:
 - :meth:`tdgl.Solution.from_hdf5`
 - :meth:`tdgl.Solution.delete_hdf5`
 
+Solution
+--------
+
 .. autoclass:: tdgl.Solution
     :members:
 
@@ -62,6 +66,10 @@ I/O methods:
 
 Fluxoid Quantization
 --------------------
+
+.. seealso::
+
+    :meth:`tdgl.Solution.polygon_fluxoid`, :meth:`tdgl.Solution.hole_fluxoid`, :meth:`tdgl.Solution.boundary_phases`
 
 .. autoclass:: tdgl.Fluxoid
     :show-inheritance:

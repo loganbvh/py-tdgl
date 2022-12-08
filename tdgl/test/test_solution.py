@@ -83,13 +83,13 @@ def test_hole_fluxoid(solution, hole, with_units, units, interp_method):
             assert isinstance(sum(fluxoid), float)
 
 
-def test_tdgl_data(solution):
+def test_tdgl_data(solution: tdgl.Solution):
     tdgl_data = solution.tdgl_data
     with h5py.File(solution.path, "r+") as f:
         tdgl_data.to_hdf5(f.create_group("tdgl_data"))
 
 
-def test_dynamics(solution):
+def test_dynamics(solution: tdgl.Solution):
     dynamics = solution.dynamics
     ix = dynamics.time_slice()
     ts = dynamics.time[ix]
@@ -117,3 +117,10 @@ def test_dynamics(solution):
         loaded_dynamics = DynamicsData.from_hdf5(f["dynamics"])
 
     assert loaded_dynamics == dynamics
+
+    time = solution.times
+    assert len(time) == (solution.data_range[1] + 1)
+    assert solution.closest_solve_step(0) == 0
+    assert (
+        solution.closest_solve_step(solution.options.solve_time) == solution.solve_step
+    )
