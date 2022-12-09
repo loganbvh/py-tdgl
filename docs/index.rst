@@ -21,6 +21,18 @@ spatially- and temporally-resolved simulation results.
 To get started using ``pyTDGL`` see `Installation <installation.rst>`_ and `Quickstart <notebooks/quickstart.ipynb>`_.
 To learn more about the physics and numerics, see `Theoretical Background <background.rst>`_.
 
+.. image:: https://img.shields.io/github/workflow/status/loganbvh/py-tdgl/lint-and-test/main
+   :alt: GitHub Workflow Status (branch)
+
+.. image:: https://codecov.io/gh/loganbvh/py-tdgl/branch/main/graph/badge.svg?token=VXdxJKP6Ag 
+ :target: https://codecov.io/gh/loganbvh/py-tdgl
+
+.. image:: https://img.shields.io/github/license/loganbvh/py-tdgl
+   :alt: GitHub
+
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+   :target: https://github.com/psf/black
+
 Acknowledgements
 ----------------
 
