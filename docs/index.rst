@@ -24,6 +24,10 @@ To learn more about the physics and numerics, see `Theoretical Background <backg
 .. image:: https://img.shields.io/github/workflow/status/loganbvh/py-tdgl/lint-and-test/main
    :alt: GitHub Workflow Status (branch)
 
+.. image:: https://readthedocs.org/projects/py-tdgl/badge/?version=latest
+    :target: https://py-tdgl.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
 .. image:: https://codecov.io/gh/loganbvh/py-tdgl/branch/main/graph/badge.svg?token=VXdxJKP6Ag 
  :target: https://codecov.io/gh/loganbvh/py-tdgl
 

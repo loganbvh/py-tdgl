@@ -1,10 +1,4 @@
-# ./notebooks/
-./notebooks/**/*.h5
-./notebooks/**/*.json
-results/
-videos/
 .DS_Store
-*.mp4
 
 
 # Byte-compiled / optimized / DLL files
