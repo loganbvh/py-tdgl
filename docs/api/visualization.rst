@@ -18,6 +18,11 @@ time- and space-dependent results of TDGL simulations.
     :func: make_parser
     :prog: python -m tdgl.visualize
 
+Create animations
+-----------------
+
+.. autofunction:: tdgl.visualization.create_animation
+
 
 Plot solutions
 --------------
@@ -41,8 +46,8 @@ Plot solutions
 Plotting utilities
 ------------------
 
-.. autofunction:: tdgl.solution.plot_solution.auto_range_iqr
+.. autofunction:: tdgl.visualization.auto_range_iqr
 
-.. autofunction:: tdgl.solution.plot_solution.auto_grid
+.. autofunction:: tdgl.visualization.auto_grid
 
-.. autofunction:: tdgl.solution.plot_solution.non_gui_backend
+.. autofunction:: tdgl.non_gui_backend

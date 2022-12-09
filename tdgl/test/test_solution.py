@@ -8,7 +8,6 @@ import pytest
 
 import tdgl
 from tdgl.solution.data import DynamicsData
-from tdgl.solution.plot_solution import non_gui_backend
 
 
 @pytest.fixture(scope="module")
@@ -108,7 +107,7 @@ def test_dynamics(solution: tdgl.Solution):
 
     assert np.isclose(V0, V1, rtol=1e-2)
 
-    with non_gui_backend():
+    with tdgl.non_gui_backend():
         _ = dynamics.plot(legend=True)
         _ = dynamics.plot_dt()
 

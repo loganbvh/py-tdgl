@@ -9,7 +9,6 @@ import pytest
 import shapely
 
 import tdgl
-from tdgl.solution.plot_solution import non_gui_backend
 
 
 def test_set_polygon_points():
@@ -116,7 +115,7 @@ def test_polygon_join():
 
 
 def test_plot_polygon():
-    with non_gui_backend():
+    with tdgl.non_gui_backend():
         ax = tdgl.Polygon("square1", points=tdgl.geometry.box(1)).plot()
         assert isinstance(ax, plt.Axes)
 
@@ -259,7 +258,7 @@ def device_with_mesh():
 def test_plot_device(
     device: tdgl.Device, device_with_mesh: tdgl.Device, legend, mesh=True
 ):
-    with non_gui_backend():
+    with tdgl.non_gui_backend():
         fig, axes = device.plot(legend=legend)
         with pytest.raises(RuntimeError):
             _ = device.plot(legend=legend, mesh=mesh)
@@ -269,13 +268,13 @@ def test_plot_device(
 
 @pytest.mark.parametrize("legend", [False, True])
 def test_draw_device(device: tdgl.Device, legend):
-    with non_gui_backend():
+    with tdgl.non_gui_backend():
         fig, axes = device.draw(exclude="disk", legend=legend)
         fig, axes = device.draw(
             legend=legend,
         )
 
-    with non_gui_backend():
+    with tdgl.non_gui_backend():
         fig, ax = plt.subplots()
         _ = tdgl.Device(
             "device",
@@ -305,7 +304,7 @@ def test_plot_mesh(
         show_dual_edges=show_dual_edges,
         show_voronoi_centroids=show_voronoi_centroids,
     )
-    with non_gui_backend():
+    with tdgl.non_gui_backend():
         if ax is not None:
             _, ax = plt.subplots()
             kwargs["ax"] = ax

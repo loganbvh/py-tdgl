@@ -1,12 +1,12 @@
 import argparse
 import logging
 
-from .visualization.animate import create_animation
-from .visualization.defaults import Quantity
-from .visualization.interactive_plot import (
+from .visualization import (
+    DEFAULT_QUANTITIES,
     InteractivePlot,
     MultiInteractivePlot,
-    _default_quantities,
+    Quantity,
+    create_animation,
 )
 
 logger = logging.getLogger("visualize")
@@ -113,7 +113,7 @@ def animate_tdgl(args):
         title_off=args.title_off,
     )
     if args.quantities is None or "ALL" in args.quantities:
-        kwargs["quantities"] = _default_quantities
+        kwargs["quantities"] = DEFAULT_QUANTITIES
     else:
         kwargs["quantities"] = args.quantities
     create_animation(**kwargs)

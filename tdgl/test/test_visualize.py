@@ -8,9 +8,7 @@ import pytest
 
 import tdgl
 from tdgl import visualize
-from tdgl.solution.plot_solution import non_gui_backend
-from tdgl.visualization.animate import create_animation
-from tdgl.visualization.interactive_plot import Quantity, _default_quantities
+from tdgl.visualization import DEFAULT_QUANTITIES, Quantity, create_animation
 
 
 @pytest.fixture(scope="module")
@@ -82,7 +80,7 @@ def test_interactive(solution, quantities, verbose, silent):
     if quantities is not None:
         cmd.extend(["--quantities"] + quantities.split(" "))
     args = parser.parse_args(cmd)
-    with non_gui_backend():
+    with tdgl.non_gui_backend():
         tdgl.visualize.main(args)
         plt.close("all")
 
@@ -99,14 +97,19 @@ def test_animation(solution, quantities, ext, max_cols):
         max_cols=max_cols,
     )
     if quantities is None:
-        kwargs["quantities"] = _default_quantities
+        kwargs["quantities"] = DEFAULT_QUANTITIES
     if quantities is not None:
         kwargs["quantities"] = quantities.split(" ")
     create_animation(solution.path, **kwargs)
 
 
 @pytest.mark.parametrize(
-    "quantities", [None, "all", "order_parameter phase vorticity supercurrent"]
+    "quantities",
+    [
+        "all",
+        # None,
+        # "order_parameter phase vorticity supercurrent",
+    ],
 )
 def test_animate_cli(solution, quantities):
     parser = visualize.make_parser()
@@ -128,6 +131,6 @@ def test_animate_cli(solution, quantities):
     if quantities is not None:
         cmd.extend(["--quantities"] + quantities.split(" "))
     args = parser.parse_args(cmd)
-    with non_gui_backend():
+    with tdgl.non_gui_backend():
         tdgl.visualize.main(args)
         plt.close("all")

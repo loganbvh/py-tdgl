@@ -13,8 +13,7 @@ from tqdm import tqdm
 
 from ..finite_volume.mesh import Mesh
 from ..solution.data import get_data_range
-from ..solution.plot_solution import auto_grid
-from .defaults import PLOT_DEFAULTS, Quantity
+from .common import PLOT_DEFAULTS, Quantity, auto_grid
 from .io import get_plot_data, get_state_string
 
 
@@ -36,7 +35,36 @@ def create_animation(
     silent: bool = False,
     figure_kwargs: Union[Dict[str, Any], None] = None,
     writer: Union[str, animation.MovieWriter, None] = None,
-):
+) -> animation.FuncAnimation:
+    """Generates, and optionally saves, and animation of a TDGL simulation.
+
+    The animation will be in dimensionless units.
+
+    Args:
+        input_file: An open h5py file or a path to an H5 file containing
+            the :class:`tdgl.Solution` you would like to animate.
+        output_file: A path to which to save the animation,
+            e.g., as a gif or mp4 video.
+        quantites: The names of the quantities to animate.
+        fps: Frame rate in frames per second.
+        dpi: Resolution in dots per inch.
+        max_cols: The maxiumum number of columns in the subplot grid.
+        min_frame: The first frame of the animation.
+        max_frame: The last frame of the animation.
+        quiver: Add quiver arrows to the plots.
+        axes_off: Turn off the axes for each subplot.
+        title_off: Turn off the figure suptitle.
+        full_title: Include the full "state" for each frame in the figure suptitle.
+        figure_kwargs: Keyword arguments passed to ``plt.subplots()`` when creating
+            the figure.
+        writer: A :class:`matplotlib.animation.MovieWriter` instance to use when
+            saving the animation.
+        logger: A logger instance to use.
+        silent: Disable logging.
+
+    Returns:
+        The animation as a :class:`matplotlib.animation.FuncAnimation`.
+    """
     if isinstance(input_file, str):
         input_file = os.path.join(os.getcwd(), input_file)
     if quantities is None:
@@ -139,7 +167,7 @@ def create_animation(
                     collection.set_clim(vmins[i], vmaxs[i])
                 if quiver:
                     quiver.set_UVC(direction[:, 0], direction[:, 1])
-                # fig.canvas.draw()
+                fig.canvas.draw()
 
             anim = animation.FuncAnimation(
                 fig,
@@ -148,25 +176,25 @@ def create_animation(
                 interval=1e3 / fps,
                 blit=False,
             )
-            if output_file is None:
-                return anim
 
         if output_file is not None:
             output_file = os.path.join(os.getcwd(), output_file)
-        if writer is None:
-            kwargs = dict(fps=fps)
-        else:
-            kwargs = dict(writer=writer)
-        fname = os.path.basename(output_file)
-        with tqdm(
-            total=len(range(min_frame, max_frame)),
-            unit="frames",
-            disable=silent,
-            desc=f"Saving to {fname}",
-        ) as progress:
-            anim.save(
-                output_file,
-                dpi=dpi,
-                progress_callback=lambda frame, total: progress.update(1),
-                **kwargs,
-            )
+            if writer is None:
+                kwargs = dict(fps=fps)
+            else:
+                kwargs = dict(writer=writer)
+            fname = os.path.basename(output_file)
+            with tqdm(
+                total=len(range(min_frame, max_frame)),
+                unit="frames",
+                disable=silent,
+                desc=f"Saving to {fname}",
+            ) as pbar:
+                anim.save(
+                    output_file,
+                    dpi=dpi,
+                    progress_callback=lambda frame, total: pbar.update(1),
+                    **kwargs,
+                )
+
+        return anim

@@ -9,16 +9,8 @@ from matplotlib.ticker import FuncFormatter
 
 from ..finite_volume.mesh import Mesh
 from ..solution.data import get_data_range
-from ..solution.plot_solution import auto_grid
-from .defaults import PLOT_DEFAULTS, Quantity
+from .common import DEFAULT_QUANTITIES, PLOT_DEFAULTS, Quantity, auto_grid
 from .io import get_plot_data, get_state_string
-
-_default_quantities = (
-    "order_parameter",
-    "phase",
-    "supercurrent",
-    "normal_current",
-)
 
 
 class InteractivePlot:
@@ -138,7 +130,7 @@ class MultiInteractivePlot:
     def __init__(
         self,
         input_file: str,
-        quantities: Sequence[str] = _default_quantities,
+        quantities: Sequence[str] = DEFAULT_QUANTITIES,
         max_cols: int = 4,
         logger: logging.Logger = None,
         figure_kwargs: Union[Dict[str, Any], None] = None,

@@ -6,7 +6,7 @@ import numpy as np
 from ..finite_volume.mesh import Mesh
 from ..finite_volume.operators import build_gradient
 from ..solution.data import TDGLData, get_edge_quantity_data, load_state_data
-from ..visualization.defaults import Quantity
+from .common import Quantity
 
 
 def get_plot_data(
