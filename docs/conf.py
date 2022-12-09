@@ -58,7 +58,7 @@ autodoc_member_order = "bysource"
 
 autodoc_typehints = "description"
 
-nbsphinx_execute = "always"
+nbsphinx_execute = "never"
 
 nbsphinx_execute_arguments = [
     "--InlineBackend.figure_formats={'retina', 'png'}",
