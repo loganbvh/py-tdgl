@@ -44,7 +44,6 @@ EXTRAS_REQUIRE = {
         "sphinx-autodoc-typehints",
         "nbsphinx",
         "pillow",
-        "ffmpeg-python",
         "sphinx_toolbox",
         "enum_tools",
         "sphinx-argparse",
