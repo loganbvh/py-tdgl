@@ -46,6 +46,7 @@ EXTRAS_REQUIRE = {
         "pillow",  # required for image scaling in RTD
         "sphinx_toolbox",
         "enum_tools",
+        "sphinx-argparse",
     ],
     "jax": [
         "jax[cpu]",
