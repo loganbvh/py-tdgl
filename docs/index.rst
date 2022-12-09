@@ -72,7 +72,7 @@ The ``pyTDGL`` Python API is adapted from `SuperScreen <https://superscreen.read
    about/license.rst
    about/contributing.rst
    .. about/changelog.rst
-   about/references.rst
+   .. about/references.rst
 
 .. Indices and tables
 .. ==================

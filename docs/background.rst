@@ -7,8 +7,7 @@ Theoretical Background
 Here we sketch out the generalized time-dependent Ginzburg-Landau model implemented in ``pyTDGL``, and the numerical methods used to solve it.
 This material and portions of the ``pyTDGL`` package are based on Refs. :footcite:p:`Jonsson2022-xe, Jonsson2022-mb` (`repo <https://github.com/afsa/super-detector-py>`_). The generalized
 time-dependent Ginzburg-Landau theory is based on Refs. :footcite:p:`Kramer1978-kb, Watts-Tobin1981-mn`. The numerical methods are based on
-Refs. :footcite:p:`Gropp1996-uw, Du1998-kt, Jonsson2022-xe`.
-The Python API is inspired by Ref. :footcite:p:`Bishop-Van_Horn2022-sy` (`repo <https://github.com/loganbvh/superscreen>`_).
+Refs. :footcite:p:`Jonsson2022-xe, Gropp1996-uw, Du1998-kt`.
 
 ``pyTDGL`` can model superconducting thin films of arbitrary geometry, including multiply-connected films (i.e., films with holes).
 By "thin" or "two-dimensional" we mean that the film thickness :math:`d` is smaller than the coherence length :math:`\xi=\xi(T)`
@@ -33,7 +32,7 @@ The order parameter :math:`\psi` evolves according to:
     :label: tdgl
 
     \frac{u}{\sqrt{1+\gamma^2|\psi|^2}}\left(\frac{\partial}{\partial t}+i\mu+\frac{\gamma^2}{2}\frac{\partial |\psi|^2}{\partial t}\right)\psi
-    =(1-|\psi|^2)\psi+(\nabla-i\mathbf{A})^2\psi
+    =(\alpha-|\psi|^2)\psi+(\nabla-i\mathbf{A})^2\psi
 
 The quantity :math:`(\nabla-i\mathbf{A})^2\psi` is the covariant Laplacian of :math:`\psi`,
 which is used in place of an ordinary Laplacian in order to maintain gauge-invariance of the order parameter. Similarly,
@@ -41,8 +40,21 @@ the quantity :math:`(\frac{\partial}{\partial t}+i\mu)\psi` is the covariant tim
 :math:`u=\pi^4/(14\zeta(3))\approx5.79` is the ratio of relaxation times for the amplitude and phase of the order parameter in dirty superconductors
 (:math:`\zeta` is the Riemann zeta function) and
 :math:`\gamma` is a material parameter which is proportional to the inelastic scattering time and the size of the superconducting gap.
+:math:`\alpha(\mathbf{r})\in[0, 1]` is a real-valued parameter that adjusts the maximum (i.e., zero-field and zero-current) value of
+the normalized superfluid density at position :math:`\mathbf{r}`. Setting :math:`\alpha(\mathbf{r}) < 1` enables modeling films with a spatially
+inhomogeneous critical temperature or London penetration depth.
 
-The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to:
+.. note::
+
+    The maximum superfluid density :math:`n_{s,\mathrm{max}}(\mathbf{r})` is the value of the superfluid density at a given position
+    :math:`\mathbf{r}` in the absence of any applied fields or currents: :math:`|\psi(\mathbf{r})|^2\leq n_{s,\mathrm{max}}(\mathbf{r})`.
+    If :math:`\alpha` is set to a single value for all positions in the film, then :math:`n_{s,\mathrm{max}}\approx\alpha`.
+    If :math:`\alpha(\mathbf{r})` varies as a function of position, then in general one has
+    :math:`\alpha(\mathbf{r})\leq n_{s,\mathrm{max}}(\mathbf{r})\leq 1`, as the superfluid density in regions of small :math:`\alpha` can be
+    increased via proximity to regions of larger :math:`\alpha`.
+
+
+The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to the Poisson equation:
 
 .. math::
     :label: poisson
@@ -55,8 +67,10 @@ The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to:
 where :math:`\mathbf{J}_s=\mathrm{Im}[\psi^*(\nabla-i\mathbf{A})\psi]` is the supercurrent density. Again, :math:`(\nabla-i\mathbf{A})\psi`
 is the covariant gradient of :math:`\psi`.
 
-There are a variety of extensions to this form of TDGL model, in which :eq:`tdgl` and :eq:`poisson` are coupled to equations of motion
-for other physical quantities such as the local temeprature :math:`T(\mathbf{r}, t)` of the material.
+In addition to the electric potential (:eq:`poisson`), one can couple the dynamics of the order parameter
+(:eq:`tdgl`) to other physical quantities to create a "multiphysics" model. For example, it is common to couple
+the TDGL equations to the local temperature :math:`T(\mathbf{r}, t)` of the superconductor via a heat balance equation
+to model self-heating :footcite:p:`Gurevich1987-sv, Berdiyorov2012-rn, Zotova2012-nc, Jelic2016-ww, Jing2018-qc`.
 
 Boundary conditions
 ===================
@@ -117,50 +131,6 @@ superconducting flux quantum.
 - Sheet current density is measured in units of :math:`K_0=J_0 d=\frac{4\xi B_{c2}}{\mu_0\Lambda}`,
   where :math:`\Lambda=\lambda^2/d` is the effective magnetic penetration depth
 - Voltage is measured in units of :math:`V_0=\xi J_0/\sigma=\frac{4\xi^2 B_{c2}}{\mu_0\sigma\lambda^2}`
-
-.. Time is measured in units of :math:`\tau_0`:
-
-.. .. math::
-..     :label: tau0
-
-..     \tau_0 = \mu_0\sigma\lambda^2
-
-.. Magnetic field is measured in units of the upper critical field :math:`B_0=B_{c2}`:
-
-.. .. math::
-..     :label: B0
-
-..     B_0 = B_{c2} = \mu_0H_{c2} = \frac{\Phi_0}{2\pi\xi^2}
-
-.. Magnetic vector potential is measured in units of :math:`A_0=\xi B_0`:
-
-.. .. math::
-..     :label: A0
-
-..     A_0 = \xi B_0 = \frac{\Phi_0}{2\pi\xi}
-
-.. Current density is measured in units of :math:`J_0`:
-
-.. .. math::
-..     :label: J0
-
-..     J_0 = \frac{4\xi B_{c2}}{\mu_0\lambda^2}
-
-.. Sheet current density is measured in units of :math:`K_0=J_0 d`:
-
-.. .. math::
-..     :label: K0
-
-..     K_0 = J_0 d = \frac{4\xi B_{c2}}{\mu_0\Lambda},
-
-.. where :math:`\Lambda=\lambda^2/d` is the effective magnetic penetration depth.
-
-.. Voltage is measured in units of :math:`V_0=\xi J_0/\sigma`:
-
-.. .. math::
-..     :label: V0
-
-..     V_0 = \frac{\xi J_0}{\sigma} = \frac{4\xi^2 B_{c2}}{\mu_0\sigma\lambda^2}
 
 Numerical implementation
 ------------------------
@@ -344,15 +314,20 @@ we arrive at a quadratic equation in :math:`\left|\psi_i^{n+1}\right|^2`
     &+ \left|w_i^{n}\right|^2
     \end{split}
 
-To solve :eq:`quad-2`, which has the form :math:`0=ax^2+bx+c`, we use the form of the
-`quadratic formula used in Muller's method <https://en.wikipedia.org/wiki/Quadratic_formula#Muller's_method>`_:
+To solve :eq:`quad-2`, which has the form :math:`0=ax^2+bx+c`, we use a modified quadratic formula:
 
 .. math::
-    :label: muller
+    :label: citardauq
 
-    x = \frac{2c}{-b\mp\sqrt{b^2-4ac}},
+    \begin{split}
+        x &= \frac{-b\pm\sqrt{b^2-4ac}}{2a}\cdot\frac{-b\mp\sqrt{b^2-4ac}}{-b\mp\sqrt{b^2-4ac}}\\
+        % &=\frac{b^2-(b^2-4ac)}{2a(-b\mp\sqrt{b^2-4ac})}\\
+        % &=\frac{4ac}{2a(-b\mp\sqrt{b^2-4ac})}\\
+        &=\frac{2c}{-b\mp\sqrt{b^2-4ac}},
+    \end{split}
 
-which yields
+in order to avoid numerical issues when :math:`a=\left|z_i^n\right|^2=0`, i.e., when :math:`\left|\psi_i^n\right|^2=0` or :math:`\gamma=0`.
+Applying :eq:`citardauq` to :eq:`quad-2` yields
 
 .. math::
     :label: quad-root
@@ -382,7 +357,8 @@ order parameter and scalar potential at time :math:`t^{n}`:
     \end{split}
 
 Combining :eq:`psi-sol` and :eq:`poisson-num` yields a sparse linear system that can be solved to find
-:math:`\mu_i^{n+1}` given :math:`\mu_i^{n}` and :math:`\psi_i^{(n + 1)}`.
+:math:`\mu_i^{n+1}` given :math:`\mu_i^{n}` and :math:`\psi_i^{(n + 1)}`. The Poisson equation, :eq:`poisson-num`, is solved using
+`sparse LU factorization <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.splu.html>`_ :footcite:p:`Li2005-gv`.
 
 Adaptive time step
 ==================
@@ -394,27 +370,23 @@ Using an adaptive time step dramatically reduces the wall-clock time needed to m
 sacrificing solution accuracy.
 
 There are three parameters that control the adaptive time step algorithm, which are defined in :class:`tdgl.SolverOptions`:
-:math:`\Delta t_\mathrm{init}` (``SolverOptions.dt_init``, default: :math:`10^{-4}\tau_0`),
-:math:`\Delta t_\mathrm{max}` (``SolverOptions.dt_max``, default: :math:`10^{-1}\tau_0`),
-and :math:`N_\mathrm{window}` (``SolverOptions.adaptive_window``, default: 10).
+:math:`\Delta t_\mathrm{init}` (``SolverOptions.dt_init``),
+:math:`\Delta t_\mathrm{max}` (``SolverOptions.dt_max``),
+and :math:`N_\mathrm{window}` (``SolverOptions.adaptive_window``).
 The initial time step at iteration :math:`n=0` is set to :math:`\Delta t^{(0)}=\Delta t_\mathrm{init}`. We keep a running list of
 :math:`\Delta|\psi|^2_n=\max_i \left|\left(\left|\psi_i^{n+1}\right|^2-\left|\psi_i^{n}\right|^2\right)\right|` for each iteration :math:`n`.
-Then, for each iteration :math:`n > N_\mathrm{window}`, we define a potential new time step :math:`\Delta t_?^{n+1}`
+Then, for each iteration :math:`n > N_\mathrm{window}`, we define a tentative new time step :math:`\Delta t_?^{n+1}`
 using the following heuristic:
 
 .. math::
-    :label: dt-potential
+    :label: dt-tentative
 
-    \Delta t_?^{n+1}=\frac{\Delta t_\mathrm{init}}{\frac{1}{N_\mathrm{window}}\sum_{\ell=n-N_\mathrm{window}}^n\Delta|\psi|^2_\ell}.
+        \Delta t_?^{n+1}=\min\left(
+            \frac{\Delta t_\mathrm{init}}{\frac{1}{N_\mathrm{window}}
+            \sum_{\ell=n-N_\mathrm{window}}^n\Delta|\psi|^2_\ell}, \; \Delta t_\mathrm{max}
+        \right).
 
-Finally, we choose a the actual updated time step by clamping :math:`\Delta t_?^{n+1}` between 0 and :math:`\Delta t_\mathrm{max}`:
-
-.. math::
-    :label: dt-new
-
-    \Delta t^{n+1}=\max\left(0, \min(\Delta t_\mathrm{max}, \Delta t_?^{n+1})\right).
-
-:eq:`dt-potential` has the effect of automatically selecting a small time step if the recent dynamics
+:eq:`dt-tentative` has the effect of automatically selecting a small time step if the recent dynamics
 of the system are fast, and a larger time step if the dynamics are slow.
 
 .. note::
@@ -431,39 +403,39 @@ If this happens, we iteratively reduce the time step :math:`\Delta t^{m}` and re
 the discriminant is nonnegative for all sites :math:`i`, then proceed with the rest of the calculation for iteration :math:`m`.
 
 
-Screening
-=========
+.. Screening
+.. =========
 
-If :math:`\Lambda=\lambda^2/d\gg L`, then one can neglect screening and assume that the total vector potential in the film is
-time-independent and equal to the applied vector potential: :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})`.
-If :math:`\Lambda\approx L`, then one must take screening into account because the total vector potential in the film will be
-:math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})+\mathbf{A}_\mathrm{induced}(\mathbf{r}, t)`.
-We assume that the magnetic vector potential is either constant as a function of time
-or varies slowly enough that its time derivative can be neglected when calculating the electric field:
-:math:`\mathbf{E}=-\nabla\mu-\frac{\partial\mathbf{A}}{\partial t}\approx-\nabla\mu`.
+.. If :math:`\Lambda=\lambda^2/d\gg L`, then one can neglect screening and assume that the total vector potential in the film is
+.. time-independent and equal to the applied vector potential: :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})`.
+.. If :math:`\Lambda\approx L`, then one must take screening into account because the total vector potential in the film will be
+.. :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})+\mathbf{A}_\mathrm{induced}(\mathbf{r}, t)`.
+.. We assume that the magnetic vector potential is either constant as a function of time
+.. or varies slowly enough that its time derivative can be neglected when calculating the electric field:
+.. :math:`\mathbf{E}=-\nabla\mu-\frac{\partial\mathbf{A}}{\partial t}\approx-\nabla\mu`.
 
-If the applied vector potential is due to a local field source, such as a small dipole or small current loop, then one can identify
-a length :math:`\rho_0`, which is the radial distance away from the field source at which the sign of the field changes sign.
+.. If the applied vector potential is due to a local field source, such as a small dipole or small current loop, then one can identify
+.. a length :math:`\rho_0`, which is the radial distance away from the field source at which the sign of the field changes sign.
 
-.. math::
-    :label: A_induced
+.. .. math::
+..     :label: A_induced
 
-    \mathbf{A}_\mathrm{induced}(\mathbf{r}, t) = \frac{\mu_0}{4\pi}\int_\mathrm{film}\frac{\mathbf{K}(\mathbf{r}', t)}{|\mathbf{r}-\mathbf{r}'|}\,\mathrm{d}^2\mathbf{r}',
+..     \mathbf{A}_\mathrm{induced}(\mathbf{r}, t) = \frac{\mu_0}{4\pi}\int_\mathrm{film}\frac{\mathbf{K}(\mathbf{r}', t)}{|\mathbf{r}-\mathbf{r}'|}\,\mathrm{d}^2\mathbf{r}',
 
-where :math:`\mathbf{K}=\mathbf{K}_s+\mathbf{K}_n=d\mathbf{J}=d(\mathbf{J}_s+\mathbf{J}_n)` is the total sheet current density.
+.. where :math:`\mathbf{K}=\mathbf{K}_s+\mathbf{K}_n=d\mathbf{J}=d(\mathbf{J}_s+\mathbf{J}_n)` is the total sheet current density.
 
-Fluxoid quantization provides a simple diagnostic to determine whether neglecting screening is a good approximation for a given model.
+.. Fluxoid quantization provides a simple diagnostic to determine whether neglecting screening is a good approximation for a given model.
 
-.. math::
-    :label: fluxoid
+.. .. math::
+..     :label: fluxoid
 
-    \begin{split}
-    \Phi_C &= \underbrace{\oint_C\mathbf{A}(\mathbf{r})\cdot\mathrm{d}\mathbf{r}}_{\Phi^f_C=\text{flux part}}
-        +\underbrace{\oint_C\mu_0\Lambda(\mathbf{r})\mathbf{K}_s(\mathbf{r})\cdot\mathrm{d}\mathbf{r}}_{\Phi^s_C=\text{supercurrent part}},
-    \end{split}
+..     \begin{split}
+..     \Phi_C &= \underbrace{\oint_C\mathbf{A}(\mathbf{r})\cdot\mathrm{d}\mathbf{r}}_{\Phi^f_C=\text{flux part}}
+..         +\underbrace{\oint_C\mu_0\Lambda(\mathbf{r})\mathbf{K}_s(\mathbf{r})\cdot\mathrm{d}\mathbf{r}}_{\Phi^s_C=\text{supercurrent part}},
+..     \end{split}
 
-where :math:`\Lambda(\mathbf{r})=\Lambda_0/|\psi(\mathbf{r})|^2` is the effective magnetic penetration depth and :math:`\Lambda_0` is the
-zero-field effective magnetic penetration depth.
+.. where :math:`\Lambda(\mathbf{r})=\Lambda_0/|\psi(\mathbf{r})|^2` is the effective magnetic penetration depth and :math:`\Lambda_0` is the
+.. zero-field effective magnetic penetration depth.
 
 
 .. _appendix-euler:

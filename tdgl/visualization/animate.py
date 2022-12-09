@@ -45,7 +45,7 @@ def create_animation(
             the :class:`tdgl.Solution` you would like to animate.
         output_file: A path to which to save the animation,
             e.g., as a gif or mp4 video.
-        quantites: The names of the quantities to animate.
+        quantities: The names of the quantities to animate.
         fps: Frame rate in frames per second.
         dpi: Resolution in dots per inch.
         max_cols: The maxiumum number of columns in the subplot grid.
