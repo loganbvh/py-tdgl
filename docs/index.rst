@@ -52,8 +52,8 @@ The ``pyTDGL`` Python API is adapted from `SuperScreen <https://superscreen.read
    :caption: Tutorials
 
    notebooks/polygons.ipynb
-   notebooks/fluxoid-and-screening.ipynb
-   notebooks/iv-curves.ipynb
+   .. notebooks/fluxoid-and-screening.ipynb
+   .. notebooks/iv-curves.ipynb
    .. notebooks/io.ipynb
    .. notebooks/gpu.ipynb
    .. notebooks/parallel.ipynb

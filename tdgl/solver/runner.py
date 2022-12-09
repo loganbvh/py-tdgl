@@ -4,13 +4,14 @@ import os
 import tempfile
 import time
 import traceback
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 
 import h5py
 import numpy as np
-from tqdm import tqdm
+from tqdm import TqdmWarning, tqdm
 
 from ..finite_volume.mesh import Mesh
 from .options import SolverOptions
@@ -277,50 +278,53 @@ class Runner:
                 data.update(self.running_state.values)
             self.data_handler.save_time_step(self.state, data)
 
-        with tqdm(
-            initial=initial,
-            total=total,
-            desc=name,
-            disable=prog_disabled,
-            unit=unit,
-            bar_format=bar_format,
-        ) as pbar:
-            for i in it:
-                self.state["step"] = i
-                self.state["time"] = self.time
-                self.state["dt"] = self.dt
-                # Print progress if TQDM is disabled.
-                if prog_disabled and (i % self.options.progress_interval) == 0:
-                    then, now = now, time.perf_counter()
-                    if then is None:
-                        speed = 0
-                    else:
-                        speed = self.options.progress_interval / (now - then)
-                    self.logger.info(
-                        f"{name}: Time {self.time}/{end_time}, "
-                        f"dt={self.dt:.2e}, {speed:.2f} it/s"
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=TqdmWarning)
+            with tqdm(
+                initial=initial,
+                total=total,
+                desc=name,
+                disable=prog_disabled,
+                unit=unit,
+                bar_format=bar_format,
+                dynamic_ncols=True,
+            ) as pbar:
+                for i in it:
+                    self.state["step"] = i
+                    self.state["time"] = self.time
+                    self.state["dt"] = self.dt
+                    # Print progress if TQDM is disabled.
+                    if prog_disabled and (i % self.options.progress_interval) == 0:
+                        then, now = now, time.perf_counter()
+                        if then is None:
+                            speed = 0
+                        else:
+                            speed = self.options.progress_interval / (now - then)
+                        self.logger.info(
+                            f"{name}: Time {self.time}/{end_time}, "
+                            f"dt={self.dt:.2e}, {speed:.2f} it/s"
+                        )
+                    if i % self.options.save_every == 0:
+                        if save:
+                            save_step(i)
+                        self.running_state.clear()
+                    # Run time step.
+                    function_result = self.function(
+                        self.state,
+                        self.running_state,
+                        *self.values,
+                        self.dt,
                     )
-                if i % self.options.save_every == 0:
-                    if save:
-                        save_step(i)
-                    self.running_state.clear()
-                # Run time step.
-                function_result = self.function(
-                    self.state,
-                    self.running_state,
-                    *self.values,
-                    self.dt,
-                )
-                *self.values, new_dt = function_result
-                # tqdm will spit out a warning if you try to update past "total"
-                if self.time + self.dt < end_time:
-                    pbar.update(self.dt)
-                else:
-                    pbar.update(end_time - self.time)
-                if self.time >= end_time:
-                    break
-                self.dt = new_dt
-                self.running_state.step += 1
-                self.time += self.dt
-        if save:
-            save_step(i)
+                    *self.values, new_dt = function_result
+                    # tqdm will spit out a warning if you try to update past "total"
+                    if self.time + self.dt < end_time:
+                        pbar.update(self.dt)
+                    else:
+                        pbar.update(end_time - self.time)
+                    if self.time >= end_time:
+                        break
+                    self.dt = new_dt
+                    self.running_state.step += 1
+                    self.time += self.dt
+            if save:
+                save_step(i)

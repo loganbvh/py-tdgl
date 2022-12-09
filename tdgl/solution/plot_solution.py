@@ -300,7 +300,7 @@ def plot_currents(
     x = solution.device.points[:, 0]
     y = solution.device.points[:, 1]
     t = solution.device.triangles
-    clabel = "$|\\,\\vec{J}\\,|$" + f" [${units:~L}$]"
+    clabel = "$|\\,\\vec{K}\\,|$" + f" [${units:~L}$]"
     clim = setup_color_limits(
         {"J": Jnorm},
         vmin=vmin,
@@ -653,7 +653,7 @@ def plot_vorticity(
         shading=shading,
     )
     cbar = fig.colorbar(im, ax=ax)
-    ax.set_title("$\\vec{\\omega}=\\vec{\\nabla}\\times\\vec{J}$")
+    ax.set_title("$\\vec{\\omega}=\\vec{\\nabla}\\times\\vec{K}$")
     ax.set_aspect("equal")
     ax.set_xlabel(f"$x$ [${length_units:~L}$]")
     ax.set_ylabel(f"$y$ [${length_units:~L}$]")

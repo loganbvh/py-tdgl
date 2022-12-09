@@ -180,7 +180,7 @@ class Solution:
             else:
                 step = solve_step
             self.tdgl_data = TDGLData.from_hdf5(f, step)
-            self.dynamics = DynamicsData.from_hdf5(f, step_min, step_max)
+            self.dynamics = DynamicsData.from_hdf5(f, *self.data_range)
         mesh = self.device.mesh
         device = self.device
         self._solve_step = step
