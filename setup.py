@@ -47,6 +47,7 @@ EXTRAS_REQUIRE = {
         "sphinx_toolbox",
         "enum_tools",
         "sphinx-argparse",
+        "sphinxcontrib-bibtex",
     ],
     "jax": [
         "jax[cpu]",
