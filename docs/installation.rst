@@ -15,7 +15,7 @@ for ``pyTDGL`` to avoid dependency conflicts with other packages. To create and 
 
 .. code-block:: bash
 
-  conda create --name tdgl python=3.9
+  conda create --name tdgl python="3.10"
   conda activate tdgl
 
 Install via ``pip``

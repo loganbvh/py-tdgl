@@ -173,8 +173,8 @@ at position :math:`\mathbf{r}_{ij}` (i.e., the center of edge :math:`(i, j)`) is
 
 To calculate the divergence of a vector field :math:`\mathbf{F}(\mathbf{r})` on the mesh, we assume that
 each Voronoi cell is small enough that the value of :math:`\nabla\cdot\mathbf{F}` is constant over the area of the cell and
-equal to the value at the cell center, :math:`\mathbf{r}_i`.
-Then, using the `divergence theorem <https://en.wikipedia.org/wiki/Divergence_theorem>`_ in two dimensions, we have
+equal to the value at the mesh site lying inside the cell, :math:`\mathbf{r}_i`. Then, using the
+`divergence theorem <https://en.wikipedia.org/wiki/Divergence_theorem>`_ in two dimensions, we have
 
 .. math::
     :label: divergence
@@ -238,20 +238,8 @@ Implicit Euler method
 
 The discretized form of the equations of motion for :math:`\psi(\mathbf{r}, t)` and :math:`\mu(\mathbf{r}, t)` are given by
 
-.. .. math::
-..     :label: tdgl-num1
-
-..     \begin{split}
-..         \frac{u}{\sqrt{1+\gamma^2\left|\psi_i^{n}\right|^2}}&
-..         \left[
-..             \left.\left(\frac{\partial}{\partial t}+i\mu\right)\psi\right|_{\mathbf{r}_i}^{t^{n}}
-..             +\frac{\gamma^2}{2}\frac{\partial|\psi_{i}^{n}|^2}{\partial t}
-..         \right]\\
-..         &=\left(1-\left|\psi_i^{n}\right|^2\right)\psi_i^{n} + \left.\left(\nabla-i\mathbf{A}\right)^2\psi\right|_{\mathbf{r}_i}^{t^{n}}
-..     \end{split}
-
 .. math::
-    :label: tdgl-num2
+    :label: tdgl-num
 
     \begin{split}
         \frac{u}{\Delta t^{n}\sqrt{1 + \gamma^2\left|\psi_i^{n}\right|^2}}&
@@ -259,7 +247,7 @@ The discretized form of the equations of motion for :math:`\psi(\mathbf{r}, t)` 
             \psi_i^{n+1}\exp(i\mu_i^{n}\Delta t^{n})-\psi_i^{n}
             +\frac{\gamma^2}{2}\left(\left|\psi_i^{n+1}\right|^2-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}
         \right]\\
-        &=\left(1-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}+\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
+        &=\left(\alpha_i-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}+\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
     \end{split}
 
 .. math::
@@ -270,7 +258,7 @@ The discretized form of the equations of motion for :math:`\psi(\mathbf{r}, t)` 
     &=\sum_{j\in\mathcal{N}(i)}\mathrm{Im}\left\{\left(\psi_i^{n}\right)^*\,\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}\right\}|s_{ij}|
     \end{split}
 
-If we isloate the terms in :eq:`tdgl-num2` involving the order parameter at time :math:`t^{n+1}`, we can rewrite :eq:`tdgl-num2` in the form
+If we isloate the terms in :eq:`tdgl-num` involving the order parameter at time :math:`t^{n+1}`, we can rewrite :eq:`tdgl-num` in the form
 
 .. math::
     :label: quad-1

@@ -11,16 +11,6 @@ pyTDGL: Time-dependent Ginzburg Landau in Python
   :alt: pyTDGL logo.
   :align: center
 
-`pyTDGL <https://github.com/loganbvh/py-tdgl>`_ is a Python package that solves a generalized time-dependent Ginzburg-Landau (TDGL)
-model in two dimensions, enabling simulations of vortex and phase dynamics in thin film superconducting devices of arbitrary
-geometry. The package provides a convenient interface for defining complex `device geometries <api/device.rst>`_ and generating
-the corresponding `finite-element <api/finite-volume.rst>`_ data structures. ``pyTDGL`` also includes many methods for
-:ref:`post-processing <api/solution:post-processing>` and :ref:`visualizing <api/visualization:Visualization>`
-spatially- and temporally-resolved simulation results.
-
-To get started using ``pyTDGL`` see `Installation <installation.rst>`_ and `Quickstart <notebooks/quickstart.ipynb>`_.
-To learn more about the physics and numerics, see `Theoretical Background <background.rst>`_.
-
 .. image:: https://img.shields.io/github/workflow/status/loganbvh/py-tdgl/lint-and-test/main
    :alt: GitHub Workflow Status (branch)
 
@@ -36,6 +26,22 @@ To learn more about the physics and numerics, see `Theoretical Background <backg
 
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
    :target: https://github.com/psf/black
+
+`pyTDGL <https://github.com/loganbvh/py-tdgl>`_ is a Python package that solves a generalized time-dependent Ginzburg-Landau (TDGL)
+model in two dimensions, enabling simulations of vortex and phase dynamics in thin film superconducting devices of arbitrary
+geometry. The package provides a convenient interface for defining complex `device geometries <api/device.rst>`_ and generating
+the corresponding `finite-element <api/finite-volume.rst>`_ data structures. ``pyTDGL`` also includes many methods for
+:ref:`post-processing <api/solution:post-processing>` and :ref:`visualizing <api/visualization:Visualization>`
+spatially- and temporally-resolved simulation results.
+
+To get started using ``pyTDGL`` see `Installation <installation.rst>`_ and `Quickstart <notebooks/quickstart.ipynb>`_.
+To learn more about the physics and numerics, see `Theoretical Background <background.rst>`_.
+Click the badge below and navigate to ``docs/notebooks/`` to try ``pyTDGL``
+interactively online via `Binder <https://mybinder.org/>`_:
+
+.. image:: https://mybinder.org/badge_logo.svg
+ :target: https://mybinder.org/v2/gh/loganbvh/py-tdgl/HEAD
+
 
 Acknowledgements
 ----------------
