@@ -173,8 +173,8 @@ at position :math:`\mathbf{r}_{ij}` (i.e., the center of edge :math:`(i, j)`) is
 
 To calculate the divergence of a vector field :math:`\mathbf{F}(\mathbf{r})` on the mesh, we assume that
 each Voronoi cell is small enough that the value of :math:`\nabla\cdot\mathbf{F}` is constant over the area of the cell and
-equal to the value at the cell center, :math:`\mathbf{r}_i`.
-Then, using the `divergence theorem <https://en.wikipedia.org/wiki/Divergence_theorem>`_ in two dimensions, we have
+equal to the value at the mesh site lying inside the cell, :math:`\mathbf{r}_i`. Then, using the
+`divergence theorem <https://en.wikipedia.org/wiki/Divergence_theorem>`_ in two dimensions, we have
 
 .. math::
     :label: divergence
