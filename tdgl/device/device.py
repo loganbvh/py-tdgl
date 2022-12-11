@@ -250,7 +250,7 @@ class Device:
 
     @property
     def areas(self) -> Union[np.ndarray, None]:
-        """An array of the mesh triangle areas."""
+        """An array of the mesh Voronoi cell areas."""
         if self.mesh is None:
             return None
         return self.mesh.areas * self.coherence_length**2
