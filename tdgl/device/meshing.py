@@ -90,14 +90,15 @@ def generate_mesh(
         ]
         mesh_info.set_holes(holes)
 
+    if "min_angle" not in kwargs:
+        kwargs["min_angle"] = min_angle
+
     mesh = triangle.build(mesh_info=mesh_info, **kwargs)
     points = np.array(mesh.points) + r0
     triangles = np.array(mesh.elements)
     if min_points is None and (max_edge_length is None or max_edge_length <= 0):
         return points, triangles
 
-    if "min_angle" not in kwargs:
-        kwargs["min_angle"] = min_angle
     kwargs = kwargs.copy()
     kwargs["max_volume"] = dx * dy / 100
     i = 1

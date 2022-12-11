@@ -9,7 +9,7 @@ Time-dependent Ginzburg-Landau in Python
 [![codecov](https://codecov.io/gh/loganbvh/py-tdgl/branch/main/graph/badge.svg?token=VXdxJKP6Ag)](https://codecov.io/gh/loganbvh/py-tdgl)
 ![GitHub](https://img.shields.io/github/license/loganbvh/py-tdgl)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/loganbvh/py-tdgl/HEAD)
+
 
 ## Motivation
 `pyTDGL` solves a 2D generalized time-dependent Ginzburg-Landau (TDGL) equation, enabling simulations of vortex and phase dynamics in thin film superconducting devices.
@@ -24,7 +24,7 @@ Click the badge below and navigate to `docs/notebooks/` to try `pyTDGL` interact
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/loganbvh/py-tdgl/HEAD)
 
-## Installation
+## Install `pyTDGL`
 
 `pyTDGL` requires `python` `3.8`, `3.9`, or `3.10`. We recommend installing `pyTDGL` in a [`conda` environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html), e.g.
 
@@ -35,17 +35,19 @@ conda activate tdgl
 
 ### Install via `pip`
 
-- From this [GitHub repository](https://github.com/loganbvh/py-tdgl/):
+From this [GitHub repository](https://github.com/loganbvh/py-tdgl/):
 
-    ```bash
-    pip install git+https://github.com/loganbvh/py-tdgl.git
-    ```
+```bash
+pip install git+https://github.com/loganbvh/py-tdgl.git
+```
 
-- From  PyPI, the Python Package index:
+From  PyPI, the Python Package index:
     
-    Coming soon...
+```bash
+Coming soon...
+```
 
-### Editable installation
+Editable installation:
 
 ```bash
 git clone https://github.com/loganbvh/py-tdgl.git

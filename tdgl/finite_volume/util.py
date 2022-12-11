@@ -191,6 +191,10 @@ def compute_surrounding_area(
     for site, polygon in enumerate(polygons):
         # Get the polygon points
         poly = dual_sites[polygon]
+        # Polygon vertices may end up very close (e.g. delta = 2e-17) due to floating
+        # point errors, so we need to remove near-duplicate vertices.
+        _, unique = np.unique(poly.round(decimals=13), axis=0, return_index=True)
+        poly = poly[unique]
         if site not in boundary_set:
             areas[site], is_convex = get_convex_polygon_area(poly)
             assert is_convex
@@ -233,8 +237,7 @@ def get_convex_polygon_area(coords: np.ndarray) -> Tuple[float, bool]:
         # Handle error when all points lie on a line
         return 0, True
     else:
-        # is_convex = len(hull.vertices) == len(x)
-        is_convex = len(hull.coplanar) == 0
+        is_convex = len(hull.vertices) == len(coords)
         return hull.volume, is_convex
 
 
