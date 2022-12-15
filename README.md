@@ -4,7 +4,7 @@
 
 Time-dependent Ginzburg-Landau in Python
 
-![GitHub Workflow Status (branch)](https://img.shields.io/github/workflow/status/loganbvh/py-tdgl/lint-and-test/main)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/loganbvh/py-tdgl/lint-and-test.yml?branch=main)
 [![Documentation Status](https://readthedocs.org/projects/py-tdgl/badge/?version=latest)](https://py-tdgl.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/loganbvh/py-tdgl/branch/main/graph/badge.svg?token=VXdxJKP6Ag)](https://codecov.io/gh/loganbvh/py-tdgl)
 ![GitHub](https://img.shields.io/github/license/loganbvh/py-tdgl)
