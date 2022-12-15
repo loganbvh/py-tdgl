@@ -62,5 +62,5 @@ Parts of this package have been adapted from [`SuperDetectorPy`](https://github.
 - Mattias Jönsson, Theory for superconducting few-photon detectors (Doctoral dissertation), KTH Royal Institute of Technology (2022) ([Link](http://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-312132))
 - Mattias Jönsson, Robert Vedin, Samuel Gyger, James A. Sutton, Stephan Steinhauer, Val Zwiller, Mats Wallin, Jack Lidmar, Current crowding in nanoscale superconductors within the Ginzburg-Landau model, Phys. Rev. Applied 17, 064046 (2022) ([Link](https://journals.aps.org/prapplied/abstract/10.1103/PhysRevApplied.17.064046))
 
-The user interface is adaptive from [`SuperScreen`](https://github.com/loganbvh/superscreen).
+The user interface is adapted from [`SuperScreen`](https://github.com/loganbvh/superscreen).
 
