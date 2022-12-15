@@ -101,8 +101,7 @@ class Solution:
         """Sheet supercurrent density, :math:`\\mathbf{K}_s`"""
         self.normal_current_density: Union[np.ndarray, None] = None
         """Sheet normal density, :math:`\\mathbf{K}_n`"""
-        self.vorticity: Union[np.ndarray, None] = None
-        """The current vorticity, :math:`\\omega=(\\nabla\\times\\mathbf{K})\\cdot\\hat{\\mathbf{z}}`"""
+        self._vorticity: Union[np.ndarray, None] = None
 
         # Make field_units and current_units "read-only" attributes.
         # The should never be changed after instantiation.
@@ -182,7 +181,6 @@ class Solution:
             self.tdgl_data = TDGLData.from_hdf5(f, step)
             self.dynamics = DynamicsData.from_hdf5(f, *self.data_range)
         mesh = self.device.mesh
-        device = self.device
         self._solve_step = step
         supercurrent, sc_direc, _ = get_edge_quantity_data(
             self.tdgl_data.supercurrent, mesh
@@ -194,7 +192,11 @@ class Solution:
         # Current density, evaluated on the mesh edges.
         self.supercurrent_density = K0 * supercurrent[:, np.newaxis] * sc_direc
         self.normal_current_density = K0 * normal_current[:, np.newaxis] * nc_direc
-        # Calculate the vorticity, evaluates on mesh sites.
+
+    def _compute_vorticity(self) -> None:
+        device = self.device
+        mesh = device.mesh
+        # Calculate the vorticity, evaluated on mesh sites.
         # The vorticity is the curl of the current density.
         j_sc_site = mesh.get_quantity_on_site(self.tdgl_data.supercurrent)
         j_nm_site = mesh.get_quantity_on_site(self.tdgl_data.normal_current)
@@ -213,10 +215,21 @@ class Solution:
         scale = (
             device.K0 / (device.coherence_length * device.ureg(device.length_units))
         ).to(f"{self.current_units} / {self.device.length_units}**2")
-        self.vorticity = vorticity * scale
+        self._vorticity = vorticity * scale
 
     @property
-    def current_density(self) -> pint.Quantity:
+    def vorticity(self) -> Union[np.ndarray, None]:
+        """The current vorticity,
+        :math:`\\omega=(\\nabla\\times\\mathbf{K})\\cdot\\hat{\\mathbf{z}}`
+        """
+        if self.supercurrent_density is None:
+            return None
+        if self._vorticity is None:
+            self._compute_vorticity()
+        return self._vorticity
+
+    @property
+    def current_density(self) -> np.ndarray:
         """The total sheet current density,
         :math:`\\mathbf{K}=\\mathbf{K}_s+\\mathbf{K}_n`.
         """
