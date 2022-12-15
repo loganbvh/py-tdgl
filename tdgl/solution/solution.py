@@ -192,6 +192,7 @@ class Solution:
         # Current density, evaluated on the mesh edges.
         self.supercurrent_density = K0 * supercurrent[:, np.newaxis] * sc_direc
         self.normal_current_density = K0 * normal_current[:, np.newaxis] * nc_direc
+        self._vorticity = None
 
     def _compute_vorticity(self) -> None:
         device = self.device
