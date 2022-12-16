@@ -27,6 +27,9 @@ extensions = [
     "sphinxarg.ext",
     "sphinxcontrib.bibtex",
     "sphinx.ext.autosectionlabel",
+    # https://github.com/spatialaudio/nbsphinx/issues/24
+    # https://github.com/spatialaudio/nbsphinx/issues/687
+    "IPython.sphinxext.ipython_console_highlighting",
 ]
 bibtex_bibfiles = [
     "references.bib",
