@@ -39,6 +39,7 @@ EXTRAS_REQUIRE = {
         "pre-commit",
     ],
     "docs": [
+        "IPython",
         "sphinx",
         "sphinx_rtd_theme",
         "sphinx-autodoc-typehints",
