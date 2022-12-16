@@ -40,7 +40,7 @@ EXTRAS_REQUIRE = {
     ],
     "docs": [
         "sphinx",
-        "sphinx_rtd_theme",
+        "sphinx_rtd_theme>=0.3.1",
         "sphinx-autodoc-typehints",
         "nbsphinx",
         "pillow",
