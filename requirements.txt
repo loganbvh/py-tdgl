@@ -1,6 +1,5 @@
 cloudpickle
 h5py
-IPython
 joblib
 jupyter
 matplotlib
