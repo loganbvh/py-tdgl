@@ -40,7 +40,6 @@ EXTRAS_REQUIRE = {
     ],
     "docs": [
         "IPython",
-        "ipykernel",
         "sphinx",
         "sphinx_rtd_theme",
         "sphinx-autodoc-typehints",
