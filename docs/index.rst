@@ -57,9 +57,9 @@ please consider citing the following:
   Current crowding in nanoscale superconductors within the Ginzburg-Landau model, Phys. Rev. Applied 17, 064046 (2022)
   (`Link <https://journals.aps.org/prapplied/abstract/10.1103/PhysRevApplied.17.064046>`_).
 
-The ``pyTDGL`` Python API is adapted from `SuperScreen <https://superscreen.readthedocs.io/en/latest/>`_
+The ``pyTDGL`` Python API is adapted from `SuperScreen <https://superscreen.readthedocs.io/en/latest/>`_,
 (`GitHub repo <hub.com/loganbvh/superscreen>`_, `journal article <https://doi.org/10.1016/j.cpc.2022.108464>`_,
-`arXiv preprint <https://arxiv.org/abs/2203.13388>`_).
+`arXiv preprint <https://arxiv.org/abs/2203.13388>`_), which solves the London equation in two dimensions.
 
 .. toctree::
    :maxdepth: 2
