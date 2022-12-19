@@ -31,7 +31,7 @@ def get_plot_data(
     a_induced = tdgl_data.induced_vector_potential
     supercurrent = tdgl_data.supercurrent
     normal_current = tdgl_data.normal_current
-    nsites = mesh.sites.shape[0]
+    nsites = len(mesh.sites)
 
     if quantity is Quantity.ORDER_PARAMETER and psi is not None:
         return np.abs(psi), np.zeros((nsites, 2)), [0, 1]

@@ -198,8 +198,8 @@ class Polygon:
         else:
             mesh = Mesh.from_triangulation(points, triangles)
         logger.debug(
-            f"Finished generating mesh with {mesh.sites.shape[0]} points and "
-            f"{mesh.elements.shape[0]} triangles."
+            f"Finished generating mesh with {len(mesh.sites)} points and "
+            f"{len(mesh.elements)} triangles."
         )
         return mesh
 
@@ -450,7 +450,7 @@ class Polygon:
             points=poly,
             mesh=self.mesh,
         )
-        npts = max(polygon.points.shape[0], self.points.shape[0])
+        npts = max(len(polygon.points), len(self.points))
         polygon = polygon.resample(npts)
         if as_polygon:
             return polygon
@@ -473,7 +473,7 @@ class Polygon:
 
         """
         if num_points is None:
-            num_points = self.points.shape[0]
+            num_points = len(self.points)
         if not num_points:
             return self.copy()
         points = ensure_unique(self.points.copy())

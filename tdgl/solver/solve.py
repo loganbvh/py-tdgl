@@ -1,3 +1,4 @@
+import itertools
 import logging
 from datetime import datetime
 from typing import Callable, Dict, Sequence, Tuple, Union
@@ -240,9 +241,7 @@ def solve(
         ).astype(np.int64)
     else:
         normal_boundary_index = np.array([], dtype=np.int64)
-    interior_indices = np.setdiff1d(
-        np.arange(mesh.sites.shape[0]), normal_boundary_index
-    )
+    interior_indices = np.setdiff1d(np.arange(len(mesh.sites)), normal_boundary_index)
     # Define the source-drain current.
     if terminal_currents and device.voltage_points is None:
         logger.warning(
@@ -279,9 +278,9 @@ def solve(
     mu_laplacian_lu = operators.mu_laplacian_lu
     mu_gradient = operators.mu_gradient
 
-    psi = np.ones(mesh.sites.shape[0], dtype=np.complex128)
+    psi = np.ones(len(mesh.sites), dtype=np.complex128)
     psi[fixed_sites] = 0
-    mu = np.zeros(mesh.sites.shape[0])
+    mu = np.zeros(len(mesh.sites))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the alpha parameter, which is the maximum value of |psi| at each position.
     if callable(disorder_alpha):
@@ -343,52 +342,31 @@ def solve(
                 current_density_scale * current_density
             )
 
-        # If screening is included, update the link variables in the covariant
-        # Laplacian and gradient for psi based on the induced vector potential
-        # from the previous iteration.
-        if options.include_screening:
-            # 3D current density
-            J_edge = supercurrent_val + normal_current_val
-            J_site = mesh.get_quantity_on_site(J_edge)
-            # i: edges, j: sites, k: spatial dimensions
-            induced_vector_potential_val = np.asarray(
-                einsum("jk, ijk -> ik", J_site, inv_rho)
-            )
-            operators.set_link_exponents(
-                vector_potential + induced_vector_potential_val
-            )
-
-        # Compute the next time step for psi with the discrete gauge
-        # invariant discretization presented in chapter 5 in
-        # http://urn.kb.se/resolve?urn=urn:nbn:se:kth:diva-312132
-        abs_sq_psi = np.abs(psi_val) ** 2
-        dt_val = tentative_dt
-        z, w, new_sq_psi = solve_for_psi_squared(
-            psi_val,
-            abs_sq_psi,
-            alpha,
-            gamma,
-            u,
-            mu_val,
-            dt_val,
-            operators.psi_laplacian,
-        )
-        # Adjust the time step if the calculation failed to converge.
-        retries = 0
-        while new_sq_psi is None:
-            retries += 1
-            if retries > max_solve_retries:
+        screening_error = np.inf
+        A_induced = []
+        # This loop runs only once if options.include_screening is False
+        for screening_iterations in itertools.count():
+            if screening_error < options.screening_tolerance:
+                break  # Screening calculation converged.
+            if screening_iterations > options.max_iterations_per_step:
                 raise RuntimeError(
-                    f"Solver failed to converge in {options.max_solve_retries} retries at"
-                    f" step {step} with dt = {dt_val:.3e}."
-                    f" Try using a smaller dt_init."
+                    f"Screening calculation failed to converge at step {step} after"
+                    f" {options.max_iterations_per_step} iterations. Relative error in"
+                    f" induced vector potential: {screening_error:.2e}"
+                    f" (tolerance: {options.screening_tolerance:.2e})."
                 )
-            old_dt = dt_val
-            dt_val = dt_val / 2
-            logger.debug(
-                f"\nFailed to converge at step {step} with dt = {old_dt:.3e}."
-                f" Retrying with dt = {dt_val:.3e}."
-            )
+            if step > 0 and options.include_screening:
+                # If screening is included, update the link variables in the covariant
+                # Laplacian and gradient for psi based on the induced vector potential
+                # from the previous iteration.
+                operators.set_link_exponents(
+                    vector_potential + induced_vector_potential_val
+                )
+            # Calculate the new the order parameter
+            abs_sq_psi = np.abs(psi_val) ** 2
+            if screening_iterations == 0:
+                # Find a new time step only for the first screening iteration.
+                dt_val = tentative_dt
             z, w, new_sq_psi = solve_for_psi_squared(
                 psi_val,
                 abs_sq_psi,
@@ -399,16 +377,58 @@ def solve(
                 dt_val,
                 operators.psi_laplacian,
             )
-        # Compute the new value of the order parameter
-        psi_val = w - z * new_sq_psi
-        # Compute the supercurrent, scalar potential, and normal current
-        supercurrent_val = get_supercurrent(
-            psi_val, operators.psi_gradient, mesh.edge_mesh.edges
-        )
-        supercurrent_divergence = divergence @ supercurrent_val
-        lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
-        mu_val = mu_laplacian_lu.solve(lhs)
-        normal_current_val = -(mu_gradient @ mu_val)
+            # Adjust the time step if the calculation failed to converge.
+            for retries in itertools.count():
+                if new_sq_psi is not None:
+                    break
+                if retries > max_solve_retries:
+                    raise RuntimeError(
+                        f"Solver failed to converge in {options.max_solve_retries}"
+                        f" retries at step {step} with dt = {dt_val:.2e}."
+                        f" Try using a smaller dt_init."
+                    )
+                old_dt = dt_val
+                dt_val = dt_val * options.adaptive_time_step_multiplier
+                logger.debug(
+                    f"\nFailed to converge at step {step} with dt = {old_dt:.2e}."
+                    f" Retrying with dt = {dt_val:.2e}."
+                )
+                z, w, new_sq_psi = solve_for_psi_squared(
+                    psi_val,
+                    abs_sq_psi,
+                    alpha,
+                    gamma,
+                    u,
+                    mu_val,
+                    dt_val,
+                    operators.psi_laplacian,
+                )
+            # Compute the new value of the order parameter
+            psi_val = w - z * new_sq_psi
+            # Compute the supercurrent, scalar potential, and normal current
+            supercurrent_val = get_supercurrent(
+                psi_val, operators.psi_gradient, mesh.edge_mesh.edges
+            )
+            supercurrent_divergence = divergence @ supercurrent_val
+            lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
+            mu_val = mu_laplacian_lu.solve(lhs)
+            normal_current_val = -(mu_gradient @ mu_val)
+
+            if not options.include_screening:
+                break
+
+            J_edge = supercurrent_val + normal_current_val
+            J_site = mesh.get_quantity_on_site(J_edge)
+            # i: edges, j: sites, k: spatial dimensions
+            induced_vector_potential_val = np.asarray(
+                einsum("jk, ijk -> ik", J_site, inv_rho)
+            )
+            A_induced.append(induced_vector_potential_val)
+            if len(A_induced) > 1:
+                screening_error = np.max(
+                    np.linalg.norm(A_induced[-2] - A_induced[-1], axis=1)
+                ) / np.max(np.linalg.norm(A_induced[-1], axis=1))
+
         # Update the voltage and phase difference
         if device.voltage_points is None:
             d_mu = 0
@@ -419,6 +439,7 @@ def solve(
                 psi_val[voltage_points[1]]
             )
 
+        running_state.append("screening_iterations", screening_iterations)
         running_state.append("dt", dt_val)
         running_state.append("voltage", d_mu)
         running_state.append("phase_difference", d_theta)
@@ -477,7 +498,7 @@ def solve(
             names=list(parameters),
             fixed_values=(vector_potential, alpha),
             fixed_names=("applied_vector_potential", "alpha"),
-            running_names=("voltage", "phase_difference", "dt"),
+            running_names=("voltage", "phase_difference", "dt", "screening_iterations"),
             logger=logger,
         ).run()
         end_time = datetime.now()

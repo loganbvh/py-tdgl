@@ -24,6 +24,8 @@ class SolverOptions:
             computing the time step adaptively.
         max_solve_retries: The maximum number of times to reduce the time step in a
             given solve iteration before giving up.
+        adaptive_time_step_multiplier: The factor by which to multiple the time
+            step ``dt`` for each adaptive solve retry.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
         output_file: Path to an HDF5 file in which to save the data.
@@ -33,6 +35,9 @@ class SolverOptions:
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
         include_screening: Whether to include screening in the simulation.
+        screening_tolerance: Relative tolerance for the induced vector potential, used
+            to evaluate convergence of the screening calculation within a single time
+            step.
         rng_seed: An integer to used as a seed for the pseudorandom number generator.
     """
 
@@ -43,12 +48,15 @@ class SolverOptions:
     adaptive: bool = True
     adaptive_window: int = 10
     max_solve_retries: int = 10
+    adaptive_time_step_multiplier: float = 0.25
     save_every: int = 100
     progress_interval: int = 0
     field_units: str = "mT"
     current_units: str = "uA"
     output_file: Union[os.PathLike, None] = None
     include_screening: bool = False
+    max_iterations_per_step: int = 100
+    screening_tolerance: float = 1e-3
     rng_seed: Union[int, str, None] = None
 
     def __post_init__(self) -> None:
@@ -59,3 +67,8 @@ class SolverOptions:
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
             raise SolverOptionsError("dt_init must be less than or equal to dt_max.")
+        if not (0 < self.adaptive_time_step_multiplier < 1):
+            raise SolverOptionsError(
+                "adaptive_time_step_multiplier must be in (0, 1)"
+                f" (got {self.adaptive_time_step_multiplier})."
+            )

@@ -496,7 +496,7 @@ class Solution:
             units=J_units,
             with_units=True,
         )
-        zs = device.layer.z0 * np.ones(points.shape[0])
+        zs = device.layer.z0 * np.ones(len(points))
         dl = np.diff(points, axis=0, prepend=points[:1]) * ureg(device.length_units)
         A_units = f"{self.field_units} * {device.length_units}"
         A_poly = self.vector_potential_at_position(
@@ -700,7 +700,7 @@ class Solution:
             positions = positions[:, :2]
         elif isinstance(zs, (int, float, np.generic)):
             # constant zs
-            zs = zs * np.ones(positions.shape[0])
+            zs = zs * np.ones(len(positions))
         zs = zs.squeeze()
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
@@ -800,7 +800,7 @@ class Solution:
             positions = positions[:, :2]
         elif isinstance(zs, (int, float, np.generic)):
             # constant zs
-            zs = zs * np.ones(positions.shape[0])
+            zs = zs * np.ones(len(positions))
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
         if zs.ndim == 1:
