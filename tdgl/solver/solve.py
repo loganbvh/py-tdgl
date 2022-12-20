@@ -37,6 +37,8 @@ def validate_terminal_currents(
     solver_options: SolverOptions,
     num_evals: int = 100,
 ) -> None:
+    """Ensure that the terminal currents satisfy current conservation."""
+
     def check_total_current(currents: Dict[str, float]):
         names = set([t.name for t in terminal_info])
         if unknown := set(currents).difference(names):
@@ -106,14 +108,17 @@ def select_pinning_sites(
 
 def solve_for_psi_squared(
     psi: np.ndarray,
-    abs_sq_psi: np.ndarray,
+    mu: np.ndarray,
     alpha: np.ndarray,
+    abs_sq_psi: np.ndarray,
     gamma: float,
     u: float,
-    mu: np.ndarray,
     dt: float,
     psi_laplacian: sp.spmatrix,
 ) -> Tuple[Union[np.ndarray, None], Union[np.ndarray, None], Union[np.ndarray, None]]:
+    """Solve for :math:`|\\psi_i^{n+1}|^2` given :math:`\\psi_i^n` and
+    :math:`\\mu_i^n`.
+    """
     U = np.exp(-1j * mu * dt)
     z = U * gamma**2 / 2 * psi
     with np.errstate(all="raise"):
@@ -278,9 +283,9 @@ def solve(
     mu_laplacian_lu = operators.mu_laplacian_lu
     mu_gradient = operators.mu_gradient
 
-    psi = np.ones(len(mesh.sites), dtype=np.complex128)
-    psi[fixed_sites] = 0
-    mu = np.zeros(len(mesh.sites))
+    psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
+    psi_init[fixed_sites] = 0
+    mu_init = np.zeros(len(mesh.sites))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the alpha parameter, which is the maximum value of |psi| at each position.
     if callable(disorder_alpha):
@@ -316,17 +321,19 @@ def solve(
     # This list is used to calculate the adaptive time step.
     d_psi_sq_vals = []
     tentative_dt = options.dt_init
+    step_size = options.screening_step_size
+    drag = options.screening_step_drag
 
     # This is the function called at each step of the solver.
     def update(
         state,
         running_state,
-        psi_val,
-        mu_val,
-        supercurrent_val,
-        normal_current_val,
-        induced_vector_potential_val,
-        dt_val,
+        psi,
+        mu,
+        supercurrent,
+        normal_current,
+        A_induced,
+        dt,
     ):
         nonlocal tentative_dt
         step = state["step"]
@@ -343,7 +350,9 @@ def solve(
             )
 
         screening_error = np.inf
-        A_induced = []
+        A_induced_vals = []
+        # Velocity for Polyak's method
+        v = [0]
         # This loop runs only once if options.include_screening is False
         for screening_iterations in itertools.count():
             if screening_error < options.screening_tolerance:
@@ -359,22 +368,20 @@ def solve(
                 # If screening is included, update the link variables in the covariant
                 # Laplacian and gradient for psi based on the induced vector potential
                 # from the previous iteration.
-                operators.set_link_exponents(
-                    vector_potential + induced_vector_potential_val
-                )
+                operators.set_link_exponents(vector_potential + A_induced)
             # Calculate the new the order parameter
-            abs_sq_psi = np.abs(psi_val) ** 2
+            abs_sq_psi = np.abs(psi) ** 2
             if screening_iterations == 0:
                 # Find a new time step only for the first screening iteration.
-                dt_val = tentative_dt
+                dt = tentative_dt
             z, w, new_sq_psi = solve_for_psi_squared(
-                psi_val,
-                abs_sq_psi,
+                psi,
+                mu,
                 alpha,
+                abs_sq_psi,
                 gamma,
                 u,
-                mu_val,
-                dt_val,
+                dt,
                 operators.psi_laplacian,
             )
             # Adjust the time step if the calculation failed to converge.
@@ -384,63 +391,67 @@ def solve(
                 if retries > max_solve_retries:
                     raise RuntimeError(
                         f"Solver failed to converge in {options.max_solve_retries}"
-                        f" retries at step {step} with dt = {dt_val:.2e}."
+                        f" retries at step {step} with dt = {dt:.2e}."
                         f" Try using a smaller dt_init."
                     )
-                old_dt = dt_val
-                dt_val = dt_val * options.adaptive_time_step_multiplier
+                old_dt = dt
+                dt = dt * options.adaptive_time_step_multiplier
                 logger.debug(
                     f"\nFailed to converge at step {step} with dt = {old_dt:.2e}."
-                    f" Retrying with dt = {dt_val:.2e}."
+                    f" Retrying with dt = {dt:.2e}."
                 )
                 z, w, new_sq_psi = solve_for_psi_squared(
-                    psi_val,
-                    abs_sq_psi,
+                    psi,
+                    mu,
                     alpha,
+                    abs_sq_psi,
                     gamma,
                     u,
-                    mu_val,
-                    dt_val,
+                    dt,
                     operators.psi_laplacian,
                 )
             # Compute the new value of the order parameter
-            psi_val = w - z * new_sq_psi
+            psi = w - z * new_sq_psi
             # Compute the supercurrent, scalar potential, and normal current
-            supercurrent_val = get_supercurrent(
-                psi_val, operators.psi_gradient, mesh.edge_mesh.edges
+            supercurrent = get_supercurrent(
+                psi, operators.psi_gradient, mesh.edge_mesh.edges
             )
-            supercurrent_divergence = divergence @ supercurrent_val
+            supercurrent_divergence = divergence @ supercurrent
             lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
-            mu_val = mu_laplacian_lu.solve(lhs)
-            normal_current_val = -(mu_gradient @ mu_val)
+            mu = mu_laplacian_lu.solve(lhs)
+            normal_current = -(mu_gradient @ mu)
 
             if not options.include_screening:
                 break
 
-            J_edge = supercurrent_val + normal_current_val
+            J_edge = supercurrent + normal_current
             J_site = mesh.get_quantity_on_site(J_edge)
             # i: edges, j: sites, k: spatial dimensions
-            induced_vector_potential_val = np.asarray(
-                einsum("jk, ijk -> ik", J_site, inv_rho)
-            )
-            A_induced.append(induced_vector_potential_val)
-            if len(A_induced) > 1:
+            new_A_induced = np.asarray(einsum("jk, ijk -> ik", J_site, inv_rho))
+            diff = new_A_induced - A_induced
+            v.append((1 - drag) * v[-1] + step_size * diff)
+            A_induced = A_induced + v[-1]
+            A_induced_vals.append(A_induced)
+            if len(A_induced_vals) > 1:
                 screening_error = np.max(
-                    np.linalg.norm(A_induced[-2] - A_induced[-1], axis=1)
-                ) / np.max(np.linalg.norm(A_induced[-1], axis=1))
+                    np.linalg.norm(A_induced_vals[-2] - A_induced, axis=1)
+                    / np.linalg.norm(A_induced, axis=1)
+                )
+                del v[:-2]
+                del A_induced_vals[:-2]
 
         # Update the voltage and phase difference
         if device.voltage_points is None:
             d_mu = 0
             d_theta = 0
         else:
-            d_mu = mu_val[voltage_points[0]] - mu_val[voltage_points[1]]
-            d_theta = np.angle(psi_val[voltage_points[0]]) - np.angle(
-                psi_val[voltage_points[1]]
+            d_mu = mu[voltage_points[0]] - mu[voltage_points[1]]
+            d_theta = np.angle(psi[voltage_points[0]]) - np.angle(
+                psi[voltage_points[1]]
             )
 
         running_state.append("screening_iterations", screening_iterations)
-        running_state.append("dt", dt_val)
+        running_state.append("dt", dt)
         running_state.append("voltage", d_mu)
         running_state.append("phase_difference", d_theta)
 
@@ -456,20 +467,20 @@ def solve(
                 tentative_dt = np.clip(new_dt, 0, dt_max)
 
         return (
-            psi_val,
-            mu_val,
-            supercurrent_val,
-            normal_current_val,
-            induced_vector_potential_val,
-            dt_val,
+            psi,
+            mu,
+            supercurrent,
+            normal_current,
+            A_induced,
+            dt,
         )
 
     # Set the initial conditions.
     if seed_solution is None:
         num_edges = len(mesh.edge_mesh.edges)
         parameters = {
-            "psi": psi,
-            "mu": mu,
+            "psi": psi_init,
+            "mu": mu_init,
             "supercurrent": np.zeros(num_edges),
             "normal_current": np.zeros(num_edges),
             "induced_vector_potential": np.zeros((num_edges, 2)),

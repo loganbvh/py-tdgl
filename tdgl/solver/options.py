@@ -38,6 +38,8 @@ class SolverOptions:
         screening_tolerance: Relative tolerance for the induced vector potential, used
             to evaluate convergence of the screening calculation within a single time
             step.
+        screening_step_size: Step size :math:`\\alpha` for Polyak's method.
+        screening_step_drag: Drag parameter :math:`\\beta` for Polyak's method.
         rng_seed: An integer to used as a seed for the pseudorandom number generator.
     """
 
@@ -55,8 +57,10 @@ class SolverOptions:
     current_units: str = "uA"
     output_file: Union[os.PathLike, None] = None
     include_screening: bool = False
-    max_iterations_per_step: int = 100
+    max_iterations_per_step: int = 1000
     screening_tolerance: float = 1e-3
+    screening_step_size: float = 1.0
+    screening_step_drag: float = 0.5
     rng_seed: Union[int, str, None] = None
 
     def __post_init__(self) -> None:
@@ -71,4 +75,19 @@ class SolverOptions:
             raise SolverOptionsError(
                 "adaptive_time_step_multiplier must be in (0, 1)"
                 f" (got {self.adaptive_time_step_multiplier})."
+            )
+        if not (0 < self.screening_step_drag < 1):
+            raise SolverOptionsError(
+                "screening_step_drag must be in (0, 1)"
+                f" (got {self.screening_step_drag})."
+            )
+        if self.screening_step_size <= 0:
+            raise SolverOptionsError(
+                "screening_step_size must be in > 0"
+                f" (got {self.screening_step_size})."
+            )
+        if self.screening_tolerance <= 0:
+            raise SolverOptionsError(
+                "screening_tolerance must be in > 0"
+                f" (got {self.screening_tolerance})."
             )

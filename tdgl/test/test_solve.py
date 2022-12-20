@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 import tdgl
+from tdgl.solver.options import SolverOptionsError
 
 
 @pytest.mark.parametrize("current", [5.0, 10.0, lambda t: 10])
@@ -49,6 +50,17 @@ def test_source_drain_current(transport_device, current, field):
 def test_screening(box_device):
     device = box_device
     total_time = 50
+
+    with pytest.raises(SolverOptionsError):
+        tdgl.SolverOptions(solve_time=total_time, screening_step_size=-1).validate()
+    with pytest.raises(SolverOptionsError):
+        tdgl.SolverOptions(solve_time=total_time, screening_tolerance=-1).validate()
+    with pytest.raises(SolverOptionsError):
+        tdgl.SolverOptions(solve_time=total_time, screening_step_drag=2).validate()
+    with pytest.raises(SolverOptionsError):
+        tdgl.SolverOptions(
+            solve_time=total_time, adaptive_time_step_multiplier=2
+        ).validate()
 
     options = tdgl.SolverOptions(
         solve_time=total_time,
