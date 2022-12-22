@@ -546,7 +546,7 @@ Solve step, with screening
         - if :math:`s==0`:
 
             - :math:`\Delta t^n \gets \Delta t_?`, initial guess for new time step
-        - Update link variables in :math:`(\nabla-i\mathbf{A})` and :math:`(\nabla -i\mathbf{A})^2` given :math:`\mathbf{A}_\mathrm{induced}^{n+1,s}` (:eq:`grad-psi`, :eq:`;laplacian-psi`)
+        - Update link variables in :math:`(\nabla-i\mathbf{A})` and :math:`(\nabla -i\mathbf{A})^2` given :math:`\mathbf{A}_\mathrm{induced}^{n+1,s}` (:eq:`grad-psi`, :eq:`laplacian-psi`)
         - Calculate :math:`\psi_i^{n+1}` and :math:`\Delta t^n` via `Adaptive Euler update <#adaptive-euler-update>`_
         - Calculate the supercurrent density :math:`J_{s,ij}^{n+1}` (:eq:`poisson-num`)
         - Solve for :math:`\mu_i^{n+1}` via sparse LU factorization (:eq:`poisson-num`)
