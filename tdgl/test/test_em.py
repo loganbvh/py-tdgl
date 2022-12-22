@@ -23,7 +23,7 @@ def test_current_loop(z_eval, current_units, length_units):
     pl_edges = np.diff(pl, axis=0) * ureg(length_units)
     pl_mesh = tdgl.Polygon(points=pl).make_mesh(min_points=eval_points)
     pl_points = np.concatenate(
-        [pl_mesh.sites, z_eval * np.ones((pl_mesh.sites.shape[0], 1))], axis=1
+        [pl_mesh.sites, z_eval * np.ones((len(pl_mesh.sites), 1))], axis=1
     )
     pl_areas = pl_mesh.areas * ureg(length_units) ** 2
 

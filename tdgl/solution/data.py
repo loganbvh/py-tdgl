@@ -155,6 +155,7 @@ class DynamicsData:
     time: np.ndarray = dataclasses.field(init=False)
     voltage: np.ndarray
     phase_difference: np.ndarray
+    screening_iterations: Union[np.ndarray, None] = None
 
     def __post_init__(self):
         self.time = np.cumsum(self.dt)
@@ -330,28 +331,44 @@ class DynamicsData:
             A new :class:`DynamicsData` instance.
         """
         if "phase_difference" in h5file:
-            # Load from DynamicsData.to_hdf5().
+            # Load from DynamicsData.to_hdf5()
+            screening_iterations = None
             dt = np.array(h5file["dt"])
             voltage = np.array(h5file["voltage"])
             phase = np.array(h5file["phase_difference"])
+            if "screening_iterations" in h5file:
+                screening_iterations = np.array(h5file["screening_iterations"])
         else:
             dts = []
             voltages = []
             phases = []
+            screening_iterations = []
             if step_min is None:
                 step_min, step_max = get_data_range(h5file)
             for i in range(step_min, step_max + 1):
                 grp = h5file[f"data/{i}"]
-                if "dt" in grp:
-                    dts.append(np.array(grp["dt"]))
-                    voltages.append(np.array(grp["voltage"]))
-                    phases.append(np.array(grp["phase_difference"]))
+                if "dt" not in grp:
+                    continue
+                dts.append(np.array(grp["dt"]))
+                voltages.append(np.array(grp["voltage"]))
+                phases.append(np.array(grp["phase_difference"]))
+                if "screening_iterations" in grp:
+                    screening_iterations.append(np.array(grp["screening_iterations"]))
             dt = np.concatenate(dts)
             mask = dt > 0
             dt = dt[mask]
             voltage = np.concatenate(voltages)[mask]
             phase = np.concatenate(phases)[mask]
-        return DynamicsData(dt, voltage, phase)
+            if screening_iterations:
+                screening_iterations = np.concatenate(screening_iterations)[mask]
+            else:
+                screening_iterations = None
+        return DynamicsData(
+            dt,
+            voltage,
+            phase,
+            screening_iterations=screening_iterations,
+        )
 
     def to_hdf5(self, h5group: h5py.Group) -> None:
         """Save a :class:`DynamicsData` instance to an :class:`h5py.Group`.
@@ -361,6 +378,8 @@ class DynamicsData:
         """
         for key in ("dt", "voltage", "phase_difference"):
             h5group[key] = getattr(self, key)
+        if self.screening_iterations is not None:
+            h5group["screening_iterations"] = self.screening_iterations
 
     def __eq__(self, other: Any) -> bool:
         return dataclass_equals(self, other)

@@ -173,7 +173,7 @@ class Mesh:
             The Voronoi cell areas and the (unordered) vertices of the Voronoi cells.
         """
         # Compute polygons to use when computing area
-        polygons = get_surrounding_voronoi_polygons(elements, sites.shape[0])
+        polygons = get_surrounding_voronoi_polygons(elements, len(sites))
         # Get the areas for each vertex
         areas, voronoi_sites = compute_surrounding_area(
             sites=sites,
@@ -236,7 +236,7 @@ class Mesh:
         mesh = self
         elements = mesh.elements
         edges, _ = get_edges(elements)
-        n = mesh.sites.shape[0]
+        n = len(mesh.sites)
         shape = (n, 2)
         boundary = mesh.boundary_indices
         for i in range(iterations):

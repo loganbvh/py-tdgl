@@ -496,7 +496,7 @@ class Solution:
             units=J_units,
             with_units=True,
         )
-        zs = device.layer.z0 * np.ones(points.shape[0])
+        zs = device.layer.z0 * np.ones(len(points))
         dl = np.diff(points, axis=0, prepend=points[:1]) * ureg(device.length_units)
         A_units = f"{self.field_units} * {device.length_units}"
         A_poly = self.vector_potential_at_position(
@@ -700,7 +700,7 @@ class Solution:
             positions = positions[:, :2]
         elif isinstance(zs, (int, float, np.generic)):
             # constant zs
-            zs = zs * np.ones(positions.shape[0])
+            zs = zs * np.ones(len(positions))
         zs = zs.squeeze()
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
@@ -800,7 +800,7 @@ class Solution:
             positions = positions[:, :2]
         elif isinstance(zs, (int, float, np.generic)):
             # constant zs
-            zs = zs * np.ones(positions.shape[0])
+            zs = zs * np.ones(len(positions))
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
         if zs.ndim == 1:
@@ -870,12 +870,13 @@ class Solution:
             if save_tdgl_data:
                 self.tdgl_data.to_hdf5(data_grp)
                 self.dynamics.to_hdf5(data_grp.require_group(str(self.tdgl_data.step)))
-            for k, v in dataclasses.asdict(self.options).items():
-                if v is not None:
-                    data_grp.attrs[k] = v
             if "solution" in f:
                 del f["solution"]
             group = f.create_group("solution")
+            options_grp = group.create_group("options")
+            for k, v in dataclasses.asdict(self.options).items():
+                if v is not None:
+                    options_grp.attrs[k] = v
             group.attrs["time_created"] = self.time_created.isoformat()
             group.attrs["current_units"] = self.current_units
             group.attrs["field_units"] = self.field_units
@@ -948,12 +949,11 @@ class Solution:
             raise IOError(f"Unable to load {name}.")
 
         with h5py.File(path, "r", libver="latest") as f:
-            data_grp = f["data"]
+            grp = f["solution"]
             options_kwargs = dict()
-            for k, v in data_grp.attrs.items():
+            for k, v in grp["options"].attrs.items():
                 options_kwargs[k] = v
             options = SolverOptions(**options_kwargs)
-            grp = f["solution"]
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             vector_potential = deserialize_func("applied_vector_potential", grp)
             terminal_currents = deserialize_func("terminal_currents", grp)

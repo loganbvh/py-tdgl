@@ -109,7 +109,7 @@ def create_animation(
                 max_frame = min(max_frame, _max_frame)
 
             # Temp data to use in plots
-            temp_value = np.ones(mesh.sites.shape[0], dtype=float)
+            temp_value = np.ones(len(mesh.sites), dtype=float)
             temp_value[0] = 0
             temp_value[1] = 0.5
 

@@ -71,7 +71,7 @@ def get_dual_edge_lengths(
                 edge_to_element[edge].append(i)
             else:
                 edge_to_element[edge] = [i]
-    dual_lengths = np.zeros(edge_centers.shape[0], dtype=float)
+    dual_lengths = np.zeros(len(edge_centers), dtype=float)
     for i, edge in enumerate(edges):
         indices = edge_to_element[tuple(edge)]
         if len(indices) == 1:  # Boundary edges

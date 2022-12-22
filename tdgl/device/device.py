@@ -530,8 +530,8 @@ class Device:
             points = mesh.sites
             triangles = mesh.elements
         logger.info(
-            f"Finished generating mesh with {points.shape[0]} points and "
-            f"{triangles.shape[0]} triangles."
+            f"Finished generating mesh with {len(points)} points and "
+            f"{len(triangles)} triangles."
         )
         self._create_dimensionless_mesh(points, triangles)
 
@@ -569,8 +569,8 @@ class Device:
                 return arr.mean()
 
         return dict(
-            num_sites=self.mesh.sites.shape[0] if self.mesh else None,
-            num_elements=self.mesh.elements.shape[0] if self.mesh else None,
+            num_sites=len(self.mesh.sites) if self.mesh else None,
+            num_elements=len(self.mesh.elements) if self.mesh else None,
             min_edge_length=_min(edge_lengths),
             max_edge_length=_max(edge_lengths),
             mean_edge_length=_mean(edge_lengths),

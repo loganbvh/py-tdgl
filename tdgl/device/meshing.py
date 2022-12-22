@@ -57,7 +57,7 @@ def generate_mesh(
     r0 = np.array([[xmin, ymin]]) + np.array([[dx, dy]]) / 2
     # Center the coordinates at (0, 0) to avoid floating point issues.
     coords = coords - r0
-    indices = np.arange(poly_coords.shape[0], dtype=int)
+    indices = np.arange(len(poly_coords), dtype=int)
     if convex_hull:
         if boundary is not None:
             raise ValueError(
@@ -107,14 +107,14 @@ def generate_mesh(
     if max_edge_length is None or max_edge_length <= 0:
         max_edge_length = np.inf
     max_length = get_edge_lengths(points, triangles).max()
-    while (points.shape[0] < min_points) or (max_length > max_edge_length):
+    while (len(points) < min_points) or (max_length > max_edge_length):
         mesh = triangle.build(mesh_info=mesh_info, **kwargs)
         points = np.array(mesh.points) + r0
         triangles = np.array(mesh.elements)
         max_length = get_edge_lengths(points, triangles).max()
         logger.debug(
-            f"Iteration {i}: Made mesh with {points.shape[0]} points and "
-            f"{triangles.shape[0]} triangles with maximum edge length: "
+            f"Iteration {i}: Made mesh with {len(points)} points and "
+            f"{len(triangles)} triangles with maximum edge length: "
             f"{max_length:.2e}. Target maximum edge length: {max_edge_length:.2e}."
         )
         if np.isfinite(max_edge_length):

@@ -206,7 +206,7 @@ class MeshOperators:
         # Compute these quantities just once, as they never change.
         self.gradient_weights = 1 / edge_mesh.edge_lengths
         self.laplacian_weights = edge_mesh.dual_edge_lengths / edge_mesh.edge_lengths
-        self.gradient_link_rows = np.arange(edge_mesh.edges.shape[0], dtype=int)
+        self.gradient_link_rows = np.arange(len(edge_mesh.edges), dtype=int)
         self.gradient_link_cols = edge_mesh.edges[:, 1]
         self.laplacian_link_rows = np.concatenate(
             [edge_mesh.edges[:, 0], edge_mesh.edges[:, 1]]
@@ -254,7 +254,7 @@ class MeshOperators:
         # Just update the link variables
         directions = mesh.edge_mesh.directions
         if self.link_exponents is None:
-            link_variables = np.ones(directions.shape[0])
+            link_variables = np.ones(len(directions))
         else:
             link_variables = np.exp(
                 -1j * np.einsum("ij, ij -> i", self.link_exponents, directions)
@@ -270,11 +270,14 @@ class MeshOperators:
             # Update Laplacian for psi
             areas0 = mesh.areas[mesh.edge_mesh.edges[:, 0]]
             areas1 = mesh.areas[mesh.edge_mesh.edges[:, 1]]
-            rows, cols = self.laplacian_link_rows, self.laplacian_link_cols
+            # Only update rows that are not fixed by boundary conditions
+            free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
+            rows = self.laplacian_link_rows[free_rows]
+            cols = self.laplacian_link_cols[free_rows]
             values = np.concatenate(
                 [
                     self.laplacian_weights * link_variables / areas0,
                     self.laplacian_weights * link_variables.conjugate() / areas1,
                 ]
-            )
+            )[free_rows]
             self.psi_laplacian[rows, cols] = values

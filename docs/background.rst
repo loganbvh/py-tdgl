@@ -220,7 +220,7 @@ in Josephson junction physics.
 The discretized form of the covariant Laplacian of :math:`\psi` at time :math:`t^{n}` and site :math:`\mathbf{r}_i` is:
 
 .. math::
-    :label: lapacian-psi
+    :label: laplacian-psi
 
     \left.\left(\nabla-i\mathbf{A}\right)^2\psi\right|_{\mathbf{r}_{i}}^{t^{n}}=\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_j^{n}\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
 
@@ -269,12 +269,14 @@ If we isloate the terms in :eq:`tdgl-num` involving the order parameter at time 
 where 
 
 .. math::
+    :label: z
 
     z_i^{n}=\frac{\gamma^2}{2}\exp(-i\mu_i^{n}\Delta t^{n})\psi_i^{n}
 
 and
 
 .. math::
+    :label: w
 
     \begin{split}
     w_i^{n}=&z_{i}^{n}\left|\psi_i^{n}\right|+\exp(-i\mu_i^{n}\Delta t^{n})\times\\
@@ -357,25 +359,23 @@ in the equilibrium behavior of a system. The dynamics may initially be quite fas
 Using an adaptive time step dramatically reduces the wall-clock time needed to model equilibrium behavior in such instances, without
 sacrificing solution accuracy.
 
-There are three parameters that control the adaptive time step algorithm, which are defined in :class:`tdgl.SolverOptions`:
+There are four parameters that control the adaptive time step algorithm, which are defined in :class:`tdgl.SolverOptions`:
 :math:`\Delta t_\mathrm{init}` (``SolverOptions.dt_init``),
 :math:`\Delta t_\mathrm{max}` (``SolverOptions.dt_max``),
-and :math:`N_\mathrm{window}` (``SolverOptions.adaptive_window``).
+and :math:`N_\mathrm{window}` (``SolverOptions.adaptive_window``) :math:`M_\mathrm{adaptive}` (``SolverOptions.adaptive_time_step_multiplier``).
 The initial time step at iteration :math:`n=0` is set to :math:`\Delta t^{(0)}=\Delta t_\mathrm{init}`. We keep a running list of
-:math:`\Delta|\psi|^2_n=\max_i \left|\left(\left|\psi_i^{n+1}\right|^2-\left|\psi_i^{n}\right|^2\right)\right|` for each iteration :math:`n`.
-Then, for each iteration :math:`n > N_\mathrm{window}`, we define a tentative new time step :math:`\Delta t_?^{n+1}`
+:math:`\Delta|\psi|^2_n=\max_i \left|\left(\left|\psi_i^{n}\right|^2-\left|\psi_i^{n-1}\right|^2\right)\right|` for each iteration :math:`n`.
+Then, for each iteration :math:`n > N_\mathrm{window}`, we define a tentative new time step :math:`\Delta t_?`
 using the following heuristic:
 
 .. math::
     :label: dt-tentative
 
-        \Delta t_?^{n+1}=\min\left(
-            \frac{\Delta t_\mathrm{init}}{\frac{1}{N_\mathrm{window}}
-            \sum_{\ell=n-N_\mathrm{window}}^n\Delta|\psi|^2_\ell}, \; \Delta t_\mathrm{max}
-        \right).
+    \delta_n &= \frac{1}{N_\mathrm{window}}\sum_{\ell=0}^{N_\mathrm{window}-1}\Delta|\psi|^2_{n-\ell}\\
+    \Delta t_? & = \min\left(\frac{1}{2}\left(\Delta t^n +  \frac{\Delta t_\mathrm{init}}{\delta_n}\right),\;\Delta t_\mathrm{max}\right)
 
 :eq:`dt-tentative` has the effect of automatically selecting a small time step if the recent dynamics
-of the system are fast, and a larger time step if the dynamics are slow.
+of the order parameter are fast, and a larger time step if the dynamics are slow.
 
 .. note::
     Because new time steps are chosen based on the dynamics of the order parameter, we recommend disabling
@@ -387,49 +387,74 @@ The the time step selected at iteration :math:`n` as described above may be too 
 of the system in iteration :math:`m=n+1`. We detect such a failure to converge by evaluating the discriminant of
 :eq:`quad-2`. If the discriminant, :math:`(2c_i^{m} + 1)^2 - 4|z_i^{m}|^2|w_i^{m}|^2`, is less than zero for any
 site :math:`i`, then the value of :math:`|\psi_i^{m+1}|^2` found in :eq:`quad-root` will be complex, which is unphysical.
-If this happens, we iteratively reduce the time step :math:`\Delta t^{m}` and re-solve :eq:`quad-2` until
+If this happens, we iteratively reduce the time step :math:`\Delta t^{m}`
+(setting :math:`\Delta t^{m} \leftarrow \Delta t^{m}\times M_\mathrm{adaptive}` at each iteration) and re-solve :eq:`quad-2` until
 the discriminant is nonnegative for all sites :math:`i`, then proceed with the rest of the calculation for iteration :math:`m`.
 
 
-.. Screening
-.. =========
+Screening
+=========
 
-.. If :math:`\Lambda=\lambda^2/d\gg L`, then one can neglect screening and assume that the total vector potential in the film is
-.. time-independent and equal to the applied vector potential: :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})`.
-.. If :math:`\Lambda\approx L`, then one must take screening into account because the total vector potential in the film will be
-.. :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})+\mathbf{A}_\mathrm{induced}(\mathbf{r}, t)`.
-.. We assume that the magnetic vector potential is either constant as a function of time
-.. or varies slowly enough that its time derivative can be neglected when calculating the electric field:
-.. :math:`\mathbf{E}=-\nabla\mu-\frac{\partial\mathbf{A}}{\partial t}\approx-\nabla\mu`.
+By default ``pyTDGL`` assumes that screening is negligible, i.e., that the total vector potential in the film is time-independent
+and equal to the applied vector potential: :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})`.
+Screening can optionally be included by evaluating the vector potential induced by currents flowing in the film.
+The vector potential in a 2D film induced by a sheet current density :math:`\mathbf{K}` flowing in the film is given by
 
-.. If the applied vector potential is due to a local field source, such as a small dipole or small current loop, then one can identify
-.. a length :math:`\rho_0`, which is the radial distance away from the field source at which the sign of the field changes sign.
+.. math::
+    :label: A-induced
 
-.. .. math::
-..     :label: A_induced
+    \mathbf{A}_\mathrm{induced}(\mathbf{r}, t) =
+    \frac{\mu_0}{4\pi}\int_\mathrm{film}\frac{\mathbf{K}(\mathbf{r}', t)}{|\mathbf{r}-\mathbf{r}'|}\,\mathrm{d}^2\mathbf{r}'.
 
-..     \mathbf{A}_\mathrm{induced}(\mathbf{r}, t) = \frac{\mu_0}{4\pi}\int_\mathrm{film}\frac{\mathbf{K}(\mathbf{r}', t)}{|\mathbf{r}-\mathbf{r}'|}\,\mathrm{d}^2\mathbf{r}',
+Taking the induced vector potential into account, the total vector potential in the film is
 
-.. where :math:`\mathbf{K}=\mathbf{K}_s+\mathbf{K}_n=d\mathbf{J}=d(\mathbf{J}_s+\mathbf{J}_n)` is the total sheet current density.
+.. math::
+    :label: A-total
 
-.. Fluxoid quantization provides a simple diagnostic to determine whether neglecting screening is a good approximation for a given model.
+    \mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})+\mathbf{A}_\mathrm{induced}(\mathbf{r}, t).
 
-.. .. math::
-..     :label: fluxoid
+Because :math:`\mathbf{A} =\mathbf{A}_\mathrm{applied}+\mathbf{A}_\mathrm{induced}` enters into the covariant gradient and Laplacian of
+:math:`\psi` (:eq:`grad-psi` and :eq:`laplacian-psi`), which in turn determine the current density :math:`\mathbf{J}=\mathbf{K}/d`,
+which determines :math:`\mathbf{A}_\mathrm{induced}`, :eq:`A-induced` must be solved self-consistently at each time step :math:`t^n`.
+The strategy for updating the induced vector potential to converge to a self-consistent value is based on Polyak's
+"heavy ball" method :footcite:p:`Polyak1964-gb,Holmvall2022-ps`:
 
-..     \begin{split}
-..     \Phi_C &= \underbrace{\oint_C\mathbf{A}(\mathbf{r})\cdot\mathrm{d}\mathbf{r}}_{\Phi^f_C=\text{flux part}}
-..         +\underbrace{\oint_C\mu_0\Lambda(\mathbf{r})\mathbf{K}_s(\mathbf{r})\cdot\mathrm{d}\mathbf{r}}_{\Phi^s_C=\text{supercurrent part}},
-..     \end{split}
+.. math::
+    :label: polyak
 
-.. where :math:`\Lambda(\mathbf{r})=\Lambda_0/|\psi(\mathbf{r})|^2` is the effective magnetic penetration depth and :math:`\Lambda_0` is the
-.. zero-field effective magnetic penetration depth.
+    \mathbf{A}^{n,s}_{\mathrm{induced},ij} &= \frac{\mu_0}{4\pi}\sum_{\text{sites } \ell}\frac{\mathbf{K}^{n,s}_\ell}{|\mathbf{r}_{ij}-\mathbf{r}_\ell|}a_\ell\label{eq:polyak-A}\\
+    \mathbf{d}^{n,s}_{ij} &= \mathbf{A}^{n,s}_{\mathrm{induced},ij} - \mathbf{A}^{n,s-1}_{\mathrm{induced},ij}\\
+    \mathbf{v}^{n,s+1} &= (1-\beta)\mathbf{v}^{n,s} + \alpha\mathbf{d}^{n,s}_{ij}\label{eq:polyak-velocity}\\
+    \mathbf{A}^{n,s+1}_{\mathrm{induced},ij} &= \mathbf{A}^{n,s}_{\mathrm{induced},ij} + \mathbf{v}^{n,s+1}_{ij}
+
+
+The integer index :math:`s` counts the number of iterations performed in the self-consistent calculation.
+The parameters :math:`\alpha\in(0,\infty)` and :math:`\beta\in(0,1)` in :eq:`polyak` can be set by the user,
+and the initial conditions for :eq:`polyak` are :math:`\mathbf{A}^{n,0}_{\mathrm{induced},ij} = \mathbf{A}^{n-1}_{\mathrm{induced},ij}`
+and :math:`\mathbf{v}^{n,0}_{ij} = \mathbf{0}`. The iterative application of :eq:`polyak` terminates when the relative change in the
+induced vector potential between iterations falls below a user-defined tolerance.
+
+In :eq:`polyak`, we evaluate the sheet current density :math:`\mathbf{K}^n_\ell=\mathbf{K}(\mathbf{r}_\ell,t^n)` on the mesh
+sites :math:`\mathbf{r}_\ell`, and the vector potential on the mesh edges :math:`\mathbf{r}_{ij}`, so the denominator
+:math:`|\mathbf{r}_{ij}-\mathbf{r}_\ell|` is strictly greater than zero and :eq:`polyak` is well-defined.
+:eq:`polyak` involves the pairwise distances between all edges and all sites in the mesh, so,
+in contrast to the sparse finite volume calculation, it requires a dense matrix representation. This means that
+including screening significantly increases both the memory and number of floating point operations required for a
+TDGL simulation. To accelerate this portion of the calculation, the first line of :eq:`polyak` is automatically evaluated on a graphics processing unit (GPU)
+if one is available. Although including screening does introduce some time-dependence to the total vector potential in the film
+(:eq:`A-total`), we assume that :math:`\partial\mathbf{A}/\partial t` remains small enough that the electric field in the film is
+:math:`\mathbf{E}=-\nabla\mu - \partial\mathbf{A}/\partial t \approx -\nabla\mu`. The screening calculation (:eq:`polyak`) can fail
+to converge for models with strong screening, where the effective magnetic penetration depth :math:`\Lambda=\lambda^2/d` is much smaller
+than the film size.
 
 
 .. _appendix-euler:
 
-Appendix: Implicit Euler method
-===============================
+Appendices
+----------
+
+Implicit Euler method
+=====================
 
 Here we go through the full derivation of the quadratic equation for :math:`\left|\psi_i^{n+1}\right|^2`,
 :eq:`quad-2`, starting from :eq:`quad-1`:
@@ -452,6 +477,93 @@ Here we go through the full derivation of the quadratic equation for :math:`\lef
         0 =& \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4 - (2c_i^{n} + 1)\left|\psi_i^{n+1}\right|^2 + \left|w_i^{n}\right|^2
         
     \end{split}
+
+Pseduocode for the solver algorithms
+====================================
+
+Adaptive Euler update
+*********************
+
+Adaptive Euler update subroutine. The parameters :math:`M_\mathrm{adaptive}` and :math:`N_\mathrm{retries}^\mathrm{max}` can be set by the user.
+
+    | **Data**: :math:`\psi_i^n`, :math:`\Delta t_?`, :math:`M_\mathrm{adaptive}`, :math:`N_\mathrm{retries}^\mathrm{max}`
+    | **Result**: :math:`\psi_i^{n+1}`, :math:`\Delta t^n`
+    - :math:`\Delta t^n \gets \Delta t_?`
+    - Calculate :math:`z_i^n`, :math:`w_i^n`, :math:`\left|\psi_i^{n+1}\right|^2` given :math:`\Delta t^n` (:eq:`z`, :eq:`w`, :eq:`quad-root`)
+    - if *adaptive*:
+
+        - :math:`N_\mathrm{retries} \gets 0`
+        - while :math:`\left|\psi_i^{n+1}\right|^2` is complex for any site :math:`i`:
+
+            - if :math:`N_\mathrm{retries} > N_\mathrm{retries}^\mathrm{max}`:
+
+                - Failed to converge - raise an error.
+            - :math:`\Delta t^n \gets \Delta t^n \times M_\mathrm{adaptive}`
+            - Calculate :math:`z_i^n`, :math:`w_i^n`, :math:`\left|\psi_i^{n+1}\right|^2` given :math:`\Delta t^n` (:eq:`z`, :eq:`w`, :eq:`quad-root`)
+            - :math:`N_\mathrm{retries} \gets N_\mathrm{retries} + 1`
+    - :math:`\psi_i^{n+1} \gets w_i^n - z_i^n \left|\psi_i^{n+1}\right|^2` (:eq:`psi-sol`)
+
+Solve step, no screening
+************************
+
+A single solve step, in which we solve for the state of the system at time :math:`t^{n+1}`
+given the state of the system at time :math:`t^n`, with no screening.
+
+
+    | **Data**: :math:`n`, :math:`t^n`, :math:`\Delta t_?`, :math:`\psi_i^{n}`, :math:`\mu_i^{n}`
+    | **Result**: :math:`t^{n+1}`, :math:`\Delta t^{n}`, :math:`\psi_i^{n+1}`, :math:`\mu_i^{n+1}`, :math:`J_{s,ij}^{n+1}`, :math:`J_{n,ij}^{n+1}`, :math:`\Delta t_?`
+
+    - Evaluate current density :math:`J^{n+1}_{\mathrm{ext},\,k}` for terminals :math:`k` (:eq:`bc-current`)
+    - Update boundary conditions for :math:`\mu_i^{n+1}` (:eq:`bc-normal`)
+    - Calculate :math:`\psi_i^{n+1}` and :math:`\Delta t^n` via `Adaptive Euler update <#adaptive-euler-update>`_
+    - Calculate the supercurrent density :math:`J_{s,ij}^{n+1}` (:eq:`poisson-num`)
+    - Solve for :math:`\mu_i^{n+1}` via sparse LU factorization (:eq:`poisson-num`)
+    - Evaluate normal current density :math:`J_{n,ij}^{n+1}` via :math:`\mathbf{J}_n=-\nabla\mu`
+    - if *adaptive*:
+
+        - Select new tentative time step :math:`\Delta t_?` given :math:`\Delta t^n` (:eq:`dt-tentative`)
+    - :math:`t^{n+1} \gets t^{n} + \Delta t^{n}`
+    - :math:`n \gets n + 1`
+
+Solve step, with screening
+**************************
+
+    A single solve step, with screening. The parameters :math:`A_\mathrm{tol}` and :math:`N_\mathrm{screening}^\mathrm{max}` can be set by the user.
+
+    | **Data**: :math:`n`, :math:`t^n`, :math:`\Delta t_?`, :math:`\psi_i^{n}`, :math:`\mu_i^{n}`, :math:`\mathbf{A}^n_{\mathrm{induced}}`
+    | **Result**: :math:`t^{n+1}`, :math:`\Delta t^{n}`, :math:`\psi_i^{n+1}`, :math:`\mu_i^{n+1}`, :math:`J_{s,ij}^{n+1}`, :math:`J_{n,ij}^{n+1}`, :math:`\mathbf{A}^{n+1}_{\mathrm{induced}}`, :math:`\Delta t_?`
+    
+    - Evaluate current density :math:`J^{n+1}_{\mathrm{ext},\,k}` for terminals :math:`k` (:eq:`bc-current`)
+    - Update boundary conditions for :math:`\mu_i^{n+1}` (:eq:`bc-normal`)
+    - :math:`s \gets 0`, screening iteration index
+    - :math:`\mathbf{A}^{n+1,s}_\mathrm{induced} \gets \mathbf{A}^{n}_\mathrm{induced}`, initialize induced vector potential based on solution from previous time step
+    - :math:`\delta A_\mathrm{induced} \gets \infty`, relative error in induced vector potential
+    - while :math:`\delta A_\mathrm{induced} > A_\mathrm{tol}`:
+
+        - if :math:`s > N_\mathrm{screening}^\mathrm{max}`:
+
+            - Failed to converge - raise an error.
+        - if :math:`s==0`:
+
+            - :math:`\Delta t^n \gets \Delta t_?`, initial guess for new time step
+        - Update link variables in :math:`(\nabla-i\mathbf{A})` and :math:`(\nabla -i\mathbf{A})^2` given :math:`\mathbf{A}_\mathrm{induced}^{n+1,s}` (:eq:`grad-psi`, :eq:`laplacian-psi`)
+        - Calculate :math:`\psi_i^{n+1}` and :math:`\Delta t^n` via `Adaptive Euler update <#adaptive-euler-update>`_
+        - Calculate the supercurrent density :math:`J_{s,ij}^{n+1}` (:eq:`poisson-num`)
+        - Solve for :math:`\mu_i^{n+1}` via sparse LU factorization (:eq:`poisson-num`)
+        - Evaluate normal current density :math:`J_{n,ij}^{n+1}` via :math:`\mathbf{J}_n=-\nabla\mu`
+        - Evaluate :math:`\mathbf{K}_i^{n+1}=d(\mathbf{J}_{s,i}^{n+1}+\mathbf{J}_{n,i}^{n+1})` at the mesh sites :math:`i`
+        - Update induced vector potential :math:`\mathbf{A}^{n+1,s}_\mathrm{induced}` (:eq:`polyak`)
+        - if :math:`s > 1`:
+
+            - :math:`\delta A_\mathrm{induced} \gets \max_\mathrm{edges}\left(\left|\mathbf{A}^{n+1,s}_\mathrm{induced}-\mathbf{A}^{n+1,s-1}_\mathrm{induced}\right|/\left|\mathbf{A}^{n+1,s}_\mathrm{induced}\right|\right)`
+
+        - :math:`s \gets s + 1`
+    - :math:`\mathbf{A}^{n+1}_\mathrm{induced} \gets \mathbf{A}^{n+1,s}_\mathrm{induced}`, self-consistent value of the induced vector potential
+    - if *adaptive*:
+        
+        - Select new tentative time step :math:`\Delta t_?` (:eq:`dt-tentative`)
+    - :math:`t^{n+1} \gets t^{n} + \Delta t^{n}`
+    - :math:`n \gets n + 1`
 
 References
 ----------

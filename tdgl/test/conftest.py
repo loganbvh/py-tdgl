@@ -6,9 +6,9 @@ from tdgl.geometry import box, circle
 
 @pytest.fixture(scope="package")
 def transport_device():
-    london_lambda = 5
+    london_lambda = 2
     xi = 1
-    d = 0.5
+    d = 0.1
 
     layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
     film = tdgl.Polygon("film", points=box(10)).union(box(30, 4, points=400))
