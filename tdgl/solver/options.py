@@ -76,7 +76,7 @@ class SolverOptions:
                 "adaptive_time_step_multiplier must be in (0, 1)"
                 f" (got {self.adaptive_time_step_multiplier})."
             )
-        if not (0 < self.screening_step_drag < 1):
+        if not (0 < self.screening_step_drag <= 1):
             raise SolverOptionsError(
                 "screening_step_drag must be in (0, 1)"
                 f" (got {self.screening_step_drag})."

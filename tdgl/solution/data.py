@@ -347,14 +347,13 @@ class DynamicsData:
                 step_min, step_max = get_data_range(h5file)
             for i in range(step_min, step_max + 1):
                 grp = h5file[f"data/{i}"]
-                if "dt" in grp:
-                    dts.append(np.array(grp["dt"]))
-                    voltages.append(np.array(grp["voltage"]))
-                    phases.append(np.array(grp["phase_difference"]))
-                    if "screening_iterations" in grp:
-                        screening_iterations.append(
-                            np.array(grp["screening_iterations"])
-                        )
+                if "dt" not in grp:
+                    continue
+                dts.append(np.array(grp["dt"]))
+                voltages.append(np.array(grp["voltage"]))
+                phases.append(np.array(grp["phase_difference"]))
+                if "screening_iterations" in grp:
+                    screening_iterations.append(np.array(grp["screening_iterations"]))
             dt = np.concatenate(dts)
             mask = dt > 0
             dt = dt[mask]
@@ -365,7 +364,10 @@ class DynamicsData:
             else:
                 screening_iterations = None
         return DynamicsData(
-            dt, voltage, phase, screening_iterations=screening_iterations
+            dt,
+            voltage,
+            phase,
+            screening_iterations=screening_iterations,
         )
 
     def to_hdf5(self, h5group: h5py.Group) -> None:

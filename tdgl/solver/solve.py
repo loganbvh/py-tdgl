@@ -75,49 +75,63 @@ def select_pinning_sites(
     if callable(pinning_sites):
         pinning_sites_indices = np.apply_along_axis(pinning_sites, 1, sites)
         pinning_sites_indices = np.where(pinning_sites_indices.astype(bool))[0]
-    else:
-        if pinning_sites is None:
-            pinning_sites = f"0 * {length_units}**(-2)"
-        if not isinstance(pinning_sites, str):
-            raise ValueError(
-                f"Expected pinning sites to be a callable or str, "
-                f"but got {type(pinning_sites)}."
-            )
-        pinning_sites_density = (
-            ureg(pinning_sites).to(f"{length_units}**(-2)").magnitude
+        return pinning_sites_indices
+
+    if pinning_sites is None:
+        pinning_sites = f"0 * {length_units}**(-2)"
+    if not isinstance(pinning_sites, str):
+        raise ValueError(
+            f"Expected pinning sites to be a callable or str, "
+            f"but got {type(pinning_sites)}."
         )
-        site_areas = areas[interior_indices]
-        total_area = site_areas.sum()
-        n_pinning_sites = int(pinning_sites_density * total_area)
-        if n_pinning_sites > len(interior_indices):
-            raise ValueError(
-                f"The total number of pinning sites ({n_pinning_sites}) for the requested"
-                f" areal density of pinning sites ({pinning_sites_density:~P})"
-                f" exceeds the total number of interior sites ({len(interior_indices)})."
-                f" Try setting a smaller density of pinning sites."
-            )
-        rng = np.random.default_rng(rng_seed)
-        pinning_sites_indices = rng.choice(
-            interior_indices,
-            size=n_pinning_sites,
-            p=site_areas / total_area,
-            replace=False,
+    pinning_sites_density = ureg(pinning_sites).to(f"{length_units}**(-2)").magnitude
+    site_areas = areas[interior_indices]
+    total_area = site_areas.sum()
+    n_pinning_sites = int(pinning_sites_density * total_area)
+    if n_pinning_sites > len(interior_indices):
+        raise ValueError(
+            f"The total number of pinning sites ({n_pinning_sites}) for the requested"
+            f" areal density of pinning sites ({pinning_sites_density:~P})"
+            f" exceeds the total number of interior sites ({len(interior_indices)})."
+            f" Try setting a smaller density of pinning sites."
         )
+    rng = np.random.default_rng(rng_seed)
+    pinning_sites_indices = rng.choice(
+        interior_indices,
+        size=n_pinning_sites,
+        p=site_areas / total_area,
+        replace=False,
+    )
     return pinning_sites_indices
 
 
 def solve_for_psi_squared(
+    *,
     psi: np.ndarray,
+    abs_sq_psi: np.ndarray,
     mu: np.ndarray,
     alpha: np.ndarray,
-    abs_sq_psi: np.ndarray,
     gamma: float,
     u: float,
     dt: float,
     psi_laplacian: sp.spmatrix,
-) -> Tuple[Union[np.ndarray, None], Union[np.ndarray, None], Union[np.ndarray, None]]:
-    """Solve for :math:`|\\psi_i^{n+1}|^2` given :math:`\\psi_i^n` and
-    :math:`\\mu_i^n`.
+) -> Union[Tuple[np.ndarray, np.ndarray], None]:
+    """Solve for :math:`\\psi_i^{n+1}` and :math:`|\\psi_i^{n+1}|^2` given
+    :math:`\\psi_i^n` and :math:`\\mu_i^n`.
+
+    Args:
+        psi: The current value of the order parameter, :math:`\\psi_^n`
+        abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
+        mu: The current value of the electric potential, :math:`\\mu^n`
+        alpha: The disorder parameter, :math:`\\alpha`
+        gamma: The inelastic scattering parameter, :math:`\\gamma`.
+        u: The ratio of relaxation times for the order parameter, :math:`u`
+        dt: The time step
+        psi_laplacian: The covariant Laplacian for the order parameter
+
+    Returns:
+        ``None`` if the calculation failed to converge, otherwise the new order
+        parameter :math:`\\psi^{n+1}` and superfluid density :math:`|\\psi^{n+1}|^2`.
     """
     U = np.exp(-1j * mu * dt)
     z = U * gamma**2 / 2 * psi
@@ -135,11 +149,67 @@ def solve_for_psi_squared(
             discriminant = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
         except Exception:
             logger.debug("Unable to solve for |psi|^2.", exc_info=True)
-            return None, None, None
+            return None
     if np.any(discriminant < 0):
-        return None, None, None
+        return None
     new_sq_psi = (2 * w2) / (two_c_1 + np.sqrt(discriminant))
-    return z, w, new_sq_psi
+    psi = w - z * new_sq_psi
+    return psi, new_sq_psi
+
+
+def adaptive_euler_step(
+    step: int,
+    psi: np.ndarray,
+    abs_sq_psi: np.ndarray,
+    mu: np.ndarray,
+    alpha: np.ndarray,
+    gamma: float,
+    u: float,
+    dt: float,
+    psi_laplacian: MeshOperators,
+    options: SolverOptions,
+) -> Tuple[np.ndarray, np.ndarray, float]:
+    """Update the order parameter and time step in an adaptive Euler step.
+
+    Args:
+        step: The solve step index, :math:`n`
+        psi: The current value of the order parameter, :math:`\\psi_^n`
+        abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
+        mu: The current value of the electric potential, :math:`\\mu^n`
+        alpha: The disorder parameter, :math:`\\alpha`
+        gamma: The inelastic scattering parameter, :math:`\\gamma`.
+        u: The ratio of relaxation times for the order parameter, :math:`u`
+        dt: The tentative time step, which will be updated
+        psi_laplacian: The covariant Laplacian for the order parameter
+        options: The solver options for the simulation
+
+    Returns:
+        :math:`\\psi^{n+1}`, :math:`|\\psi^{n+1}|^2`, and :math:`\\Delta t^{n}`.
+    """
+    kwargs = dict(
+        psi=psi,
+        abs_sq_psi=abs_sq_psi,
+        mu=mu,
+        alpha=alpha,
+        gamma=gamma,
+        u=u,
+        dt=dt,
+        psi_laplacian=psi_laplacian,
+    )
+    result = solve_for_psi_squared(**kwargs)
+    for retries in itertools.count():
+        if result is not None:
+            break  # First evaluation of |psi|^2 was successful.
+        if (not options.adaptive) or retries > options.max_solve_retries:
+            raise RuntimeError(
+                f"Solver failed to converge in {options.max_solve_retries}"
+                f" retries at step {step} with dt = {dt:.2e}."
+                f" Try using a smaller dt_init."
+            )
+        kwargs["dt"] = dt = dt * options.adaptive_time_step_multiplier
+        result = solve_for_psi_squared(**kwargs)
+    psi, new_sq_psi = result
+    return psi, new_sq_psi, dt
 
 
 def solve(
@@ -195,6 +265,7 @@ def solve(
 
     mesh = device.mesh
     sites = device.points
+    edges = mesh.edge_mesh.edges
     length_units = ureg(device.length_units)
     xi = device.coherence_length
     voltage_points = device.voltage_point_indices
@@ -207,11 +278,9 @@ def solve(
     y = mesh.edge_mesh.y * xi
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
-    current_density_scale = (
-        4 * ((ureg(current_units) / length_units) / K0).to_base_units()
-    )
-    assert "dimensionless" in str(current_density_scale.units)
-    current_density_scale = current_density_scale.magnitude
+    J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
+    assert "dimensionless" in str(J_scale.units)
+    J_scale = J_scale.magnitude
     if not callable(applied_vector_potential):
         applied_vector_potential = ConstantField(
             applied_vector_potential,
@@ -231,19 +300,14 @@ def solve(
     assert "dimensionless" in str(vector_potential.units)
     vector_potential = vector_potential.magnitude
 
-    if options.adaptive:
-        dt_max = options.dt_max
-        max_solve_retries = options.max_solve_retries
-    else:
-        dt_max = options.dt_init
-        max_solve_retries = 0
+    dt_max = options.dt_max if options.adaptive else options.dt_init
 
     # Find the current terminal sites.
     terminal_info = device.terminal_info()
     if terminal_info:
         normal_boundary_index = np.concatenate(
-            [t.site_indices for t in terminal_info]
-        ).astype(np.int64)
+            [t.site_indices for t in terminal_info], dtype=np.int64
+        )
     else:
         normal_boundary_index = np.array([], dtype=np.int64)
     interior_indices = np.setdiff1d(np.arange(len(mesh.sites)), normal_boundary_index)
@@ -253,7 +317,7 @@ def solve(
             "The terminal currents are non-null, but the device has no voltage points."
         )
     if terminal_currents is None:
-        terminal_currents = {t.name: 0 for t in device.terminals}
+        terminal_currents = {t.name: 0 for t in terminal_info}
     if callable(terminal_currents):
         current_func = terminal_currents
     else:
@@ -282,7 +346,7 @@ def solve(
     mu_boundary_laplacian = operators.mu_boundary_laplacian
     mu_laplacian_lu = operators.mu_laplacian_lu
     mu_gradient = operators.mu_gradient
-
+    # Initialize the order parameter and electric potential
     psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
     psi_init[fixed_sites] = 0
     mu_init = np.zeros(len(mesh.sites))
@@ -297,23 +361,17 @@ def solve(
 
     if options.include_screening:
         # Pre-compute the kernel for the screening integral.
-        edge_points = mesh.edge_mesh.centers
-        edge_directions = mesh.edge_mesh.directions
-        edge_directions = (
-            edge_directions / np.linalg.norm(edge_directions, axis=1)[:, np.newaxis]
-        )
-        site_points = mesh.sites
-        weights = mesh.areas
-        inv_rho = 1 / spatial.distance.cdist(edge_points, site_points)
+        directions = mesh.edge_mesh.directions
+        directions = directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
+        inv_rho = 1 / spatial.distance.cdist(mesh.edge_mesh.centers, mesh.sites)
         # (edges, sites, spatial dimensions)
-        inv_rho = inv_rho[:, :, np.newaxis]
-        inv_rho = inv_rho * weights[np.newaxis, :, np.newaxis]
+        inv_rho = inv_rho[:, :, np.newaxis] * mesh.areas[np.newaxis, :, np.newaxis]
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         inv_rho *= A_scale
 
         if jax is not None:
             # Even without a GPU, jax.numpy.einsum seems to be much faster
-            # than numpy.einsum.
+            # than numpy.einsum. This may just be because jax uses float32 by default.
             einsum = jnp.einsum
             inv_rho = jax.device_put(inv_rho)
 
@@ -321,6 +379,7 @@ def solve(
     # This list is used to calculate the adaptive time step.
     d_psi_sq_vals = []
     tentative_dt = options.dt_init
+    # Parameters for the self-consistent screening calculation.
     step_size = options.screening_step_size
     drag = options.screening_step_drag
 
@@ -338,6 +397,7 @@ def solve(
         nonlocal tentative_dt
         step = state["step"]
         time = state["time"]
+        old_sq_psi = np.abs(psi) ** 2
         # Compute the current density for this step
         # and update the current boundary conditions.
         currents = current_func(time)
@@ -345,9 +405,7 @@ def solve(
             current_density = (-1 / term.length) * sum(
                 current for name, current in currents.items() if name != term.name
             )
-            mu_boundary[term.boundary_edge_indices] = (
-                current_density_scale * current_density
-            )
+            mu_boundary[term.boundary_edge_indices] = J_scale * current_density
 
         screening_error = np.inf
         A_induced_vals = []
@@ -364,107 +422,74 @@ def solve(
                     f" induced vector potential: {screening_error:.2e}"
                     f" (tolerance: {options.screening_tolerance:.2e})."
                 )
-            if step > 0 and options.include_screening:
+            if options.include_screening:
                 # If screening is included, update the link variables in the covariant
                 # Laplacian and gradient for psi based on the induced vector potential
                 # from the previous iteration.
                 operators.set_link_exponents(vector_potential + A_induced)
-            # Calculate the new the order parameter
-            abs_sq_psi = np.abs(psi) ** 2
+            # Adjust the time step and calculate the new the order parameter
             if screening_iterations == 0:
                 # Find a new time step only for the first screening iteration.
                 dt = tentative_dt
-            z, w, new_sq_psi = solve_for_psi_squared(
+            psi, abs_sq_psi, dt = adaptive_euler_step(
+                step,
                 psi,
+                old_sq_psi,
                 mu,
                 alpha,
-                abs_sq_psi,
                 gamma,
                 u,
                 dt,
                 operators.psi_laplacian,
+                options,
             )
-            # Adjust the time step if the calculation failed to converge.
-            for retries in itertools.count():
-                if new_sq_psi is not None:
-                    break
-                if retries > max_solve_retries:
-                    raise RuntimeError(
-                        f"Solver failed to converge in {options.max_solve_retries}"
-                        f" retries at step {step} with dt = {dt:.2e}."
-                        f" Try using a smaller dt_init."
-                    )
-                old_dt = dt
-                dt = dt * options.adaptive_time_step_multiplier
-                logger.debug(
-                    f"\nFailed to converge at step {step} with dt = {old_dt:.2e}."
-                    f" Retrying with dt = {dt:.2e}."
-                )
-                z, w, new_sq_psi = solve_for_psi_squared(
-                    psi,
-                    mu,
-                    alpha,
-                    abs_sq_psi,
-                    gamma,
-                    u,
-                    dt,
-                    operators.psi_laplacian,
-                )
-            # Compute the new value of the order parameter
-            psi = w - z * new_sq_psi
             # Compute the supercurrent, scalar potential, and normal current
-            supercurrent = get_supercurrent(
-                psi, operators.psi_gradient, mesh.edge_mesh.edges
-            )
-            supercurrent_divergence = divergence @ supercurrent
-            lhs = supercurrent_divergence - (mu_boundary_laplacian @ mu_boundary)
+            supercurrent = get_supercurrent(psi, operators.psi_gradient, edges)
+            lhs = (divergence @ supercurrent) - (mu_boundary_laplacian @ mu_boundary)
             mu = mu_laplacian_lu.solve(lhs)
             normal_current = -(mu_gradient @ mu)
 
             if not options.include_screening:
                 break
 
-            J_edge = supercurrent + normal_current
-            J_site = mesh.get_quantity_on_site(J_edge)
+            # Evaluate the induced vector potential
+            J_site = mesh.get_quantity_on_site(supercurrent + normal_current)
             # i: edges, j: sites, k: spatial dimensions
             new_A_induced = np.asarray(einsum("jk, ijk -> ik", J_site, inv_rho))
-            diff = new_A_induced - A_induced
-            v.append((1 - drag) * v[-1] + step_size * diff)
+            # Update induced vector potential using Polyak's method
+            dA = new_A_induced - A_induced
+            v.append((1 - drag) * v[-1] + step_size * dA)
             A_induced = A_induced + v[-1]
             A_induced_vals.append(A_induced)
             if len(A_induced_vals) > 1:
                 screening_error = np.max(
-                    np.linalg.norm(A_induced_vals[-2] - A_induced, axis=1)
-                    / np.linalg.norm(A_induced, axis=1)
+                    np.linalg.norm(dA, axis=1) / np.linalg.norm(A_induced, axis=1)
                 )
                 del v[:-2]
                 del A_induced_vals[:-2]
 
         # Update the voltage and phase difference
         if device.voltage_points is None:
-            d_mu = 0
-            d_theta = 0
+            d_mu, d_theta = 0, 0
         else:
             d_mu = mu[voltage_points[0]] - mu[voltage_points[1]]
             d_theta = np.angle(psi[voltage_points[0]]) - np.angle(
                 psi[voltage_points[1]]
             )
-
-        running_state.append("screening_iterations", screening_iterations)
         running_state.append("dt", dt)
         running_state.append("voltage", d_mu)
         running_state.append("phase_difference", d_theta)
+        if options.include_screening:
+            running_state.append("screening_iterations", screening_iterations)
 
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
             # and use it to select a new time step.
-            d_psi_sq = np.abs(new_sq_psi - abs_sq_psi).max()
-            d_psi_sq_vals.append(d_psi_sq)
-            if step > options.adaptive_window:
-                new_dt = options.dt_init / max(
-                    1e-10, np.mean(d_psi_sq_vals[-options.adaptive_window :])
-                )
-                tentative_dt = np.clip(new_dt, 0, dt_max)
+            d_psi_sq_vals.append(np.abs(abs_sq_psi - old_sq_psi).max())
+            window = options.adaptive_window
+            if step > window:
+                new_dt = options.dt_init / max(1e-10, np.mean(d_psi_sq_vals[-window:]))
+                tentative_dt = np.clip(0.5 * (new_dt + dt), 0, dt_max)
 
         return (
             psi,
@@ -477,7 +502,7 @@ def solve(
 
     # Set the initial conditions.
     if seed_solution is None:
-        num_edges = len(mesh.edge_mesh.edges)
+        num_edges = len(edges)
         parameters = {
             "psi": psi_init,
             "mu": mu_init,
@@ -498,6 +523,9 @@ def solve(
             "normal_current": seed_data.normal_current,
             "induced_vector_potential": seed_data.induced_vector_potential,
         }
+    running_names = ("voltage", "phase_difference", "dt")
+    if options.include_screening:
+        running_names = running_names + ("screening_iterations",)
 
     with DataHandler(output_file=output_file, logger=logger) as data_handler:
         data_handler.save_mesh(mesh)
@@ -509,7 +537,7 @@ def solve(
             names=list(parameters),
             fixed_values=(vector_potential, alpha),
             fixed_names=("applied_vector_potential", "alpha"),
-            running_names=("voltage", "phase_difference", "dt", "screening_iterations"),
+            running_names=running_names,
             logger=logger,
         ).run()
         end_time = datetime.now()
