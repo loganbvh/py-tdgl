@@ -45,18 +45,17 @@ class TerminalInfo(NamedTuple):
 
 
 class Device:
-    """An object representing a device composed of multiple layers of
-    thin film superconductor.
+    """An object representing a thin film superconducting device.
 
     Args:
         name: Name of the device.
-        layer: The ``Layer`` making up the device.
+        layer: The superconducting ``Layer``.
         film: The ``Polygon`` representing the superconducting film.
         holes: ``Polygons`` representing holes in the superconducting film.
         abstract_regions: ``Polygons`` representing abstract regions in a device.
             Abstract regions are areas that can be meshed, but need not correspond
             to any physical structres in the device.
-        terminals: A sequence of ``Polygosn`` representing the current terminals.
+        terminals: A sequence of ``Polygons`` representing the current terminals.
             Any points that are on the boundary of the mesh and lie inside a
             terminal will have current source/sink boundary conditions.
         voltage_points: A shape ``(2, 2)`` sequence of floats, with each row
@@ -446,12 +445,12 @@ class Device:
         dz: float = 0,
         inplace: bool = False,
     ) -> "Device":
-        """Translates the device polygons, layers, and mesh in space by a given amount.
+        """Translates the device polygons, layer, and mesh in space by a given amount.
 
         Args:
             dx: Distance by which to translate along the x-axis.
             dy: Distance by which to translate along the y-axis.
-            dz: Distance by which to translate layers along the z-axis.
+            dz: Distance by which to translate layer along the z-axis.
             inplace: If True, modifies the device (``self``) in-place and returns None,
                 otherwise, creates a new device, translates it, and returns it.
 

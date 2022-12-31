@@ -9,7 +9,7 @@ from .mesh import Mesh
 
 def build_divergence(mesh: Mesh) -> sp.csr_matrix:
     """Build the divergence matrix that takes the divergence of a function living
-    on the edge onto the sites.
+    on the edges onto the sites.
 
     Args:
         mesh: The mesh.
