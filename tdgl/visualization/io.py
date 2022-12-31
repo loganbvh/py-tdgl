@@ -59,12 +59,12 @@ def get_plot_data(
             (a_induced * mesh.edge_mesh.directions).sum(axis=1), mesh
         )
 
-    elif quantity is Quantity.ALPHA:
-        if "alpha" in h5file:
-            alpha = np.asarray(h5file["alpha"])
+    elif quantity is Quantity.EPSILON:
+        if "epsilon" in h5file:
+            epsilon = np.asarray(h5file["epsilon"])
         else:
-            alpha = np.ones_like(mu)
-        return alpha, np.zeros((nsites, 2)), [np.min(alpha), np.max(alpha)]
+            epsilon = np.ones_like(mu)
+        return epsilon, np.zeros((nsites, 2)), [np.min(epsilon), np.max(epsilon)]
 
     elif (
         quantity is Quantity.VORTICITY

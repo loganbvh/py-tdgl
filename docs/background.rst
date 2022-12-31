@@ -32,7 +32,7 @@ The order parameter :math:`\psi` evolves according to:
     :label: tdgl
 
     \frac{u}{\sqrt{1+\gamma^2|\psi|^2}}\left(\frac{\partial}{\partial t}+i\mu+\frac{\gamma^2}{2}\frac{\partial |\psi|^2}{\partial t}\right)\psi
-    =(\alpha-|\psi|^2)\psi+(\nabla-i\mathbf{A})^2\psi
+    =(\epsilon-|\psi|^2)\psi+(\nabla-i\mathbf{A})^2\psi
 
 The quantity :math:`(\nabla-i\mathbf{A})^2\psi` is the covariant Laplacian of :math:`\psi`,
 which is used in place of an ordinary Laplacian in order to maintain gauge-invariance of the order parameter. Similarly,
@@ -40,18 +40,17 @@ the quantity :math:`(\frac{\partial}{\partial t}+i\mu)\psi` is the covariant tim
 :math:`u=\pi^4/(14\zeta(3))\approx5.79` is the ratio of relaxation times for the amplitude and phase of the order parameter in dirty superconductors
 (:math:`\zeta` is the Riemann zeta function) and
 :math:`\gamma` is a material parameter which is proportional to the inelastic scattering time and the size of the superconducting gap.
-:math:`\alpha(\mathbf{r})\in[0, 1]` is a real-valued parameter that adjusts the maximum (i.e., zero-field and zero-current) value of
-the normalized superfluid density at position :math:`\mathbf{r}`. Setting :math:`\alpha(\mathbf{r}) < 1` enables modeling films with a spatially
-inhomogeneous critical temperature or London penetration depth.
+:math:`\epsilon(\mathbf{r})=T_c(\mathbf{r})/T - 1 \in [-1,1]` is a real-valued parameter that adjusts the local critical temperature of the film.
+Setting :math:`\epsilon(\mathbf{r}) < 1` suppresses the critical temperature at position :math:`\mathbf{r}` :footcite:p:`Sadovskyy2015-ha,Al_Luhaibi2022-cl`.
 
-.. note::
+.. .. note::
 
-    The maximum superfluid density :math:`n_{s,\mathrm{max}}(\mathbf{r})` is the value of the superfluid density at a given position
-    :math:`\mathbf{r}` in the absence of any applied fields or currents: :math:`|\psi(\mathbf{r})|^2\leq n_{s,\mathrm{max}}(\mathbf{r})`.
-    If :math:`\alpha` is set to a single value for all positions in the film, then :math:`n_{s,\mathrm{max}}\approx\alpha`.
-    If :math:`\alpha(\mathbf{r})` varies as a function of position, then in general one has
-    :math:`\alpha(\mathbf{r})\leq n_{s,\mathrm{max}}(\mathbf{r})\leq 1`, as the superfluid density in regions of small :math:`\alpha` can be
-    increased via proximity to regions of larger :math:`\alpha`.
+..     The maximum superfluid density :math:`n_{s,\mathrm{max}}(\mathbf{r})` is the value of the superfluid density at a given position
+..     :math:`\mathbf{r}` in the absence of any applied fields or currents: :math:`|\psi(\mathbf{r})|^2\leq n_{s,\mathrm{max}}(\mathbf{r})`.
+..     If :math:`\epsilon` is set to a single value for all positions in the film, then :math:`n_{s,\mathrm{max}}\approx\epsilon`.
+..     If :math:`\epsilon(\mathbf{r})` varies as a function of position, then in general one has
+..     :math:`\epsilon(\mathbf{r})\leq n_{s,\mathrm{max}}(\mathbf{r})\leq 1`, as the superfluid density in regions of small :math:`\epsilon` can be
+..     increased via proximity to regions of larger :math:`\epsilon`.
 
 
 The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to the Poisson equation:
@@ -152,8 +151,8 @@ than to any other site in the mesh. The side of the Voronoi region that intersec
 :math:`\mathbf{s}_{ij}` and has a length :math:`s_{ij}`. The collection of all Voronoi cells tesselates the film and forms a mesh that is
 `dual <https://en.wikipedia.org/wiki/Dual_graph>`_ to the triangular Delaunay mesh.
 
-.. image:: images/voronoi.png
-  :width: 300
+.. image:: images/mesh-py.png
+  :width: 600
   :alt: Schematic of a mesh.
   :align: center
 
@@ -247,7 +246,7 @@ The discretized form of the equations of motion for :math:`\psi(\mathbf{r}, t)` 
             \psi_i^{n+1}\exp(i\mu_i^{n}\Delta t^{n})-\psi_i^{n}
             +\frac{\gamma^2}{2}\left(\left|\psi_i^{n+1}\right|^2-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}
         \right]\\
-        &=\left(\alpha_i-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}+\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
+        &=\left(\epsilon_i-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}+\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
     \end{split}
 
 .. math::

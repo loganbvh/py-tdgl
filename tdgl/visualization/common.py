@@ -18,7 +18,7 @@ class Quantity(Enum):
     SCALAR_POTENTIAL = "Scalar potential"
     APPLIED_VECTOR_POTENTIAL = "Applied vector potential"
     INDUCED_VECTOR_POTENTIAL = "Induced vector potential"
-    ALPHA = "Alpha"
+    EPSILON = "Epsilon"
 
     @classmethod
     def get_keys(cls) -> Sequence[str]:
@@ -37,7 +37,7 @@ colormaps = {
     Quantity.SCALAR_POTENTIAL: "magma",
     Quantity.APPLIED_VECTOR_POTENTIAL: "cividis",
     Quantity.INDUCED_VECTOR_POTENTIAL: "cividis",
-    Quantity.ALPHA: "viridis",
+    Quantity.EPSILON: "viridis",
     Quantity.VORTICITY: "coolwarm",
 }
 
@@ -65,7 +65,7 @@ PLOT_DEFAULTS = {
     Quantity.INDUCED_VECTOR_POTENTIAL: PlotDefault(
         cmap="cividis", clabel="$a_\\mathrm{{induced}}/(\\xi B_{{c2}})$"
     ),
-    Quantity.ALPHA: PlotDefault(cmap="viridis", clabel="$\\alpha$"),
+    Quantity.EPSILON: PlotDefault(cmap="viridis", clabel="$\\epsilon$"),
     Quantity.VORTICITY: PlotDefault(
         cmap="coolwarm", clabel="$(\\vec{{\\nabla}}\\times\\vec{{J}})\\cdot\\hat{{z}}$"
     ),

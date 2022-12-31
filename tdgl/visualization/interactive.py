@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import Any, Dict, Sequence, Union
 
 import h5py
@@ -20,7 +19,7 @@ class InteractivePlot:
         logger: logging.Logger = None,
     ):
 
-        self.input_file = os.path.join(os.getcwd(), input_file)
+        self.input_file = input_file
         self.frame = 0
         self.quantity = Quantity.ORDER_PARAMETER
         self.logger = logger or logging.getLogger()
@@ -88,7 +87,7 @@ class InteractivePlot:
                     self.quantity = Quantity.INDUCED_VECTOR_POTENTIAL
 
                 elif event.key == "8":
-                    self.quantity = Quantity.ALPHA
+                    self.quantity = Quantity.EPSILON
 
                 elif event.key == "9":
                     self.quantity = Quantity.VORTICITY
@@ -135,7 +134,7 @@ class MultiInteractivePlot:
         logger: logging.Logger = None,
         figure_kwargs: Union[Dict[str, Any], None] = None,
     ):
-        self.input_file = os.path.join(os.getcwd(), input_file)
+        self.input_file = input_file
         self.frame = 0
         if quantities is None:
             quantities = Quantity.get_keys()

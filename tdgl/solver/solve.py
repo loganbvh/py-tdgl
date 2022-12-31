@@ -45,10 +45,6 @@ def validate_terminal_currents(
             raise ValueError(
                 f"Unknown terminal(s) in terminal currents: {list(unknown)}."
             )
-        if missing := names.difference(set(currents)):
-            raise ValueError(
-                f"Missing terminal(s) in terminal currents: {list(missing)}."
-            )
         total_current = sum(currents.values())
         if total_current:
             raise ValueError(
@@ -110,7 +106,7 @@ def solve_for_psi_squared(
     psi: np.ndarray,
     abs_sq_psi: np.ndarray,
     mu: np.ndarray,
-    alpha: np.ndarray,
+    epsilon: np.ndarray,
     gamma: float,
     u: float,
     dt: float,
@@ -123,7 +119,7 @@ def solve_for_psi_squared(
         psi: The current value of the order parameter, :math:`\\psi_^n`
         abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
         mu: The current value of the electric potential, :math:`\\mu^n`
-        alpha: The disorder parameter, :math:`\\alpha`
+        epsilon: The disorder parameter, :math:`\\epsilon`
         gamma: The inelastic scattering parameter, :math:`\\gamma`.
         u: The ratio of relaxation times for the order parameter, :math:`u`
         dt: The time step
@@ -141,7 +137,7 @@ def solve_for_psi_squared(
                 psi
                 + (dt / u)
                 * np.sqrt(1 + gamma**2 * abs_sq_psi)
-                * ((alpha - abs_sq_psi) * psi + psi_laplacian @ psi)
+                * ((epsilon - abs_sq_psi) * psi + psi_laplacian @ psi)
             )
             c = w.real * z.real + w.imag * z.imag
             two_c_1 = 2 * c + 1
@@ -162,7 +158,7 @@ def adaptive_euler_step(
     psi: np.ndarray,
     abs_sq_psi: np.ndarray,
     mu: np.ndarray,
-    alpha: np.ndarray,
+    epsilon: np.ndarray,
     gamma: float,
     u: float,
     dt: float,
@@ -176,7 +172,7 @@ def adaptive_euler_step(
         psi: The current value of the order parameter, :math:`\\psi_^n`
         abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
         mu: The current value of the electric potential, :math:`\\mu^n`
-        alpha: The disorder parameter, :math:`\\alpha`
+        epsilon: The disorder parameter, :math:`\\epsilon`
         gamma: The inelastic scattering parameter, :math:`\\gamma`.
         u: The ratio of relaxation times for the order parameter, :math:`u`
         dt: The tentative time step, which will be updated
@@ -190,7 +186,7 @@ def adaptive_euler_step(
         psi=psi,
         abs_sq_psi=abs_sq_psi,
         mu=mu,
-        alpha=alpha,
+        epsilon=epsilon,
         gamma=gamma,
         u=u,
         dt=dt,
@@ -217,7 +213,7 @@ def solve(
     options: SolverOptions,
     applied_vector_potential: Union[Callable, float] = 0,
     terminal_currents: Union[Callable, Dict[str, float], None] = None,
-    disorder_alpha: Union[float, Callable] = 1,
+    disorder_epsilon: Union[float, Callable] = 1,
     pinning_sites: Union[str, Callable, None] = None,
     seed_solution: Union[Solution, None] = None,
 ):
@@ -234,11 +230,11 @@ def solve(
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units`` and ``time`` is the dimensionless time.
-        disorder_alpha: A float in range [0, 1], or a callable with signature
-            ``disorder_alpha(r: Tuple[float, float]) -> alpha``, where ``alpha`` is a float
-            in range [0, 1]. If :math:`\\alpha(\\mathbf{r}) < 1` suppresses the superfluid
+        disorder_epsilon: A float in range (-inf, 1], or a callable with signature
+            ``disorder_epsilon(r: Tuple[float, float]) -> epsilon``, where ``epsilon`` is a float
+            in range [-1, 1]. If :math:`\\epsilon(\\mathbf{r}) < 1` suppresses the superfluid
             density at position :math:`\\mathbf{r}`, which can be used to model
-            inhomogeneity. :math:`\\alpha(\\mathbf{r})` is the maximum possible
+            inhomogeneity. :math:`\\epsilon(\\mathbf{r})` is the maximum possible
             superfluid density at position :math:`\\mathbf{r}`.
         pinning_sites: Pinning sites are sites in the mesh where the order parameter
             fixed to :math:`\\psi(\\mathbf{r}, t)=0`. If ``pinning_sites``
@@ -316,12 +312,15 @@ def solve(
         logger.warning(
             "The terminal currents are non-null, but the device has no voltage points."
         )
+    terminal_names = [term.name for term in terminal_info]
     if terminal_currents is None:
-        terminal_currents = {t.name: 0 for t in terminal_info}
+        terminal_currents = {name: 0 for name in terminal_names}
     if callable(terminal_currents):
         current_func = terminal_currents
     else:
-        terminal_currents = {k: float(v) for k, v in terminal_currents.items()}
+        terminal_currents = {
+            name: terminal_currents.get(name, 0) for name in terminal_names
+        }
 
         def current_func(t):
             return terminal_currents
@@ -351,13 +350,13 @@ def solve(
     psi_init[fixed_sites] = 0
     mu_init = np.zeros(len(mesh.sites))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
-    # Create the alpha parameter, which is the maximum value of |psi| at each position.
-    if callable(disorder_alpha):
-        alpha = np.apply_along_axis(disorder_alpha, 1, sites).astype(float)
+    # Create the epsilon parameter, which is the maximum value of |psi| at each position.
+    if callable(disorder_epsilon):
+        epsilon = np.apply_along_axis(disorder_epsilon, 1, sites).astype(float)
     else:
-        alpha = disorder_alpha * np.ones(len(sites))
-    if np.any(alpha < 0) or np.any(alpha > 1):
-        raise ValueError("The disorder parameter alpha must be in range [0, 1].")
+        epsilon = disorder_epsilon * np.ones(len(sites))
+    if np.any(epsilon < -1) or np.any(epsilon > 1):
+        raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
 
     if options.include_screening:
         # Pre-compute the kernel for the screening integral.
@@ -403,14 +402,13 @@ def solve(
         currents = current_func(time)
         for term in terminal_info:
             current_density = (-1 / term.length) * sum(
-                current for name, current in currents.items() if name != term.name
+                currents.get(name, 0) for name in terminal_names if name != term.name
             )
             mu_boundary[term.boundary_edge_indices] = J_scale * current_density
 
         screening_error = np.inf
         A_induced_vals = []
-        # Velocity for Polyak's method
-        v = [0]
+        v = [0]  # Velocity for Polyak's method
         # This loop runs only once if options.include_screening is False
         for screening_iterations in itertools.count():
             if screening_error < options.screening_tolerance:
@@ -436,7 +434,7 @@ def solve(
                 psi,
                 old_sq_psi,
                 mu,
-                alpha,
+                epsilon,
                 gamma,
                 u,
                 dt,
@@ -535,8 +533,8 @@ def solve(
             data_handler=data_handler,
             initial_values=list(parameters.values()),
             names=list(parameters),
-            fixed_values=(vector_potential, alpha),
-            fixed_names=("applied_vector_potential", "alpha"),
+            fixed_values=(vector_potential, epsilon),
+            fixed_names=("applied_vector_potential", "epsilon"),
             running_names=running_names,
             logger=logger,
         ).run()
@@ -550,7 +548,7 @@ def solve(
             options=options,
             applied_vector_potential=applied_vector_potential,
             terminal_currents=terminal_currents,
-            disorder_alpha=disorder_alpha,
+            disorder_epsilon=disorder_epsilon,
             pinning_sites=pinning_sites,
             total_seconds=(end_time - start_time).total_seconds(),
         )

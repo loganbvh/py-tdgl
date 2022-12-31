@@ -66,8 +66,8 @@ class Solution:
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units``.
-        disorder_alpha: The disorder parameter :math:`\\alpha`. If
-            :math:`\\alpha(\\mathbf{r}) < 1` weakens the order parameter at position
+        disorder_epsilon: The disorder parameter :math:`\\epsilon`. If
+            :math:`\\epsilon(\\mathbf{r}) < 1` weakens the order parameter at position
             :math:`\\mathbf{r}`, which can be used to model inhomogeneity.
         pinning_sites: The string or callable specifying pinning sites.
         total_seconds: The total wall time in seconds.
@@ -81,7 +81,7 @@ class Solution:
         path: os.PathLike,
         applied_vector_potential: Parameter,
         terminal_currents: Union[Dict[str, float], Callable],
-        disorder_alpha: Union[float, Callable],
+        disorder_epsilon: Union[float, Callable],
         pinning_sites: Union[str, Callable],
         total_seconds: float,
         _solve_step: int = -1,
@@ -92,7 +92,7 @@ class Solution:
         self.path = path
         self.applied_vector_potential = applied_vector_potential
         self.terminal_currents = terminal_currents
-        self.disorder_alpha = disorder_alpha
+        self.disorder_epsilon = disorder_epsilon
         self.pinning_sites = pinning_sites
 
         self.data_range: Union[Tuple[int, int], None] = None
@@ -891,8 +891,8 @@ class Solution:
                 group,
             )
             serialize_func(
-                self.disorder_alpha,
-                "disorder_alpha",
+                self.disorder_epsilon,
+                "disorder_epsilon",
                 group,
             )
             serialize_func(
@@ -917,9 +917,6 @@ class Solution:
                 self._save_to_hdf5_file(self.path, save_mesh=save_mesh)
             else:
                 shutil.copy(self.path, h5path)
-                with h5py.File(h5path, "r+", libver="latest") as f:
-                    if "solution" in f:
-                        del f["solution"]
                 self._save_to_hdf5_file(h5path, save_mesh=save_mesh)
             return
 
@@ -957,7 +954,7 @@ class Solution:
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             vector_potential = deserialize_func("applied_vector_potential", grp)
             terminal_currents = deserialize_func("terminal_currents", grp)
-            disorder_alpha = deserialize_func("disorder_alpha", grp)
+            disorder_epsilon = deserialize_func("disorder_epsilon", grp)
             pinning_sites = deserialize_func("pinning_sites", grp)
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])
@@ -968,7 +965,7 @@ class Solution:
             options=options,
             applied_vector_potential=vector_potential,
             terminal_currents=terminal_currents,
-            disorder_alpha=disorder_alpha,
+            disorder_epsilon=disorder_epsilon,
             pinning_sites=pinning_sites,
             total_seconds=total_seconds,
             _solve_step=solve_step,
@@ -1023,7 +1020,7 @@ class Solution:
                 self.applied_vector_potential, other.applied_vector_potential
             )
             and compare_callables(self.terminal_currents, other.terminal_currents)
-            and compare_callables(self.disorder_alpha, other.disorder_alpha)
+            and compare_callables(self.disorder_epsilon, other.disorder_epsilon)
             and compare_callables(self.pinning_sites, other.pinning_sites)
             and (self.tdgl_data == other.tdgl_data)
             and (self.dynamics == other.dynamics)

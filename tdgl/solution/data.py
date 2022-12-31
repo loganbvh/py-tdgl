@@ -68,7 +68,7 @@ class TDGLData:
 
     Args:
         step: The solver iteration.
-        alpha: The disorder/pinning parameter. :math:`\\alpha<1` weakens the
+        epsilon: The disorder/pinning parameter. :math:`\\epsilon<1` weakens the
             order parameter.
         psi: The complex order parameter at each site in the mesh.
         mu: The scalar potential at each site in the mesh.
@@ -80,7 +80,7 @@ class TDGLData:
     """
 
     step: int
-    alpha: np.ndarray
+    epsilon: np.ndarray
     psi: np.ndarray
     mu: np.ndarray
     applied_vector_potential: np.ndarray
