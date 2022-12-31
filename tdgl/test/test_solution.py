@@ -120,6 +120,3 @@ def test_dynamics(solution: tdgl.Solution):
     time = solution.times
     assert len(time) == (solution.data_range[1] + 1)
     assert solution.closest_solve_step(0) == 0
-    assert (
-        solution.closest_solve_step(solution.options.solve_time) == solution.solve_step
-    )
