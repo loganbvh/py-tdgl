@@ -143,8 +143,11 @@ class Solution:
             return None
         times = self.dynamics.time
         step = self.options.save_every
+        saved_times = times[::step]
+        if saved_times[-1] == times[-1]:
+            return saved_times.copy()
         # Append the final time step in the simulation, which is always saved.
-        return np.concatenate([times[::step], times[-1:]])
+        return np.concatenate([saved_times, times[-1:]])
 
     def closest_solve_step(self, time: float) -> int:
         """Returns the index of the saved step closest in time to ``time``.
