@@ -357,22 +357,22 @@ class Mesh:
             raise IOError("Could not load mesh due to missing data.")
 
         if Mesh.is_restorable(h5group):
-            polygons_flat = np.asarray(h5group["voronoi_polygons_flat"])
-            voronoi_indices = np.asarray(h5group["voronoi_split_indices"])
+            polygons_flat = np.array(h5group["voronoi_polygons_flat"])
+            voronoi_indices = np.array(h5group["voronoi_split_indices"])
             voronoi_polygons = np.split(polygons_flat, voronoi_indices)
             return Mesh(
-                sites=h5group["sites"],
-                elements=h5group["elements"],
-                boundary_indices=h5group["boundary_indices"],
-                areas=h5group["areas"],
-                dual_sites=h5group["dual_sites"],
+                sites=np.array(h5group["sites"]),
+                elements=np.array(h5group["elements"], dtype=np.int64),
+                boundary_indices=np.array(h5group["boundary_indices"], dtype=np.int64),
+                areas=np.array(h5group["areas"]),
+                dual_sites=np.array(h5group["dual_sites"]),
                 voronoi_polygons=voronoi_polygons,
                 edge_mesh=EdgeMesh.from_hdf5(h5group["edge_mesh"]),
             )
         # Recreate mesh from triangulation data if not all data is available
         return Mesh.from_triangulation(
-            sites=np.asarray(h5group["sites"]).squeeze(),
-            elements=h5group["elements"],
+            sites=np.array(h5group["sites"]).squeeze(),
+            elements=np.array(h5group["elements"]),
         )
 
     @staticmethod
