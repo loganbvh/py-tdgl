@@ -43,16 +43,6 @@ the quantity :math:`(\frac{\partial}{\partial t}+i\mu)\psi` is the covariant tim
 :math:`\epsilon(\mathbf{r})=T_c(\mathbf{r})/T - 1 \in [-1,1]` is a real-valued parameter that adjusts the local critical temperature of the film.
 Setting :math:`\epsilon(\mathbf{r}) < 1` suppresses the critical temperature at position :math:`\mathbf{r}` :footcite:p:`Sadovskyy2015-ha,Al_Luhaibi2022-cl`.
 
-.. .. note::
-
-..     The maximum superfluid density :math:`n_{s,\mathrm{max}}(\mathbf{r})` is the value of the superfluid density at a given position
-..     :math:`\mathbf{r}` in the absence of any applied fields or currents: :math:`|\psi(\mathbf{r})|^2\leq n_{s,\mathrm{max}}(\mathbf{r})`.
-..     If :math:`\epsilon` is set to a single value for all positions in the film, then :math:`n_{s,\mathrm{max}}\approx\epsilon`.
-..     If :math:`\epsilon(\mathbf{r})` varies as a function of position, then in general one has
-..     :math:`\epsilon(\mathbf{r})\leq n_{s,\mathrm{max}}(\mathbf{r})\leq 1`, as the superfluid density in regions of small :math:`\epsilon` can be
-..     increased via proximity to regions of larger :math:`\epsilon`.
-
-
 The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to the Poisson equation:
 
 .. math::
