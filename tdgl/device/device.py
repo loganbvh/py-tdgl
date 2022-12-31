@@ -212,10 +212,10 @@ class Device:
     def polygons(self) -> Tuple[Polygon, ...]:
         """Tuple of all ``Polygons`` in the ``Device``."""
         return (
-            self.terminals
-            + (self.film,)
+            (self.film,)
             + tuple(self.holes)
             + tuple(self.abstract_regions)
+            + self.terminals
         )
 
     @property
@@ -658,17 +658,17 @@ class Device:
         for visualizing the device.
         """
         abstract_regions = self.abstract_regions
-        holes = self.holes
+        hole_names = {hole.name for hole in self.holes}
         patches = dict()
         for polygon in self.polygons:
-            if polygon.name in holes:
+            if polygon.name in hole_names:
                 continue
             coords = polygon.points.tolist()
             codes = [Path.LINETO for _ in coords]
             codes[0] = Path.MOVETO
             codes[-1] = Path.CLOSEPOLY
             poly = polygon.polygon
-            for hole in holes:
+            for hole in self.holes:
                 if polygon.name not in abstract_regions and poly.contains(hole.polygon):
                     hole_coords = hole.points.tolist()[::-1]
                     hole_codes = [Path.LINETO for _ in hole_coords]

@@ -1,3 +1,4 @@
+import logging
 import multiprocessing as mp
 from functools import partial
 from typing import List, Tuple
@@ -8,6 +9,8 @@ import scipy.sparse as sp
 from scipy.spatial import ConvexHull, Delaunay, QhullError
 from shapely.geometry import MultiLineString
 from shapely.ops import orient, polygonize
+
+logger = logging.getLogger("tdgl.finite_volume")
 
 
 def get_edges(elements: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -36,8 +39,8 @@ def get_edge_lengths(points: np.ndarray, elements: np.ndarray) -> np.ndarray:
     Returns:
         An array of edge lengths.
     """
-    edges = np.concatenate([points[elements[:, e]] for e in [(0, 1), (1, 2), (2, 0)]])
-    return np.linalg.norm(np.diff(edges, axis=1), axis=2)
+    edges, _ = get_edges(elements)
+    return np.linalg.norm(np.diff(points[edges], axis=1), axis=2).squeeze()
 
 
 def get_dual_edge_lengths(
@@ -96,21 +99,18 @@ def generate_voronoi_vertices(
     Returns:
         The x and y coordinates of the Voronoi vertices, as arrays.
     """
-    # Get the triangle abc
-    # Convert to the coordinate system where a is in the origin
-    a = sites[elements[:, 0]]
-    bp = sites[elements[:, 1]] - a
-    cp = sites[elements[:, 2]] - a
-    denominator = 2 * (bp[:, 0] * cp[:, 1] - bp[:, 1] * cp[:, 0])
+    # https://en.wikipedia.org/wiki/Circumscribed_circle#Cartesian_coordinates_2
+    # Get the triangle ABC
+    # Convert to the coordinate system where A is in the origin
+    A = sites[elements[:, 0]]
+    B = sites[elements[:, 1]] - A
+    C = sites[elements[:, 2]] - A
     # Compute the circumcenter
-    xcp = (
-        cp[:, 1] * (bp**2).sum(axis=1) - bp[:, 1] * (cp**2).sum(axis=1)
-    ) / denominator
-    ycp = (
-        bp[:, 0] * (cp**2).sum(axis=1) - cp[:, 0] * (bp**2).sum(axis=1)
-    ) / denominator
+    D = 2 * B[:, 0] * C[:, 1] - 2 * B[:, 1] * C[:, 0]
+    Ux = (C[:, 1] * (B**2).sum(axis=1) - B[:, 1] * (C**2).sum(axis=1)) / D
+    Uy = (B[:, 0] * (C**2).sum(axis=1) - C[:, 0] * (B**2).sum(axis=1)) / D
     # Convert back to the initial coordinate system
-    return np.array([xcp, ycp]).T + a
+    return np.array([Ux, Uy]).T + A
 
 
 def _get_polygon_indices(
@@ -179,15 +179,14 @@ def compute_surrounding_area(
         polygons: The polygons in Voronoi diagram.
 
     Returns:
-        An array of areas for each site in the lattice, and a list of Voronoi
-        polygon vertices.
+        An array of areas for each site in the lattice, and a list of
+        counterclockwise-oriented Voronoi polygon vertices.
     """
 
     boundary_set = set(boundary)
     boundary_edges = edges[boundary_edge_indices]
-    areas = np.zeros(len(polygons))
+    areas = np.zeros(len(polygons), dtype=float)
     voronoi_sites = []
-
     for site, polygon in enumerate(polygons):
         # Get the polygon points
         poly = dual_sites[polygon]
@@ -197,25 +196,46 @@ def compute_surrounding_area(
         poly = poly[unique]
         if site not in boundary_set:
             areas[site], is_convex = get_convex_polygon_area(poly)
-            assert is_convex
-            voronoi_sites.append(poly)
+            assert is_convex  # All interior Voronoi cells are convex.
+            voronoi_sites.append(orient_convex_polygon(poly))
             continue
         # For points on the boundary, add vertices at the mesh site and the midpoints
-        # of the two edges adjacent to the mesh site to complete the Voronoi polygons.
+        # of the two edges adjacent to the mesh site to complete the Voronoi polygon.
         connected_boundary_edges = boundary_edges[(boundary_edges == site).any(axis=1)]
         # The midpoints of the two edges adjacent to the site
         midpoints = sites[connected_boundary_edges].mean(axis=1)
-        poly = np.concatenate([poly, [sites[site]], midpoints], axis=0)
+        # Orient the convex hull of the polygon in a counterclockwise fashion
+        coords = orient_convex_polygon(np.concatenate([poly, midpoints], axis=0))
+        coords = [tuple(xy) for xy in coords]
+        # Insert the central mesh site between the two boundary edge midpoints
+        # to ensure the correct ordering of coordinates.
+        indices = sorted([coords.index(tuple(mid)) for mid in midpoints])
+        if indices[1] == indices[0] + 1:
+            # The two boundary edge midpoints are adjacent in the list of coordinates,
+            # so insert the mesh site between them.
+            coords.insert(indices[1], sites[site])
+        else:
+            # The boundary edge midpoints are the first and last elements in the
+            # list of coordinates, so append the central mesh site to the end.
+            if indices[0] != 0:
+                # TODO: Decide whether this should be an exception.
+                logger.warning(
+                    f"Malformed Voronoi cell surrounding boundary site {site}."
+                    " Try changing the number of boundary mesh sites or using"
+                    " Polygon.buffer(eps), where eps is 0 or a small positive float."
+                )
+            coords.append(sites[site])
+        poly = np.array(coords)
         areas[site], is_convex = get_convex_polygon_area(poly)
-        # If the polygon is non-convex we need to subtract the area of the
-        # concave part, which is the triangle on the boundary.
         if not is_convex:
-            # Does this ever actually happen?
-            concave_area, is_convex = get_convex_polygon_area(
-                np.concatenate([[sites[site]], midpoints], axis=0)
+            # If the polygon is non-convex we need to subtract the area of the
+            # concave part, which is the triangle formed by the mesh site and
+            # the two adjacent boundary edge midpoints.
+            triangle_area, is_convex = get_convex_polygon_area(
+                np.concatenate([midpoints, [sites[site]]], axis=0)
             )
-            assert is_convex
-            areas[site] -= concave_area
+            assert is_convex  # This is just a triangle, so it must be convex.
+            areas[site] -= triangle_area
         voronoi_sites.append(poly)
     return areas, voronoi_sites
 
@@ -229,7 +249,8 @@ def get_convex_polygon_area(coords: np.ndarray) -> Tuple[float, bool]:
         coords: The (x, y) coordinates of the vertices.
 
     Returns:
-        The area of the polygon or the convex hull.
+        The area of the polygon or the convex hull, and a bool indicating
+        whether the polygon is convex.
     """
     try:
         hull = ConvexHull(coords)
@@ -272,7 +293,7 @@ def orient_convex_polygon(vertices: np.ndarray) -> np.ndarray:
         The ``vertices`` sorted counterclockwise.
     """
     # Sort the vertices by the angle between each vertex and some point in the
-    # interior of the polygon. Here we use the mean of the vertices.
+    # interior of the polygon. Here we use the mean of the vertex positions.
     diffs = vertices - vertices.mean(axis=0)
     return vertices[np.argsort(np.arctan2(diffs[:, 1], diffs[:, 0]))]
 

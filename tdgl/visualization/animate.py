@@ -66,7 +66,7 @@ def create_animation(
         The animation as a :class:`matplotlib.animation.FuncAnimation`.
     """
     if isinstance(input_file, str):
-        input_file = os.path.join(os.getcwd(), input_file)
+        input_file = input_file
     if quantities is None:
         quantities = Quantity.get_keys()
     if isinstance(quantities, str):

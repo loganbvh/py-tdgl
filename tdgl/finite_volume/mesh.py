@@ -12,7 +12,6 @@ from .util import (
     generate_voronoi_vertices,
     get_edges,
     get_surrounding_voronoi_polygons,
-    orient_convex_polygon,
 )
 
 
@@ -61,10 +60,6 @@ class Mesh:
         self.dual_sites = dual_sites
         self.edge_mesh = edge_mesh
         self.voronoi_polygons = voronoi_polygons
-        if self.voronoi_polygons is not None:
-            self.voronoi_polygons = [
-                orient_convex_polygon(polygon) for polygon in self.voronoi_polygons
-            ]
 
     @property
     def x(self) -> np.ndarray:
