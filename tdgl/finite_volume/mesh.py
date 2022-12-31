@@ -7,11 +7,11 @@ import numpy as np
 from ..geometry import close_curve
 from .edge_mesh import EdgeMesh
 from .util import (
-    compute_surrounding_area,
+    compute_voronoi_polygon_areas,
     convex_polygon_centroid,
     generate_voronoi_vertices,
     get_edges,
-    get_surrounding_voronoi_polygons,
+    get_voronoi_polygon_indices,
 )
 
 
@@ -165,20 +165,21 @@ class Mesh:
             boundary_indices: The site indices corresponding to the boundary.
 
         Returns:
-            The Voronoi cell areas and the (unordered) vertices of the Voronoi cells.
+            The Voronoi cell areas and the counterclockwise-oriented vertices
+            of the Voronoi cells.
         """
         # Compute polygons to use when computing area
-        polygons = get_surrounding_voronoi_polygons(elements, len(sites))
+        polygon_indices = get_voronoi_polygon_indices(elements, len(sites))
         # Get the areas for each vertex
-        areas, voronoi_sites = compute_surrounding_area(
+        areas, voronoi_polygons = compute_voronoi_polygon_areas(
             sites=sites,
             dual_sites=dual_sites,
             boundary=boundary_indices,
             edges=edge_mesh.edges,
             boundary_edge_indices=edge_mesh.boundary_edge_indices,
-            polygons=polygons,
+            polygons=polygon_indices,
         )
-        return areas, voronoi_sites
+        return areas, voronoi_polygons
 
     def get_quantity_on_site(
         self, quantity_on_edge: np.ndarray, vector: bool = True
@@ -226,7 +227,7 @@ class Mesh:
             create_submesh: Whether to create the dual mesh and edge mesh.
 
         Returns:
-            A new :class:`tdgl.finit_volume.Mesh` with relaxed vertex positions.
+            A new :class:`tdgl.finite_volume.Mesh` with relaxed vertex positions.
         """
         mesh = self
         elements = mesh.elements
