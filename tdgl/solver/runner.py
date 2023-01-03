@@ -126,7 +126,10 @@ class DataHandler:
             self.output_file[key] = value
 
     def save_time_step(
-        self, state: Dict[str, float], data: Dict[str, np.ndarray]
+        self,
+        state: Dict[str, float],
+        data: Dict[str, np.ndarray],
+        running_state: Union[Dict[str, np.ndarray], None],
     ) -> None:
         """Save the state and data that are updated at each solve step."""
         group = self.time_step_group.create_group(f"{self.save_number}")
@@ -136,35 +139,45 @@ class DataHandler:
             group.attrs[key] = value
         for key, value in data.items():
             group[key] = value
+        if running_state is not None:
+            running_grp = group.create_group("running_state")
+            for key, value in running_state.items():
+                running_grp[key] = np.squeeze(value)
 
 
 class RunningState:
     """Storage class for saving scalar data that is saved at each time step.
 
     Args:
-        names: Names of the parameters to be saved.
-        buffer_size: Size of the buffer.
+        names_and_sizes: A dict of the parameters to be saved and their sizes, i.e.,
+            the number of values measured at each time step for each parameter.
+        buffer_size: The size of the buffer, i.e., the number of values to record
+            before writing to disk.
     """
 
-    def __init__(self, names: Sequence[str], buffer_size: int):
+    def __init__(self, names_and_sizes: Dict[str, int], buffer_size: int):
         self.step = 0
         self.buffer_size = buffer_size
-        self.values = dict((name, np.zeros(buffer_size)) for name in names)
+        self.names_and_sizes = names_and_sizes
+        self.values = {
+            name: np.zeros((size, buffer_size))
+            for name, size in self.names_and_sizes.items()
+        }
 
     def clear(self) -> None:
         """Clear the buffer."""
         self.step = 0
-        for key in self.values:
-            self.values[key] = np.zeros(self.buffer_size)
+        for name, size in self.names_and_sizes.items():
+            self.values[name] = np.zeros((size, self.buffer_size))
 
-    def append(self, name: str, value: Union[float, int]) -> None:
+    def append(self, name: str, value: Sequence[float]) -> None:
         """Append data to the buffer.
 
         Args:
             name: Data to append.
             value: Value of the data.
         """
-        self.values[name][self.step] = value
+        self.values[name][:, self.step] = value
 
 
 class Runner:
@@ -181,7 +194,7 @@ class Runner:
         fixed_values: Values that do not change over time, but should be added
             to saved data.
         fixed_names: Fixed data variable names.
-        running_names: Names of running state variables.
+        running_names_and_sizes: Names and shapes of running state variables.
         logger: A logger to print information about simulation.
         state: The current state variables.
     """
@@ -195,7 +208,7 @@ class Runner:
         data_handler: DataHandler,
         fixed_values: Union[List[Any], None] = None,
         fixed_names: Union[Sequence, None] = None,
-        running_names: Union[Sequence[str], None] = None,
+        running_names_and_sizes: Union[Dict[str, int], None] = None,
         logger: Union[logging.Logger, None] = None,
         state: Union[Dict[str, Any], None] = None,
     ):
@@ -207,9 +220,11 @@ class Runner:
         self.names = names
         self.fixed_values = fixed_values if fixed_values is not None else []
         self.fixed_names = fixed_names if fixed_names is not None else []
-        self.running_names = running_names if running_names is not None else []
+        self.running_names_and_sizes = (
+            running_names_and_sizes if running_names_and_sizes is not None else {}
+        )
         self.running_state = RunningState(
-            running_names if running_names is not None else [], self.options.save_every
+            self.running_names_and_sizes, self.options.save_every
         )
         self.state = state if state is not None else {}
         self.logger = logger if logger is not None else logging.getLogger()
@@ -274,9 +289,11 @@ class Runner:
 
         def save_step(step):
             data = dict(zip(self.names, self.values))
-            if step != 0:
-                data.update(self.running_state.values)
-            self.data_handler.save_time_step(self.state, data)
+            if step == 0:
+                running_state = None
+            else:
+                running_state = self.running_state.values
+            self.data_handler.save_time_step(self.state, data, running_state)
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=TqdmWarning)

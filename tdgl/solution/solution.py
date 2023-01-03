@@ -216,9 +216,9 @@ class Solution:
         djx_dy = grad_jx * normalized_directions[:, 1]
         vorticity_on_edges = djy_dx - djx_dy
         vorticity = mesh.get_quantity_on_site(vorticity_on_edges, vector=False)
-        scale = (
-            device.K0 / (device.coherence_length * device.ureg(device.length_units))
-        ).to(f"{self.current_units} / {self.device.length_units}**2")
+        scale = (device.K0 / device.coherence_length).to(
+            f"{self.current_units} / {self.device.length_units}**2"
+        )
         self._vorticity = vorticity * scale
 
     @property
@@ -707,7 +707,7 @@ class Solution:
         zs = zs.squeeze()
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
-        weights = device.mesh.areas * device.coherence_length**2
+        weights = device.mesh.areas * device.coherence_length.magnitude**2
         # Compute the fields at the specified positions from the currents in each layer
         layer = self.device.layer
         if np.all((zs - layer.z0) == 0):
@@ -789,7 +789,7 @@ class Solution:
         device = self.device
         ureg = device.ureg
         points = device.points
-        areas = device.mesh.areas * device.coherence_length**2
+        areas = device.mesh.areas * device.coherence_length.magnitude**2
         units = units or f"{self.field_units} * {device.length_units}"
         # In case something like a list [x, y] or [x, y, z] is given
         positions = np.atleast_2d(positions)

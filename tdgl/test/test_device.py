@@ -154,7 +154,7 @@ def device():
         film=film,
         holes=[hole],
         abstract_regions=abstract_regions,
-        voltage_points=[(-1.5, 0), (1.5, 0)],
+        probe_points=[(-1.5, 0), (1.5, 0)],
     )
 
     with pytest.raises(TypeError):
@@ -197,7 +197,7 @@ def device_with_mesh():
         layer=layer,
         film=film,
         holes=holes,
-        voltage_points=[(2.5, 0), (-2.5, 0)],
+        probe_points=[(2.5, 0), (-2.5, 0)],
     )
     assert device.edge_lengths is None
     assert device.triangles is None

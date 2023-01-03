@@ -1,3 +1,5 @@
+from typing import Union
+
 import h5py
 
 
@@ -8,7 +10,8 @@ class Layer:
         london_lambda: The London penetration depth of the film.
         coherence_length: The superconducting coherence length of the film.
         thickness: The thickness of the film.
-        conductivity: The normal state conductivity of the superconductor.
+        conductivity: The normal state conductivity of the superconductor in
+            Siemens / length_unit.
         u: The ratio of the relaxation times for the order parameter amplitude
             and phase. This value is 5.79 for dirty superconductors.
         gamma: This parameter quantifies the effect of inelastic phonon-electron
@@ -23,23 +26,18 @@ class Layer:
         london_lambda: float,
         coherence_length: float,
         thickness: float,
-        conductivity: float = None,
+        conductivity: Union[float, None] = None,
         u: float = 5.79,
         gamma: float = 10.0,
         z0: float = 0,
     ):
         self.london_lambda = london_lambda
-        self._coherence_length = coherence_length
+        self.coherence_length = coherence_length
         self.thickness = thickness
         self.conductivity = conductivity
         self.u = u
         self.gamma = gamma
         self.z0 = z0
-
-    @property
-    def coherence_length(self) -> float:
-        """Ginzburg-Landau coherence length, :math:`\\xi`."""
-        return self._coherence_length
 
     @property
     def Lambda(self) -> float:

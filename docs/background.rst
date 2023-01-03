@@ -41,7 +41,8 @@ the quantity :math:`(\frac{\partial}{\partial t}+i\mu)\psi` is the covariant tim
 (:math:`\zeta` is the Riemann zeta function) and
 :math:`\gamma` is a material parameter which is proportional to the inelastic scattering time and the size of the superconducting gap.
 :math:`\epsilon(\mathbf{r})=T_c(\mathbf{r})/T - 1 \in [-1,1]` is a real-valued parameter that adjusts the local critical temperature of the film.
-Setting :math:`\epsilon(\mathbf{r}) < 1` suppresses the critical temperature at position :math:`\mathbf{r}` :footcite:p:`Sadovskyy2015-ha,Al_Luhaibi2022-cl`.
+Setting :math:`\epsilon(\mathbf{r}) < 1` suppresses the critical temperature at position :math:`\mathbf{r}`
+:footcite:p:`Sadovskyy2015-ha,Al_Luhaibi2022-cl,Kwok2016-of`.
 
 The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to the Poisson equation:
 

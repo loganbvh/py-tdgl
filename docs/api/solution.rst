@@ -14,7 +14,7 @@ can be serialized to and deserialized from disk.
 For each instance ``solution`` of :class:`tdgl.Solution`, the raw data from the TDGL simulation (in dimensionless units)
 are stored in ``solution.tdgl_data``, which is an instance of :class:`tdgl.solution.data.TDGLData`. Any data
 that is measured at each time step in the simulation, i.e., the measured voltage and phase difference between
-the :class:`tdgl.Device`'s ``voltage_points``, are stored in ``solution.dynamics``, which is an instance of
+the :class:`tdgl.Device`'s ``probe_points``, are stored in ``solution.dynamics``, which is an instance of
 :class:`tdgl.solution.data.DynamicsData`.
 
 Overview

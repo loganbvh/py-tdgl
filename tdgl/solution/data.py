@@ -145,16 +145,16 @@ class DynamicsData:
         dt: The solver time step, :math:`\\Delta t^{n}`.
         time: The solver time, a derived attribute which is equal to the cumulative
             sum of the time step.
-        voltage: The difference in scalar potential :math:`\\mu` between the model's
-            voltage points, :math:`V/V_0`.
-        phase_difference: The difference in the phase of the order parameter
-            :math:`\\arg(\\psi)` between the model's voltage points.
+        mu: The electric potential, :math:`\\mu`.
+        theta: The phase of the order parameter, :math:`\\theta=\\arg\\psi`
+        screening_iterations: The number of screening iterations performed at each
+            time step.
     """
 
     dt: np.ndarray
     time: np.ndarray = dataclasses.field(init=False)
-    voltage: np.ndarray
-    phase_difference: np.ndarray
+    mu: Union[np.ndarray, None] = None
+    theta: Union[np.ndarray, None] = None
     screening_iterations: Union[np.ndarray, None] = None
 
     def __post_init__(self):
@@ -185,7 +185,40 @@ class DynamicsData:
         """
         return np.argmin(np.abs(self.time - time))
 
-    def mean_voltage(self, tmin: float = -np.inf, tmax: float = np.inf) -> float:
+    def voltage(self, i: int = 0, j: int = 1) -> np.ndarray:
+        """Returns the voltage, i.e., the electric potential difference
+        between probe points ``i`` and ``j``, as a function of time.
+
+        Args:
+            i: Index for the first probe point.
+            j: Index for the second probe point.
+
+        Returns:
+            The voltage :math:`V_{ij}(t)=\\mu_i(t)-\\mu_j(t)\\`
+        """
+        if self.mu is None:
+            raise ValueError("No voltage data available.")
+        return self.mu[i] - self.mu[j]
+
+    def phase_difference(self, i: int = 0, j: int = 1) -> np.ndarray:
+        """Returns the phase difference between probe points ``i`` and ``j``
+        as a function of time.
+
+        Args:
+            i: Index for the first probe point.
+            j: Index for the second probe point.
+
+        Returns:
+            The phase difference :math:`\\Delta\\theta_{ij}(t)=\\theta_i(t)-\\theta_j(t)\\`,
+            where :math:`\\theta=\\arg\\psi`.
+        """
+        if self.theta is None:
+            raise ValueError("No phase data available.")
+        return self.theta[i] - self.theta[j]
+
+    def mean_voltage(
+        self, i: int = 0, j: int = 1, tmin: float = -np.inf, tmax: float = np.inf
+    ) -> float:
         """Returns the time-averaged voltage :math:`\\langle V/V_0\\rangle`
         over the specified time interval.
 
@@ -195,14 +228,18 @@ class DynamicsData:
             \\frac{\\sum_n V^{n}/V_0\\cdot\\Delta t^{n}}{\\sum_n\\Delta t^{n}}
 
         Args:
+            i: Index for the first probe point.
+            j: Index for the second probe point.
             tmin: The minimum of the time window over which to average.
             tmax: The maximum of the time window over which to average.
 
         Returns:
             The time-averaged voltage over the specified time window.
         """
+        if self.mu is None:
+            raise ValueError("No voltage data available.")
         indices = self.time_slice(tmin, tmax)
-        return np.average(self.voltage[indices], weights=self.dt[indices])
+        return np.average(self.voltage(i, j)[indices], weights=self.dt[indices])
 
     def resample(self, num_points: Union[int, None] = None) -> "DynamicsData":
         """Re-sample the dynamics to a uniform grid using linear interpolation.
@@ -217,14 +254,17 @@ class DynamicsData:
         if num_points is None:
             num_points = len(time)
         ts = np.linspace(time.min(), time.max(), num_points)
-        return DynamicsData(
-            dt=(ts[1] - ts[0]) * np.ones_like(ts),
-            voltage=np.interp(ts, time, self.voltage),
-            phase_difference=np.interp(ts, time, self.phase_difference),
-        )
+        mu = theta = None
+        if self.mu is not None:
+            mu = np.array([np.interp(ts, time, val) for val in self.mu])
+        if self.theta is not None:
+            theta = np.array([np.interp(ts, time, val) for val in self.theta])
+        return DynamicsData(dt=(ts[1] - ts[0]) * np.ones_like(ts), mu=mu, theta=theta)
 
     def plot(
         self,
+        i: int = 0,
+        j: int = 1,
         tmin: float = -np.inf,
         tmax: float = +np.inf,
         grid: bool = True,
@@ -235,6 +275,8 @@ class DynamicsData:
         """Plot the voltage and phase difference over the specified time window.
 
         Args:
+            i: Index for the first probe point.
+            j: Index for the second probe point.
             tmin: The minimum of the time window to plot.
             tmax: The maximum of the time window to plot.
             grid: Whether to add grid lines to the plots.
@@ -250,22 +292,22 @@ class DynamicsData:
         ax.grid(grid)
         bx.grid(grid)
         ts = self.time
-        vs = self.voltage
-        phases = np.unwrap(self.phase_difference) / np.pi
+        vs = self.voltage(i, j)
+        phases = np.unwrap(self.phase_difference(i, j)) / np.pi
         indices = self.time_slice(tmin, tmax)
         ax.plot(ts[indices], vs[indices])
         if mean_voltage:
             ax.axhline(
-                self.mean_voltage(tmin, tmax),
+                self.mean_voltage(i=i, j=j, tmin=tmin, tmax=tmax),
                 label="Mean voltage",
                 color="k",
                 ls="--",
             )
         bx.plot(ts[indices], phases[indices])
         if labels:
-            ax.set_ylabel("Voltage\n$\\Delta\\mu/V_0$")
+            ax.set_ylabel(f"Voltage\n$\\Delta\\mu_{{{i},{j}}}/V_0$")
             bx.set_xlabel("Time, $t/\\tau_0$")
-            bx.set_ylabel("Phase difference\n$\\Delta\\theta/\\pi$")
+            bx.set_ylabel(f"Phase difference\n$\\Delta\\theta_{{{i},{j}}}/\\pi$")
         if legend:
             ax.legend(loc=0)
         return fig, axes
@@ -330,44 +372,50 @@ class DynamicsData:
         Returns:
             A new :class:`DynamicsData` instance.
         """
-        if "phase_difference" in h5file:
+        iterations = None
+        if "theta" in h5file:
             # Load from DynamicsData.to_hdf5()
-            screening_iterations = None
             dt = np.array(h5file["dt"])
-            voltage = np.array(h5file["voltage"])
-            phase = np.array(h5file["phase_difference"])
+            mu = screening_iterations = None
+            theta = np.array(h5file["theta"])
+            if "mu" in h5file:
+                mu = np.array(h5file["mu"])
             if "screening_iterations" in h5file:
-                screening_iterations = np.array(h5file["screening_iterations"])
+                iterations = np.array(h5file["screening_iterations"])
         else:
             dts = []
-            voltages = []
+            mus = []
             phases = []
             screening_iterations = []
             if step_min is None:
                 step_min, step_max = get_data_range(h5file)
             for i in range(step_min, step_max + 1):
                 grp = h5file[f"data/{i}"]
-                if "dt" not in grp:
+                if "running_state" not in grp:
                     continue
+                grp = grp["running_state"]
                 dts.append(np.array(grp["dt"]))
-                voltages.append(np.array(grp["voltage"]))
-                phases.append(np.array(grp["phase_difference"]))
+                if "mu" in grp:
+                    mus.append(np.array(grp["mu"]))
+                if "theta" in grp:
+                    phases.append(np.array(grp["theta"]))
                 if "screening_iterations" in grp:
                     screening_iterations.append(np.array(grp["screening_iterations"]))
             dt = np.concatenate(dts)
             mask = dt > 0
             dt = dt[mask]
-            voltage = np.concatenate(voltages)[mask]
-            phase = np.concatenate(phases)[mask]
+            mu = theta = iterations = None
+            if mus:
+                mu = np.concatenate(mus, axis=1)[:, mask]
+            if phases:
+                theta = np.concatenate(phases, axis=1)[:, mask]
             if screening_iterations:
-                screening_iterations = np.concatenate(screening_iterations)[mask]
-            else:
-                screening_iterations = None
+                iterations = np.concatenate(screening_iterations)[mask]
         return DynamicsData(
             dt,
-            voltage,
-            phase,
-            screening_iterations=screening_iterations,
+            mu=mu,
+            theta=theta,
+            screening_iterations=iterations,
         )
 
     def to_hdf5(self, h5group: h5py.Group) -> None:
@@ -376,8 +424,11 @@ class DynamicsData:
         Args:
             h5group: An open :class:`h5py.Group` in which to save the data.
         """
-        for key in ("dt", "voltage", "phase_difference"):
-            h5group[key] = getattr(self, key)
+        h5group["dt"] = self.dt
+        if self.mu is not None:
+            h5group["mu"] = self.mu
+        if self.theta is not None:
+            h5group["theta"] = self.theta
         if self.screening_iterations is not None:
             h5group["screening_iterations"] = self.screening_iterations
 

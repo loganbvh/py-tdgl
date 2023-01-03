@@ -230,12 +230,12 @@ def solve(
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units`` and ``time`` is the dimensionless time.
-        disorder_epsilon: A float in range (-inf, 1], or a callable with signature
-            ``disorder_epsilon(r: Tuple[float, float]) -> epsilon``, where ``epsilon`` is a float
-            in range [-1, 1]. If :math:`\\epsilon(\\mathbf{r}) < 1` suppresses the superfluid
-            density at position :math:`\\mathbf{r}`, which can be used to model
-            inhomogeneity. :math:`\\epsilon(\\mathbf{r})` is the maximum possible
-            superfluid density at position :math:`\\mathbf{r}`.
+        disorder_epsilon: A float in range [-1, 1], or a callable with signature
+            ``disorder_epsilon(r: Tuple[float, float]) -> epsilon``, where ``epsilon``
+            is a float in range [-1, 1]. Setting
+            :math:`\\epsilon(\\mathbf{r})=T_c(\\mathbf{r})/T_c - 1 < 1` suppresses the
+            critical temperature at position :math:`\\mathbf{r}`, which can be used
+            to model inhomogeneity.
         pinning_sites: Pinning sites are sites in the mesh where the order parameter
             fixed to :math:`\\psi(\\mathbf{r}, t)=0`. If ``pinning_sites``
             is given as a pint-parseable string with dimensions of ``length ** (-2)``,
@@ -263,8 +263,8 @@ def solve(
     sites = device.points
     edges = mesh.edge_mesh.edges
     length_units = ureg(device.length_units)
-    xi = device.coherence_length
-    voltage_points = device.voltage_point_indices
+    xi = device.coherence_length.magnitude
+    probe_points = device.probe_point_indices
     u = device.layer.u
     gamma = device.layer.gamma
     K0 = device.K0
@@ -275,7 +275,7 @@ def solve(
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
     J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
-    assert "dimensionless" in str(J_scale.units)
+    assert "dimensionless" in str(J_scale.units), str(J_scale.units)
     J_scale = J_scale.magnitude
     if not callable(applied_vector_potential):
         applied_vector_potential = ConstantField(
@@ -308,9 +308,9 @@ def solve(
         normal_boundary_index = np.array([], dtype=np.int64)
     interior_indices = np.setdiff1d(np.arange(len(mesh.sites)), normal_boundary_index)
     # Define the source-drain current.
-    if terminal_currents and device.voltage_points is None:
+    if terminal_currents and device.probe_points is None:
         logger.warning(
-            "The terminal currents are non-null, but the device has no voltage points."
+            "The terminal currents are non-null, but the device has no probe points."
         )
     terminal_names = [term.name for term in terminal_info]
     if terminal_currents is None:
@@ -466,17 +466,11 @@ def solve(
                 del v[:-2]
                 del A_induced_vals[:-2]
 
-        # Update the voltage and phase difference
-        if device.voltage_points is None:
-            d_mu, d_theta = 0, 0
-        else:
-            d_mu = mu[voltage_points[0]] - mu[voltage_points[1]]
-            d_theta = np.angle(psi[voltage_points[0]]) - np.angle(
-                psi[voltage_points[1]]
-            )
         running_state.append("dt", dt)
-        running_state.append("voltage", d_mu)
-        running_state.append("phase_difference", d_theta)
+        if probe_points is not None:
+            # Update the voltage and phase difference
+            running_state.append("mu", mu[probe_points])
+            running_state.append("theta", np.angle(psi[probe_points]))
         if options.include_screening:
             running_state.append("screening_iterations", screening_iterations)
 
@@ -521,9 +515,12 @@ def solve(
             "normal_current": seed_data.normal_current,
             "induced_vector_potential": seed_data.induced_vector_potential,
         }
-    running_names = ("voltage", "phase_difference", "dt")
+    running_names_and_sizes = {"dt": 1}
+    if probe_points is not None:
+        running_names_and_sizes["mu"] = len(probe_points)
+        running_names_and_sizes["theta"] = len(probe_points)
     if options.include_screening:
-        running_names = running_names + ("screening_iterations",)
+        running_names_and_sizes["screening_iterations"] = 1
 
     with DataHandler(output_file=output_file, logger=logger) as data_handler:
         data_handler.save_mesh(mesh)
@@ -535,7 +532,7 @@ def solve(
             names=list(parameters),
             fixed_values=(vector_potential, epsilon),
             fixed_names=("applied_vector_potential", "epsilon"),
-            running_names=running_names,
+            running_names_and_sizes=running_names_and_sizes,
             logger=logger,
         ).run()
         end_time = datetime.now()

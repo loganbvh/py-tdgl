@@ -58,7 +58,7 @@ class Device:
         terminals: A sequence of ``Polygons`` representing the current terminals.
             Any points that are on the boundary of the mesh and lie inside a
             terminal will have current source/sink boundary conditions.
-        voltage_points: A shape ``(2, 2)`` sequence of floats, with each row
+        probe_points: A shape ``(n, 2)`` sequence of floats, with each row
             representing the ``(x, y)`` position of a voltage probe.
         length_units: Distance units for the coordinate system.
     """
@@ -74,7 +74,7 @@ class Device:
         holes: Union[List[Polygon], None] = None,
         abstract_regions: Union[List[Polygon], None] = None,
         terminals: Union[List[Polygon], None] = None,
-        voltage_points: Sequence[float] = None,
+        probe_points: Sequence[float] = None,
         length_units: str = "um",
     ):
         self.name = name
@@ -83,14 +83,18 @@ class Device:
         self.holes = holes or []
         self.abstract_regions = abstract_regions or []
         self.terminals = tuple(terminals or [])
-        if voltage_points is not None:
-            voltage_points = np.asarray(voltage_points).squeeze()
-            if voltage_points.shape != (2, 2):
+        if probe_points is not None:
+            probe_points = np.asarray(probe_points).squeeze()
+            if (
+                probe_points.ndim != 2
+                or probe_points.shape[0] < 2
+                or probe_points.shape[1] != 2
+            ):
                 raise ValueError(
-                    f"Voltage points must have shape (2, 2), "
-                    f"got {voltage_points.shape}."
+                    f"Voltage points must have shape (n, 2) with n > 1, "
+                    f"got {probe_points.shape}."
                 )
-        self.voltage_points = voltage_points
+        self.probe_points = probe_points
 
         names = set()
         for terminal in self.terminals:
@@ -116,59 +120,79 @@ class Device:
         return self._length_units
 
     @property
-    def coherence_length(self) -> float:
-        """Ginzburg-Landau coherence length in ``length_units``."""
-        return self.layer._coherence_length
+    def coherence_length(self) -> pint.Quantity:
+        """Ginzburg-Landau coherence length, :math:`\\xi`"""
+        return self.layer.coherence_length * ureg(self.length_units)
 
-    @coherence_length.setter
-    def coherence_length(self, value: float) -> None:
-        old_value = self.layer._coherence_length
-        logger.debug(
-            f"Updating coherence length from "
-            f"{old_value:.3f} to {value:.3f} {self.length_units}."
-        )
-        if self.mesh is None:
-            self.layer._coherence_length = value
-            return
-        logger.debug(
-            f"Rebuilding the dimensionless mesh with "
-            f"coherence length = {value:.3f} {self.length_units}."
-        )
-        # Get points in {length_units}.
-        points = self.points
-        triangles = self.triangles
-        self.layer._coherence_length = value
-        self._create_dimensionless_mesh(points, triangles)
+    @property
+    def london_lambda(self) -> pint.Quantity:
+        """London penetration depth, :math:`\\lambda`"""
+        return self.layer.london_lambda * ureg(self.length_units)
+
+    @property
+    def thickness(self) -> pint.Quantity:
+        """Film thickness, :math:`d`"""
+        return self.layer.thickness * ureg(self.length_units)
+
+    @property
+    def Lambda(self) -> pint.Quantity:
+        """Effective magnetic penetration depth, :math:`\\Lambda=\\lambda^2/d`."""
+        return self.london_lambda**2 / self.thickness
+
+    @property
+    def conductivity(self) -> Union[pint.Quantity, None]:
+        """Film normal state conductivity, :math:`\\sigma`"""
+        if self.layer.conductivity is None:
+            return None
+        return self.layer.conductivity * ureg(f"Siemens / {self.length_units}")
 
     @property
     def kappa(self) -> float:
         """The Ginzburg-Landau parameter, :math:`\\kappa=\\lambda/\\xi`."""
-        return self.layer.london_lambda / self.coherence_length
+        return (self.london_lambda / self.coherence_length).magnitude
 
     @property
     def Bc2(self) -> pint.Quantity:
         """Upper critical field, :math:`B_{c2}=\\Phi_0/(2\\pi\\xi^2)`."""
-        xi_ = self.coherence_length * ureg(self.length_units)
-        return (ureg("Phi_0") / (2 * np.pi * xi_**2)).to_base_units()
+        return (
+            ureg("Phi_0") / (2 * np.pi * self.coherence_length**2)
+        ).to_base_units()
 
     @property
     def A0(self) -> pint.Quantity:
         """Scale for the magnetic vector potential, :math:`A_0=\\xi B_{c2}`."""
-        return (
-            self.Bc2 * self.coherence_length * self.ureg(self.length_units)
-        ).to_base_units()
+        return (self.Bc2 * self.coherence_length).to_base_units()
 
     @property
     def K0(self) -> pint.Quantity:
         """Sheet current density scale (dimensions of current / length),
         :math:`K_0=4\\xi B_{c2}/(\\mu_0\\Lambda)`.
         """
-        length_units = ureg(self.length_units)
-        xi = self.coherence_length * length_units
-        Lambda = self.layer.Lambda * length_units
-        mu_0 = ureg("mu_0")
-        K0 = 4 * xi * self.Bc2 / (mu_0 * Lambda)
+        K0 = 4 * self.coherence_length * self.Bc2 / (ureg("mu_0") * self.Lambda)
         return K0.to_base_units()
+
+    def tau0(self, conductivity: Union[pint.Quantity, None] = None) -> pint.Quantity:
+        """Time scale, :math:`\\tau_0=\\mu_0\\sigma\\lambda^2.`"""
+        if conductivity is None:
+            conductivity = self.conductivity
+        if conductivity is None:
+            raise ValueError(
+                "The time scale tau0 requires the normal state"
+                " conductivity to be defined."
+            )
+        return (ureg("mu_0") * conductivity * self.london_lambda**2).to("seconds")
+
+    def V0(self, conductivity: Union[pint.Quantity, None] = None) -> pint.Quantity:
+        """Electric potential scale, :math:`\\V_0=\\xi J_0/\\sigma.`"""
+        if conductivity is None:
+            conductivity = self.conductivity
+        if conductivity is None:
+            raise ValueError(
+                "The electric potential scale V_0 requires the normal state"
+                " conductivity to be defined."
+            )
+        J0 = self.K0 / self.thickness
+        return (self.coherence_length * J0 / conductivity).to("volts")
 
     def terminal_info(self) -> Tuple[TerminalInfo, ...]:
         """Returns a tuple of ``TerminalInfo`` objects,
@@ -224,7 +248,7 @@ class Device:
         """
         if self.mesh is None:
             return None
-        return self.coherence_length * self.mesh.sites
+        return self.mesh.sites * self.coherence_length.magnitude
 
     @property
     def triangles(self) -> Union[np.ndarray, None]:
@@ -245,22 +269,22 @@ class Device:
         """An array of the mesh vertex-to-vertex distances."""
         if self.mesh is None:
             return None
-        return self.mesh.edge_mesh.edge_lengths * self.coherence_length
+        return self.mesh.edge_mesh.edge_lengths * self.coherence_length.magnitude
 
     @property
     def areas(self) -> Union[np.ndarray, None]:
         """An array of the mesh Voronoi cell areas."""
         if self.mesh is None:
             return None
-        return self.mesh.areas * self.coherence_length**2
+        return self.mesh.areas * self.coherence_length.magnitude**2
 
     @property
-    def voltage_point_indices(self) -> Union[Tuple[int, int], None]:
-        """A tuple of the mesh site indices for the voltage points."""
-        if self.mesh is None or self.voltage_points is None:
+    def probe_point_indices(self) -> Union[List[int], None]:
+        """A list of the mesh site indices for the probe points."""
+        if self.mesh is None or self.probe_points is None:
             return None
-        xi = self.coherence_length
-        return tuple(self.mesh.closest_site(xy) for xy in self.voltage_points / xi)
+        xi = self.coherence_length.magnitude
+        return [self.mesh.closest_site(xy) for xy in self.probe_points / xi]
 
     def boundary_sites(self) -> Union[Dict[str, np.ndarray], None]:
         """Returns a dict of ``{polygon_name: boundary_indices}``, where ``boundary_indices``
@@ -343,10 +367,10 @@ class Device:
         holes = [hole.copy() for hole in self.holes]
         abstract_regions = [region.copy() for region in self.abstract_regions]
         terminals = [term.copy() for term in self.terminals]
-        if self.voltage_points is None:
-            voltage_points = None
+        if self.probe_points is None:
+            probe_points = None
         else:
-            voltage_points = self.voltage_points.copy()
+            probe_points = self.probe_points.copy()
 
         device = Device(
             self.name,
@@ -355,7 +379,7 @@ class Device:
             holes=holes,
             abstract_regions=abstract_regions,
             terminals=terminals,
-            voltage_points=voltage_points,
+            probe_points=probe_points,
             length_units=self.length_units,
         )
         if with_mesh and self.mesh is not None:
@@ -397,12 +421,12 @@ class Device:
         device = self.copy(with_mesh=False)
         for polygon in device.polygons:
             polygon.scale(xfact=xfact, yfact=yfact, origin=origin, inplace=True)
-        if device.voltage_points is not None:
+        if device.probe_points is not None:
             points = [
                 affinity.scale(Point(xy), xfact=xfact, yfact=yfact, origin=origin)
-                for xy in device.voltage_points
+                for xy in device.probe_points
             ]
-            device.voltage_points = np.concatenate(
+            device.probe_points = np.concatenate(
                 [point.coords for point in points], axis=0
             )
         return device
@@ -428,12 +452,12 @@ class Device:
         device = self.copy(with_mesh=False)
         for polygon in device.polygons:
             polygon.rotate(degrees, origin=origin, inplace=True)
-        if self.voltage_points is not None:
+        if self.probe_points is not None:
             points = [
                 affinity.rotate(Point(xy), degrees, origin=origin)
-                for xy in self.voltage_points
+                for xy in self.probe_points
             ]
-            device.voltage_points = np.concatenate(
+            device.probe_points = np.concatenate(
                 [point.coords for point in points], axis=0
             )
         return device
@@ -464,8 +488,8 @@ class Device:
             device = self.copy(with_mesh=False)
         for polygon in device.polygons:
             polygon.translate(dx, dy, inplace=True)
-        if self.voltage_points is not None:
-            device.voltage_points = self.voltage_points + np.array([[dx, dy]])
+        if self.probe_points is not None:
+            device.probe_points = self.probe_points + np.array([[dx, dy]])
         if device.mesh is not None:
             points = device.points
             points += np.array([[dx, dy]])
@@ -513,7 +537,7 @@ class Device:
         logger.info("Generating mesh...")
         boundary = self.film.points
         if max_edge_length is None:
-            max_edge_length = 1.5 * self.coherence_length
+            max_edge_length = 1.5 * self.coherence_length.magnitude
         points, triangles = generate_mesh(
             self.poly_points,
             hole_coords=[hole.points for hole in self.holes],
@@ -547,7 +571,9 @@ class Device:
             The dimensionless ``Mesh`` object.
         """
         self.mesh = Mesh.from_triangulation(
-            points / self.coherence_length, triangles, create_submesh=True
+            points / self.coherence_length.magnitude,
+            triangles,
+            create_submesh=True,
         )
 
     def mesh_stats_dict(self) -> Dict[str, Union[int, float, str]]:
@@ -576,7 +602,7 @@ class Device:
             min_area=_min(areas),
             max_area=_max(areas),
             mean_area=_mean(areas),
-            coherence_length=self.coherence_length,
+            coherence_length=self.coherence_length.magnitude,
             length_units=self.length_units,
         )
 
@@ -628,7 +654,7 @@ class Device:
         else:
             fig = ax.get_figure()
         points = self.points
-        voltage_points = self.voltage_point_indices
+        probe_points = self.probe_point_indices
         if mesh:
             if self.mesh is None:
                 raise RuntimeError(
@@ -640,13 +666,13 @@ class Device:
             ax.triplot(x, y, tri, **mesh_kwargs)
         for polygon in self.polygons:
             ax = polygon.plot(ax=ax, **kwargs)
-        if self.mesh is None and self.voltage_points is not None:
-            ax.plot(*self.voltage_points.T, "ko", label="Voltage points")
-        if voltage_points:
-            ax.plot(*points[voltage_points, :].T, "ko", label="Voltage points")
+        if self.mesh is None and self.probe_points is not None:
+            ax.plot(*self.probe_points.T, "ko", label="Voltage points")
+        if probe_points:
+            ax.plot(*points[probe_points, :].T, "ko", label="Voltage points")
         if legend:
             ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
-        units = self.ureg(self.length_units).units
+        units = ureg(self.length_units).units
         ax.set_xlabel(f"$x$ $[{units:~L}]$")
         ax.set_ylabel(f"$y$ $[{units:~L}]$")
         ax.set_aspect("equal")
@@ -706,9 +732,9 @@ class Device:
         exclude = exclude or []
         if isinstance(exclude, str):
             exclude = [exclude]
-        voltage_points = self.voltage_point_indices
+        probe_points = self.probe_point_indices
         patches = self.patches()
-        units = self.ureg(self.length_units).units
+        units = ureg(self.length_units).units
         x, y = self.poly_points.T
         margin = 0.1
         dx = np.ptp(x)
@@ -733,12 +759,12 @@ class Device:
             ax.add_artist(patch)
             labels.append(name)
             handles.append(patch)
-        if self.mesh is None and self.voltage_points is not None:
-            (line,) = ax.plot(*self.voltage_points.T, "ko", label="Voltage points")
+        if self.mesh is None and self.probe_points is not None:
+            (line,) = ax.plot(*self.probe_points.T, "ko", label="Voltage points")
             handles.append(line)
             labels.append("Voltage points")
-        if voltage_points:
-            (line,) = ax.plot(*self.points[voltage_points, :].T, "ko")
+        if probe_points:
+            (line,) = ax.plot(*self.points[probe_points, :].T, "ko")
             handles.append(line)
             labels.append("Voltage points")
         if legend:
@@ -776,8 +802,8 @@ class Device:
             for terminal in self.terminals:
                 terminals_grp = f.require_group("terminals")
                 terminal.to_hdf5(terminals_grp.create_group(terminal.name))
-            if self.voltage_points is not None:
-                f["voltage_points"] = self.voltage_points
+            if self.probe_points is not None:
+                f["probe_points"] = self.probe_points
             for hole in sorted(self.holes, key=attrgetter("name")):
                 group = f.require_group("holes")
                 hole.to_hdf5(group.create_group(hole.name))
@@ -807,7 +833,7 @@ class Device:
                     f"{type(path_or_group)}."
                 )
             h5_context = nullcontext(path_or_group)
-        terminals = voltage_points = None
+        terminals = probe_points = None
         holes = abstract_regions = mesh = None
         with h5_context as f:
             name = f.attrs["name"]
@@ -830,8 +856,8 @@ class Device:
                         f["abstract_regions"].items(), key=itemgetter(0)
                     )
                 ]
-            if "voltage_points" in f:
-                voltage_points = np.array(f["voltage_points"])
+            if "probe_points" in f:
+                probe_points = np.array(f["probe_points"])
             if "mesh" in f:
                 mesh = Mesh.from_hdf5(f["mesh"])
 
@@ -842,7 +868,7 @@ class Device:
             holes=holes,
             abstract_regions=abstract_regions,
             terminals=terminals,
-            voltage_points=voltage_points,
+            probe_points=probe_points,
             length_units=length_units,
         )
 
@@ -864,7 +890,7 @@ class Device:
             f"holes={self.holes!r}",
             f"abstract_regions={self.abstract_regions!r}",
             f"terminals={self.terminals!r}",
-            f"voltage_points={self.voltage_points!r}",
+            f"probe_points={self.probe_points!r}",
             f"length_units={self.length_units!r}",
         ]
 
@@ -881,16 +907,16 @@ class Device:
             key = attrgetter(key)
             return sorted(seq1, key=key) == sorted(seq2, key=key)
 
-        if self.voltage_points is None and other.voltage_points is None:
-            same_voltage_points = True
+        if self.probe_points is None and other.probe_points is None:
+            same_probe_points = True
         elif (
-            isinstance(self.voltage_points, np.ndarray)
-            and isinstance(other.voltage_points, np.ndarray)
-            and np.allclose(self.voltage_points, other.voltage_points)
+            isinstance(self.probe_points, np.ndarray)
+            and isinstance(other.probe_points, np.ndarray)
+            and np.allclose(self.probe_points, other.probe_points)
         ):
-            same_voltage_points = True
+            same_probe_points = True
         else:
-            same_voltage_points = False
+            same_probe_points = False
 
         return (
             self.name == other.name
@@ -899,6 +925,6 @@ class Device:
             and compare(self.holes, other.holes)
             and compare(self.abstract_regions, other.abstract_regions)
             and compare(self.terminals, other.terminals)
-            and same_voltage_points
+            and same_probe_points
             and self.length_units == other.length_units
         )
