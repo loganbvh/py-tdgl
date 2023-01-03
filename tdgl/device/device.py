@@ -98,7 +98,7 @@ class Device:
             probe_points = np.asarray(probe_points).squeeze()
             if probe_points.ndim != 2 or probe_points.shape[1] != 2:
                 raise ValueError(
-                    f"Voltage points must have shape (n, 2), "
+                    f"Probe points must have shape (n, 2), "
                     f"got {probe_points.shape}."
                 )
             if not self.contains_points(probe_points).all():
@@ -142,7 +142,7 @@ class Device:
         """Film normal state conductivity, :math:`\\sigma`"""
         if self.layer.conductivity is None:
             return None
-        return self.layer.conductivity * ureg(f"Siemens / {self.length_units}")
+        return self.layer.conductivity * ureg(f"siemens / {self.length_units}")
 
     @property
     def kappa(self) -> float:
@@ -651,7 +651,6 @@ class Device:
         else:
             fig = ax.get_figure()
         points = self.points
-        probe_points = self.probe_point_indices
         if mesh:
             if self.mesh is None:
                 raise RuntimeError(
@@ -663,10 +662,8 @@ class Device:
             ax.triplot(x, y, tri, **mesh_kwargs)
         for polygon in self.polygons:
             ax = polygon.plot(ax=ax, **kwargs)
-        if self.mesh is None and self.probe_points is not None:
-            ax.plot(*self.probe_points.T, "ko", label="Voltage points")
-        if probe_points:
-            ax.plot(*points[probe_points, :].T, "ko", label="Voltage points")
+        if self.probe_points is not None:
+            ax.plot(*self.probe_points.T, "ko", label="Probe points")
         if legend:
             ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
         units = ureg(self.length_units).units
@@ -729,7 +726,6 @@ class Device:
         exclude = exclude or []
         if isinstance(exclude, str):
             exclude = [exclude]
-        probe_points = self.probe_point_indices
         patches = self.patches()
         units = ureg(self.length_units).units
         x, y = self.poly_points.T
@@ -756,14 +752,10 @@ class Device:
             ax.add_artist(patch)
             labels.append(name)
             handles.append(patch)
-        if self.mesh is None and self.probe_points is not None:
-            (line,) = ax.plot(*self.probe_points.T, "ko", label="Voltage points")
+        if self.probe_points is not None:
+            (line,) = ax.plot(*self.probe_points.T, "ko", label="Probe points")
             handles.append(line)
-            labels.append("Voltage points")
-        if probe_points:
-            (line,) = ax.plot(*self.points[probe_points, :].T, "ko")
-            handles.append(line)
-            labels.append("Voltage points")
+            labels.append("Probe points")
         if legend:
             ax.legend(handles, labels, bbox_to_anchor=(1, 1), loc="upper left")
         return fig, ax

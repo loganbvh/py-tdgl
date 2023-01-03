@@ -296,15 +296,17 @@ class Solution:
         """
         if dataset is None:
             J = self.current_density
-        elif dataset in ["supercurrent"]:
+        elif dataset == "supercurrent":
             J = self.supercurrent_density
-        elif dataset in ["normal_current"]:
+        elif dataset == "normal_current":
             J = self.normal_current_density
         else:
             raise ValueError(f"Unexpected dataset: {dataset}.")
+
+        units = units or f"{self.current_units} / {self.device.length_units}"
+        J = J.to(units)
         if isinstance(grid_shape, int):
             grid_shape = (grid_shape, grid_shape)
-        units = units or f"{self.current_units} / {self.device.length_units}"
         points = self.device.points
         x = points[:, 0]
         y = points[:, 1]
@@ -324,15 +326,12 @@ class Solution:
         )
         Jx[hole_mask] = 0
         Jy[hole_mask] = 0
-        Jgrid = (
-            J.units * np.array([Jx.reshape(grid_shape), Jy.reshape(grid_shape)])
-        ).to(units)
+        Jgrid = np.array([Jx.reshape(grid_shape), Jy.reshape(grid_shape)])
         if with_units:
             length_units = self.device.ureg(self.device.length_units)
             xgrid = xgrid * length_units
             ygrid = ygrid * length_units
-        if not with_units:
-            Jgrid = Jgrid.magnitude
+            Jgrid = (Jgrid * J.units).to(units)
         return xgrid, ygrid, Jgrid
 
     def interp_current_density(
@@ -384,9 +383,9 @@ class Solution:
 
         if dataset is None:
             J = self.current_density
-        elif dataset in ["supercurrent"]:
+        elif dataset == "supercurrent":
             J = self.supercurrent_density
-        elif dataset in ["normal_current"]:
+        elif dataset == "normal_current":
             J = self.normal_current_density
         else:
             raise ValueError(f"Unexpected dataset: {dataset}.")
