@@ -83,19 +83,6 @@ class Device:
         self.holes = holes or []
         self.abstract_regions = abstract_regions or []
         self.terminals = tuple(terminals or [])
-        if probe_points is not None:
-            probe_points = np.asarray(probe_points).squeeze()
-            if (
-                probe_points.ndim != 2
-                or probe_points.shape[0] < 2
-                or probe_points.shape[1] != 2
-            ):
-                raise ValueError(
-                    f"Voltage points must have shape (n, 2) with n > 1, "
-                    f"got {probe_points.shape}."
-                )
-        self.probe_points = probe_points
-
         names = set()
         for terminal in self.terminals:
             terminal.mesh = False
@@ -106,6 +93,17 @@ class Device:
         for polygon in [self.film] + self.holes:
             if not polygon.is_valid:
                 raise ValueError("Invalid Polygon: {polygon!r}.")
+
+        if probe_points is not None:
+            probe_points = np.asarray(probe_points).squeeze()
+            if probe_points.ndim != 2 or probe_points.shape[1] != 2:
+                raise ValueError(
+                    f"Voltage points must have shape (n, 2), "
+                    f"got {probe_points.shape}."
+                )
+            if not self.contains_points(probe_points).all():
+                raise ValueError("All probe points must lie within the film.")
+        self.probe_points = probe_points
 
         # Make units a "read-only" attribute.
         # It should never be changed after instantiation.
@@ -334,8 +332,7 @@ class Device:
             that lie within the polygon. Otherwise, returns a shape ``(n, )``
             boolean array indicating whether each point lies within the polygon.
         """
-        mask = self.film.contains_points(points, radius=radius)
-        mask = mask & ~np.logical_or.reduce(
+        mask = self.film.contains_points(points, radius=radius) & ~np.logical_or.reduce(
             [hole.contains_points(points, radius=-radius) for hole in self.holes]
         )
         if index:

@@ -198,6 +198,8 @@ class DynamicsData:
         """
         if self.mu is None:
             raise ValueError("No voltage data available.")
+        if self.mu.shape[0] == 1:
+            raise ValueError("The solution has only one probe point.")
         return self.mu[i] - self.mu[j]
 
     def phase_difference(self, i: int = 0, j: int = 1) -> np.ndarray:
@@ -214,6 +216,8 @@ class DynamicsData:
         """
         if self.theta is None:
             raise ValueError("No phase data available.")
+        if self.theta.shape[0] == 1:
+            raise ValueError("The solution has only one probe point.")
         return self.theta[i] - self.theta[j]
 
     def mean_voltage(
@@ -333,9 +337,8 @@ class DynamicsData:
         Returns:
             matplotlib figure and two axes.
         """
-        fig, (ax, bx) = plt.subplots(
-            1, 2, sharey=True, gridspec_kw=dict(width_ratios=[2, 1])
-        )
+        fig, (ax, bx) = plt.subplots(1, 2, gridspec_kw=dict(width_ratios=[2, 1]))
+        ax.sharey(bx)
         ax.grid(grid)
         bx.grid(grid)
         ts = self.time
@@ -385,7 +388,7 @@ class DynamicsData:
         else:
             dts = []
             mus = []
-            phases = []
+            thetas = []
             screening_iterations = []
             if step_min is None:
                 step_min, step_max = get_data_range(h5file)
@@ -398,7 +401,7 @@ class DynamicsData:
                 if "mu" in grp:
                     mus.append(np.array(grp["mu"]))
                 if "theta" in grp:
-                    phases.append(np.array(grp["theta"]))
+                    thetas.append(np.array(grp["theta"]))
                 if "screening_iterations" in grp:
                     screening_iterations.append(np.array(grp["screening_iterations"]))
             dt = np.concatenate(dts)
@@ -406,9 +409,9 @@ class DynamicsData:
             dt = dt[mask]
             mu = theta = iterations = None
             if mus:
-                mu = np.concatenate(mus, axis=1)[:, mask]
-            if phases:
-                theta = np.concatenate(phases, axis=1)[:, mask]
+                mu = np.concatenate(mus, axis=1)[..., mask]
+            if thetas:
+                theta = np.concatenate(thetas, axis=1)[..., mask]
             if screening_iterations:
                 iterations = np.concatenate(screening_iterations)[mask]
         return DynamicsData(
