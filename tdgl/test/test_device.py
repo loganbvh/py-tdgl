@@ -119,6 +119,7 @@ def test_plot_polygon():
     with tdgl.non_gui_backend():
         ax = tdgl.Polygon("square1", points=tdgl.geometry.box(1)).plot()
         assert isinstance(ax, plt.Axes)
+    plt.close("all")
 
 
 @pytest.fixture(scope="module")
@@ -337,10 +338,11 @@ def test_plot_mesh(
     )
     with tdgl.non_gui_backend():
         if ax is not None:
-            _, ax = plt.subplots()
+            fig, ax = plt.subplots()
             kwargs["ax"] = ax
         ax = mesh.plot(**kwargs)
         assert isinstance(ax, plt.Axes)
+    plt.close("all")
 
 
 @pytest.mark.parametrize(

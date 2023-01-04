@@ -11,7 +11,9 @@ def transport_device():
     d = 0.1
 
     layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
-    film = tdgl.Polygon("film", points=box(10)).union(box(30, 4, points=400))
+    film = (
+        tdgl.Polygon("film", points=box(10)).union(box(30, 4, points=400)).resample(501)
+    )
     hole = tdgl.Polygon("hole1", points=circle(1.5, center=(2, 2)))
     source = tdgl.Polygon(points=box(1e-2, 4, center=(-15, 0))).set_name("source")
     drain = source.scale(xfact=-1).set_name("drain")

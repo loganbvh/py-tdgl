@@ -371,7 +371,6 @@ def solve(
         if jax is not None:
             # Even without a GPU, jax.numpy.einsum seems to be much faster
             # than numpy.einsum. This may just be because jax uses float32 by default.
-            einsum = jnp.einsum
             inv_rho = jax.device_put(inv_rho)
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
