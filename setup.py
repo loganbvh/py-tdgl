@@ -71,7 +71,6 @@ EXTRAS_REQUIRE = {
         # https://stackoverflow.com/a/71069918
         "sphinx>=4.3.0",
         "sphinx-rtd-theme>=0.5.1",
-        "docutils==0.16",
         "sphinx-autodoc-typehints",
         "nbsphinx",
         "pillow",
