@@ -51,3 +51,20 @@ To install an editable version of ``pyTDGL`` for development, run:
 
   :ref:`Contributing to pyTDGL <about/contributing:Contributing>`
 
+Verify the installation
+-----------------------
+
+To verify your installation by running the ``tdgl`` test suite,
+execute the following command in a terminal:
+
+.. code-block:: bash
+
+    python -m tdgl.testing
+
+If you prefer, you can instead run the following commands in a Python session:
+
+.. code-block:: python
+
+    >>> import tdgl.testing
+    >>> tdgl.testing.run()
+
