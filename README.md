@@ -4,6 +4,7 @@
 
 Time-dependent Ginzburg-Landau in Python
 
+![PyPI](https://img.shields.io/pypi/v/tdgl)
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/loganbvh/py-tdgl/lint-and-test.yml?branch=main)
 [![Documentation Status](https://readthedocs.org/projects/py-tdgl/badge/?version=latest)](https://py-tdgl.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/loganbvh/py-tdgl/branch/main/graph/badge.svg?token=VXdxJKP6Ag)](https://codecov.io/gh/loganbvh/py-tdgl)
@@ -29,11 +30,17 @@ Click the badge below and navigate to `docs/notebooks/` to try `pyTDGL` interact
 `pyTDGL` requires `python` `3.8`, `3.9`, or `3.10`. We recommend installing `pyTDGL` in a [`conda` environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html), e.g.
 
 ```bash
-conda create --name tdgl python=3.9
+conda create --name tdgl python="3.10"
 conda activate tdgl
 ```
 
 ### Install via `pip`
+
+From  [PyPI](https://pypi.org/project/tdgl/), the Python Package index:
+    
+```bash
+pip install tdgl
+```
 
 From this [GitHub repository](https://github.com/loganbvh/py-tdgl/):
 
@@ -41,18 +48,12 @@ From this [GitHub repository](https://github.com/loganbvh/py-tdgl/):
 pip install git+https://github.com/loganbvh/py-tdgl.git
 ```
 
-From  PyPI, the Python Package index:
-    
-```bash
-Coming soon...
-```
-
 Editable installation:
 
 ```bash
 git clone https://github.com/loganbvh/py-tdgl.git
 cd py-tdgl
-pip install -e .[dev,docs]
+pip install -e ".[dev,docs]"
 ```
 
 ## Acknowledgments

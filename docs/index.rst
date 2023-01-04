@@ -11,6 +11,9 @@ pyTDGL: Time-dependent Ginzburg Landau in Python
   :alt: pyTDGL logo.
   :align: center
 
+.. image:: https://img.shields.io/pypi/v/tdgl
+   :alt: PyPI
+
 .. image:: https://img.shields.io/github/actions/workflow/status/loganbvh/py-tdgl/lint-and-test.yml?branch=main
    :alt: GitHub Workflow Status
 

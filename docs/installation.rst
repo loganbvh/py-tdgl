@@ -26,15 +26,17 @@ for ``pyTDGL`` to avoid dependency conflicts with other packages. To create and 
 Install via ``pip``
 -------------------
 
+* From  `PyPI <https://pypi.org/project/tdgl/>`_, the Python Package index:
+    
+    .. code-block:: bash
+    
+      pip install tdgl
+
 * From `GitHub <https://github.com/loganbvh/py-tdgl/>`_:
 
     .. code-block:: bash
     
       pip install git+https://github.com/loganbvh/py-tdgl.git
-
-* From  PyPI, the Python Package index:
-    
-    Coming soon...
 
 Editable installation
 =====================
@@ -45,7 +47,7 @@ To install an editable version of ``pyTDGL`` for development, run:
 
   git clone https://github.com/loganbvh/py-tdgl.git
   cd py-tdgl
-  pip install -e .[dev,docs]
+  pip install -e ".[dev,docs]"
 
 .. seealso::
 
