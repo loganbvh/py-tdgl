@@ -95,9 +95,9 @@ The ``pyTDGL`` Python API is adapted from `SuperScreen <https://superscreen.read
    :maxdepth: 2
    :caption: About pyTDGL
 
-   about/license.rst
+   about/changelog.rst
    about/contributing.rst
-   .. about/changelog.rst
+   about/license.rst
    .. about/references.rst
 
 .. Indices and tables
