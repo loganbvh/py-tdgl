@@ -73,7 +73,7 @@ class Layer:
 
     @staticmethod
     def from_hdf5(h5_group: h5py.Group) -> "Layer":
-        """Load a :class`tdgl.Layer` from an :class:`h5py.Group`.
+        """Load a :class:`tdgl.Layer` from an :class:`h5py.Group`.
 
         Args:
             h5_group: An open :class:`h5py.Group` from which to load the layer.

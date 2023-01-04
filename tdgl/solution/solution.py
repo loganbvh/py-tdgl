@@ -59,8 +59,8 @@ class Solution:
     """A container for the results of a TDGL simulation.
 
     Args:
-        device: The :class`tdgl.Device` that was solved
-        options: A :class`tdgl.SolverOptions` instance.
+        device: The :class:`tdgl.Device` that was solved
+        options: A :class:`tdgl.SolverOptions` instance.
         path: Path to the HDF5 file containing the raw output data.
         applied_vector_potential: The ``Parameter`` defining the applied vector potential.
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
