@@ -68,8 +68,9 @@ EXTRAS_REQUIRE = {
     ],
     "docs": [
         "IPython",
+        # https://stackoverflow.com/a/71069918
         "sphinx>=4.3.0",
-        "sphinx_rtd_theme>=0.5.1",
+        "sphinx-rtd-theme>=0.5.1",
         "sphinx-autodoc-typehints",
         "nbsphinx",
         "pillow",
