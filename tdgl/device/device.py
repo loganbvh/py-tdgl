@@ -170,7 +170,15 @@ class Device:
         return K0.to_base_units()
 
     def tau0(self, conductivity: Union[pint.Quantity, None] = None) -> pint.Quantity:
-        """Time scale, :math:`\\tau_0=\\mu_0\\sigma\\lambda^2.`"""
+        """Time scale, :math:`\\tau_0=\\mu_0\\sigma\\lambda^2`.
+
+        Args:
+            conductivity: The normal state conductivity of the film, which defaults
+                to ``device.layer.conductivity``.
+
+        Returns:
+            The time scale, :math:`\\tau_0=\\mu_0\\sigma\\lambda^2
+        """
         if conductivity is None:
             conductivity = self.conductivity
         if conductivity is None:
@@ -181,7 +189,15 @@ class Device:
         return (ureg("mu_0") * conductivity * self.london_lambda**2).to("seconds")
 
     def V0(self, conductivity: Union[pint.Quantity, None] = None) -> pint.Quantity:
-        """Electric potential scale, :math:`\\V_0=\\xi J_0/\\sigma.`"""
+        """Electric potential scale, :math:`\\V_0=\\xi J_0/\\sigma`.
+
+        Args:
+            conductivity: The normal state conductivity of the film, which defaults
+                to ``device.layer.conductivity``.
+
+        Returns:
+            The electric potential scale, :math:`\\V_0=\\xi J_0/\\sigma`
+        """
         if conductivity is None:
             conductivity = self.conductivity
         if conductivity is None:

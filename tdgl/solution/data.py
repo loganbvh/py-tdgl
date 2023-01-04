@@ -194,7 +194,7 @@ class DynamicsData:
             j: Index for the second probe point.
 
         Returns:
-            The voltage :math:`V_{ij}(t)=\\mu_i(t)-\\mu_j(t)\\`
+            The voltage :math:`V_{ij}(t)=\\mu_i(t)-\\mu_j(t)`
         """
         if self.mu is None:
             raise ValueError("No voltage data available.")
@@ -211,7 +211,7 @@ class DynamicsData:
             j: Index for the second probe point.
 
         Returns:
-            The phase difference :math:`\\Delta\\theta_{ij}(t)=\\theta_i(t)-\\theta_j(t)\\`,
+            The phase difference :math:`\\Delta\\theta_{ij}(t)=\\theta_i(t)-\\theta_j(t)`,
             where :math:`\\theta=\\arg\\psi`.
         """
         if self.theta is None:
@@ -223,13 +223,13 @@ class DynamicsData:
     def mean_voltage(
         self, i: int = 0, j: int = 1, tmin: float = -np.inf, tmax: float = np.inf
     ) -> float:
-        """Returns the time-averaged voltage :math:`\\langle V/V_0\\rangle`
+        """Returns the time-averaged voltage :math:`\\langle \\Delta\\mu \\rangle`
         over the specified time interval.
 
         .. math::
 
-            \\langle V/V_0 \\rangle =
-            \\frac{\\sum_n V^{n}/V_0\\cdot\\Delta t^{n}}{\\sum_n\\Delta t^{n}}
+            \\langle V_{i,j} \\rangle =
+            \\frac{\\sum_n V_{i,j}^{n}\\cdot\\Delta t^{n}}{\\sum_n\\Delta t^{n}}
 
         Args:
             i: Index for the first probe point.
@@ -309,8 +309,8 @@ class DynamicsData:
             )
         bx.plot(ts[indices], phases[indices])
         if labels:
-            ax.set_ylabel(f"Voltage\n$\\Delta\\mu_{{{i},{j}}}/V_0$")
-            bx.set_xlabel("Time, $t/\\tau_0$")
+            ax.set_ylabel(f"Voltage\n$\\Delta\\mu_{{{i},{j}}}$ [$V_0$]")
+            bx.set_xlabel("Time, $t$ [$\\tau_0$]")
             bx.set_ylabel(f"Phase difference\n$\\Delta\\theta_{{{i},{j}}}/\\pi$")
         if legend:
             ax.legend(loc=0)
@@ -350,8 +350,8 @@ class DynamicsData:
         histogram_kwargs["orientation"] = "horizontal"
         bx.hist(self.dt[indices], **histogram_kwargs)
         if labels:
-            ax.set_xlabel("Time, $t/\\tau_0$")
-            ax.set_ylabel("Time step, $\\Delta t/\\tau_0$")
+            ax.set_xlabel("Time, $t$ [$\\tau_0$]")
+            ax.set_ylabel("Time step, $\\Delta t$ [$\\tau_0$]")
             if histogram_kwargs.get("density", False):
                 bx.set_xlabel("Density")
             else:

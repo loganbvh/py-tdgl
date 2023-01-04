@@ -3,7 +3,7 @@
 .. _api-solution:
 
 ***************
-Post-processing
+Post-Processing
 ***************
 
 The :class:`tdgl.Solution` class provides a convenient container for the results of a TDGL simulation,
@@ -22,32 +22,32 @@ Overview
 
 Post-processing methods:
 
-- :meth:`tdgl.Solution.interp_current_density`
-- :meth:`tdgl.Solution.grid_current_density`
-- :meth:`tdgl.Solution.interp_order_parameter`
-- :meth:`tdgl.Solution.polygon_fluxoid`
-- :meth:`tdgl.Solution.hole_fluxoid`
-- :meth:`tdgl.Solution.boundary_phases`
-- :meth:`tdgl.Solution.current_through_path`
-- :meth:`tdgl.Solution.field_at_position`
-- :meth:`tdgl.Solution.vector_potential_at_position`
-- :meth:`tdgl.solution.data.DynamicsData.mean_voltage`
+* :meth:`tdgl.Solution.interp_current_density`
+* :meth:`tdgl.Solution.grid_current_density`
+* :meth:`tdgl.Solution.interp_order_parameter`
+* :meth:`tdgl.Solution.polygon_fluxoid`
+* :meth:`tdgl.Solution.hole_fluxoid`
+* :meth:`tdgl.Solution.boundary_phases`
+* :meth:`tdgl.Solution.current_through_path`
+* :meth:`tdgl.Solution.field_at_position`
+* :meth:`tdgl.Solution.vector_potential_at_position`
+* :meth:`tdgl.solution.data.DynamicsData.mean_voltage`
 
 Visualization methods:
 
-- :meth:`tdgl.Solution.plot_currents`
-- :meth:`tdgl.Solution.plot_order_parameter`
-- :meth:`tdgl.Solution.plot_scalar_potential`
-- :meth:`tdgl.Solution.plot_field_at_positions`
-- :meth:`tdgl.Solution.plot_vorticity`
-- :meth:`tdgl.solution.data.DynamicsData.plot`
-- :meth:`tdgl.solution.data.DynamicsData.plot_dt`
+* :meth:`tdgl.Solution.plot_currents`
+* :meth:`tdgl.Solution.plot_order_parameter`
+* :meth:`tdgl.Solution.plot_scalar_potential`
+* :meth:`tdgl.Solution.plot_field_at_positions`
+* :meth:`tdgl.Solution.plot_vorticity`
+* :meth:`tdgl.solution.data.DynamicsData.plot`
+* :meth:`tdgl.solution.data.DynamicsData.plot_dt`
 
 I/O methods:
 
-- :meth:`tdgl.Solution.to_hdf5`
-- :meth:`tdgl.Solution.from_hdf5`
-- :meth:`tdgl.Solution.delete_hdf5`
+* :meth:`tdgl.Solution.to_hdf5`
+* :meth:`tdgl.Solution.from_hdf5`
+* :meth:`tdgl.Solution.delete_hdf5`
 
 Solution
 --------

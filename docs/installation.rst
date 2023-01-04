@@ -2,6 +2,11 @@
 Installation
 ************
 
+.. image:: images/logo-transparent-large.png
+  :width: 300
+  :alt: pyTDGL logo.
+  :align: center
+
 .. role:: bash(code)
    :language: bash
 
@@ -21,13 +26,13 @@ for ``pyTDGL`` to avoid dependency conflicts with other packages. To create and 
 Install via ``pip``
 -------------------
 
-- From `GitHub <https://github.com/loganbvh/py-tdgl/>`_:
+* From `GitHub <https://github.com/loganbvh/py-tdgl/>`_:
 
     .. code-block:: bash
     
       pip install git+https://github.com/loganbvh/py-tdgl.git
 
-- From  PyPI, the Python Package index:
+* From  PyPI, the Python Package index:
     
     Coming soon...
 

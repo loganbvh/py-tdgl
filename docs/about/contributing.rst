@@ -60,7 +60,7 @@ Getting Started
 Ready to contribute? Follow `GitHub best practices <https://www.asmeurer.com/git-workflow/>`_ - in short:
 
 1. Clone the repository.
-2. Fork the repo on GitHub to your personal account.
+2. Fork the repo on GitHub to your account.
 3. Add your fork as a remote.
 4. Pull the latest changes from the `main` branch.
 5. Create a topic branch, e.g. `feature/short-description` for a feature or enhancement.

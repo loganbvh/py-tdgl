@@ -4,6 +4,11 @@
 Theoretical Background
 **********************
 
+.. image:: images/logo-transparent-large.png
+  :width: 300
+  :alt: pyTDGL logo.
+  :align: center
+
 Here we sketch out the generalized time-dependent Ginzburg-Landau model implemented in ``pyTDGL``, and the numerical methods used to solve it.
 This material and portions of the ``pyTDGL`` package are based on Refs. :footcite:p:`Jonsson2022-xe, Jonsson2022-mb` (`repo <https://github.com/afsa/super-detector-py>`_). The generalized
 time-dependent Ginzburg-Landau theory is based on Refs. :footcite:p:`Kramer1978-kb, Watts-Tobin1981-mn`. The numerical methods are based on
@@ -382,6 +387,36 @@ If this happens, we iteratively reduce the time step :math:`\Delta t^{m}`
 the discriminant is nonnegative for all sites :math:`i`, then proceed with the rest of the calculation for iteration :math:`m`.
 
 
+.. _appendix-euler:
+
+Appendices
+----------
+
+Implicit Euler method
+=====================
+
+Here we go through the full derivation of the quadratic equation for :math:`\left|\psi_i^{n+1}\right|^2`,
+:eq:`quad-2`, starting from :eq:`quad-1`:
+
+.. math::
+    :label: quad-full
+
+    \begin{split}
+        \psi_i^{n+1} =& w_i^{n} - z_i^{n}\left|\psi_i^{n+1}\right|^2\\
+        \left|\psi_i^{n+1}\right|^2 =& \left(\psi_i^{n+1}\right)^*\left(\psi_i^{n+1}\right)\\
+        =& \left(w_i^{n}-z_i^{n}\left|\psi_i^{n+1}\right|^2\right)^*\left(w_i^{n}-z_i^{n}\left|\psi_i^{n+1}\right|^2\right)\\
+        =& \left|w_i^{n}\right|^2 \\
+        & - {w_i^{n}}^*z_i^{n}\left|\psi_i^{n+1}\right|^2\\
+        & - w_i^{n}{z_i^{n}}^*\left|\psi_i^{n+1}\right|^2 \\
+        & + \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4\\
+        \left|\psi_i^{n+1}\right|^2\left(1 + {w_i^{n}}^*z_i^{n} + w_i^{n}{z_i^{n}}^*\right)
+        =&\left|w_i^{n}\right|^2 + \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4\\
+        {w_i^{n}}^*z_i^{n} + w_i^{n}{z_i^{n}}^* =& 2\left(\mathrm{Re}\{w_i^{n}\}\mathrm{Re}\{z_i^{n}\}+\mathrm{Im}\{w_i^{n}\}\mathrm{Im}\{z_i^{n}\}\right)\\
+        =& 2c_i^{n}\\
+        0 =& \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4 - (2c_i^{n} + 1)\left|\psi_i^{n+1}\right|^2 + \left|w_i^{n}\right|^2
+        
+    \end{split}
+
 Screening
 =========
 
@@ -436,37 +471,6 @@ if one is available. Although including screening does introduce some time-depen
 :math:`\mathbf{E}=-\nabla\mu - \partial\mathbf{A}/\partial t \approx -\nabla\mu`. The screening calculation (:eq:`polyak`) can fail
 to converge for models with strong screening, where the effective magnetic penetration depth :math:`\Lambda=\lambda^2/d` is much smaller
 than the film size.
-
-
-.. _appendix-euler:
-
-Appendices
-----------
-
-Implicit Euler method
-=====================
-
-Here we go through the full derivation of the quadratic equation for :math:`\left|\psi_i^{n+1}\right|^2`,
-:eq:`quad-2`, starting from :eq:`quad-1`:
-
-.. math::
-    :label: quad-full
-
-    \begin{split}
-        \psi_i^{n+1} =& w_i^{n} - z_i^{n}\left|\psi_i^{n+1}\right|^2\\
-        \left|\psi_i^{n+1}\right|^2 =& \left(\psi_i^{n+1}\right)^*\left(\psi_i^{n+1}\right)\\
-        =& \left(w_i^{n}-z_i^{n}\left|\psi_i^{n+1}\right|^2\right)^*\left(w_i^{n}-z_i^{n}\left|\psi_i^{n+1}\right|^2\right)\\
-        =& \left|w_i^{n}\right|^2 \\
-        & - {w_i^{n}}^*z_i^{n}\left|\psi_i^{n+1}\right|^2\\
-        & - w_i^{n}{z_i^{n}}^*\left|\psi_i^{n+1}\right|^2 \\
-        & + \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4\\
-        \left|\psi_i^{n+1}\right|^2\left(1 + {w_i^{n}}^*z_i^{n} + w_i^{n}{z_i^{n}}^*\right)
-        =&\left|w_i^{n}\right|^2 + \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4\\
-        {w_i^{n}}^*z_i^{n} + w_i^{n}{z_i^{n}}^* =& 2\left(\mathrm{Re}\{w_i^{n}\}\mathrm{Re}\{z_i^{n}\}+\mathrm{Im}\{w_i^{n}\}\mathrm{Im}\{z_i^{n}\}\right)\\
-        =& 2c_i^{n}\\
-        0 =& \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4 - (2c_i^{n} + 1)\left|\psi_i^{n+1}\right|^2 + \left|w_i^{n}\right|^2
-        
-    \end{split}
 
 Pseduocode for the solver algorithms
 ====================================

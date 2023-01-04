@@ -935,6 +935,7 @@ class Solution:
 
         Args:
             path: Path to the HDF5 file containing a serialized :class:`tdgl.Solution`.
+            solve_step: The solve step to load.
 
         Returns:
             The loaded Solution instance.
