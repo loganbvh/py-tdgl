@@ -7,7 +7,7 @@
 Visualization
 *************
 
-``tdgl.visualize`` CLI tool
+CLI tool: ``tdgl.visualize``
 ----------------------------
 
 ``tdgl.visualize`` is a command line interface (CLI) for animating and interactively viewing the
@@ -24,8 +24,8 @@ Create animations
 .. autofunction:: tdgl.visualization.create_animation
 
 
-Plot solutions
---------------
+Plot ``Solutions``
+------------------
 
 .. seealso::
 

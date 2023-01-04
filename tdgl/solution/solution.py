@@ -143,8 +143,11 @@ class Solution:
             return None
         times = self.dynamics.time
         step = self.options.save_every
+        saved_times = times[::step]
+        if saved_times[-1] == times[-1]:
+            return saved_times.copy()
         # Append the final time step in the simulation, which is always saved.
-        return np.concatenate([times[::step], times[-1:]])
+        return np.concatenate([saved_times, times[-1:]])
 
     def closest_solve_step(self, time: float) -> int:
         """Returns the index of the saved step closest in time to ``time``.
@@ -213,9 +216,9 @@ class Solution:
         djx_dy = grad_jx * normalized_directions[:, 1]
         vorticity_on_edges = djy_dx - djx_dy
         vorticity = mesh.get_quantity_on_site(vorticity_on_edges, vector=False)
-        scale = (
-            device.K0 / (device.coherence_length * device.ureg(device.length_units))
-        ).to(f"{self.current_units} / {self.device.length_units}**2")
+        scale = (device.K0 / device.coherence_length).to(
+            f"{self.current_units} / {self.device.length_units}**2"
+        )
         self._vorticity = vorticity * scale
 
     @property
@@ -293,15 +296,17 @@ class Solution:
         """
         if dataset is None:
             J = self.current_density
-        elif dataset in ["supercurrent"]:
+        elif dataset == "supercurrent":
             J = self.supercurrent_density
-        elif dataset in ["normal_current"]:
+        elif dataset == "normal_current":
             J = self.normal_current_density
         else:
             raise ValueError(f"Unexpected dataset: {dataset}.")
+
+        units = units or f"{self.current_units} / {self.device.length_units}"
+        J = J.to(units)
         if isinstance(grid_shape, int):
             grid_shape = (grid_shape, grid_shape)
-        units = units or f"{self.current_units} / {self.device.length_units}"
         points = self.device.points
         x = points[:, 0]
         y = points[:, 1]
@@ -321,15 +326,12 @@ class Solution:
         )
         Jx[hole_mask] = 0
         Jy[hole_mask] = 0
-        Jgrid = (
-            J.units * np.array([Jx.reshape(grid_shape), Jy.reshape(grid_shape)])
-        ).to(units)
+        Jgrid = np.array([Jx.reshape(grid_shape), Jy.reshape(grid_shape)])
         if with_units:
             length_units = self.device.ureg(self.device.length_units)
             xgrid = xgrid * length_units
             ygrid = ygrid * length_units
-        if not with_units:
-            Jgrid = Jgrid.magnitude
+            Jgrid = (Jgrid * J.units).to(units)
         return xgrid, ygrid, Jgrid
 
     def interp_current_density(
@@ -381,9 +383,9 @@ class Solution:
 
         if dataset is None:
             J = self.current_density
-        elif dataset in ["supercurrent"]:
+        elif dataset == "supercurrent":
             J = self.supercurrent_density
-        elif dataset in ["normal_current"]:
+        elif dataset == "normal_current":
             J = self.normal_current_density
         else:
             raise ValueError(f"Unexpected dataset: {dataset}.")
@@ -704,7 +706,7 @@ class Solution:
         zs = zs.squeeze()
         if not isinstance(zs, np.ndarray):
             raise ValueError(f"Expected zs to be an ndarray, but got {type(zs)}.")
-        weights = device.mesh.areas * device.coherence_length**2
+        weights = device.mesh.areas * device.coherence_length.magnitude**2
         # Compute the fields at the specified positions from the currents in each layer
         layer = self.device.layer
         if np.all((zs - layer.z0) == 0):
@@ -786,7 +788,7 @@ class Solution:
         device = self.device
         ureg = device.ureg
         points = device.points
-        areas = device.mesh.areas * device.coherence_length**2
+        areas = device.mesh.areas * device.coherence_length.magnitude**2
         units = units or f"{self.field_units} * {device.length_units}"
         # In case something like a list [x, y] or [x, y, z] is given
         positions = np.atleast_2d(positions)
@@ -933,6 +935,7 @@ class Solution:
 
         Args:
             path: Path to the HDF5 file containing a serialized :class:`tdgl.Solution`.
+            solve_step: The solve step to load.
 
         Returns:
             The loaded Solution instance.

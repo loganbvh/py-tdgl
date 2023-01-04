@@ -5,6 +5,7 @@ import tempfile
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pint
 import pytest
 import shapely
 
@@ -118,6 +119,7 @@ def test_plot_polygon():
     with tdgl.non_gui_backend():
         ax = tdgl.Polygon("square1", points=tdgl.geometry.box(1)).plot()
         assert isinstance(ax, plt.Axes)
+    plt.close("all")
 
 
 @pytest.fixture(scope="module")
@@ -148,13 +150,30 @@ def device():
         ),
     ]
 
+    bad_probe_points = [
+        [(0, 0, 0)],
+        [(5, 0), (5, 5)],
+    ]
+
+    for probe_points in bad_probe_points:
+        with pytest.raises(ValueError):
+            _ = tdgl.Device(
+                "device",
+                layer=layer,
+                film=film,
+                holes=[hole],
+                abstract_regions=abstract_regions,
+                probe_points=probe_points,
+            )
+
     device = tdgl.Device(
         "device",
         layer=layer,
         film=film,
         holes=[hole],
         abstract_regions=abstract_regions,
-        voltage_points=[(-1.5, 0), (1.5, 0)],
+        probe_points=[(-1.5, 0), (1.5, 0)],
+        length_units="um",
     )
 
     with pytest.raises(TypeError):
@@ -171,6 +190,18 @@ def device():
     assert isinstance(device.translate(dx, dy, dz=dz), tdgl.Device)
     d = device.copy()
     assert d.translate(dx, dy, dz=dz, inplace=True) is d
+
+    assert device.layer.conductivity is None
+    assert device.conductivity is None
+    with pytest.raises(ValueError):
+        _ = device.tau0()
+    with pytest.raises(ValueError):
+        _ = device.V0()
+
+    device.layer.conductivity = 10  # S/um
+    assert device.conductivity.to("S/m").magnitude == 10**7
+    assert isinstance(device.tau0(), pint.Quantity)
+    assert isinstance(device.V0(), pint.Quantity)
 
     return device
 
@@ -197,7 +228,7 @@ def device_with_mesh():
         layer=layer,
         film=film,
         holes=holes,
-        voltage_points=[(2.5, 0), (-2.5, 0)],
+        probe_points=[(2.5, 0), (-2.5, 0)],
     )
     assert device.edge_lengths is None
     assert device.triangles is None
@@ -267,9 +298,10 @@ def test_plot_device(
 
 
 @pytest.mark.parametrize("legend", [False, True])
-def test_draw_device(device: tdgl.Device, legend):
+@pytest.mark.parametrize("exclude", [None, "ring", ["ring"]])
+def test_draw_device(device: tdgl.Device, legend, exclude):
     with tdgl.non_gui_backend():
-        fig, axes = device.draw(exclude="disk", legend=legend)
+        fig, axes = device.draw(exclude=exclude, legend=legend)
         fig, axes = device.draw(
             legend=legend,
         )
@@ -306,10 +338,11 @@ def test_plot_mesh(
     )
     with tdgl.non_gui_backend():
         if ax is not None:
-            _, ax = plt.subplots()
+            fig, ax = plt.subplots()
             kwargs["ax"] = ax
         ax = mesh.plot(**kwargs)
         assert isinstance(ax, plt.Axes)
+    plt.close("all")
 
 
 @pytest.mark.parametrize(

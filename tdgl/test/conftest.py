@@ -11,7 +11,9 @@ def transport_device():
     d = 0.1
 
     layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
-    film = tdgl.Polygon("film", points=box(10)).union(box(30, 4, points=400))
+    film = (
+        tdgl.Polygon("film", points=box(10)).union(box(30, 4, points=400)).resample(501)
+    )
     hole = tdgl.Polygon("hole1", points=circle(1.5, center=(2, 2)))
     source = tdgl.Polygon(points=box(1e-2, 4, center=(-15, 0))).set_name("source")
     drain = source.scale(xfact=-1).set_name("drain")
@@ -22,7 +24,7 @@ def transport_device():
         film=film,
         holes=[hole, hole.scale(xfact=-1, yfact=-1).set_name("hole2")],
         terminals=[source, drain],
-        voltage_points=[(-10, 0), (10, 0)],
+        probe_points=[(-10, 0), (10, 0)],
     )
 
     assert device.mesh is None
@@ -31,14 +33,13 @@ def transport_device():
     assert device.edges is None
     assert device.edge_lengths is None
     assert device.areas is None
-    assert device.voltage_point_indices is None
+    assert device.probe_point_indices is None
     assert device.boundary_sites() is None
 
     _ = device.mesh_stats_dict()
     _ = device.mesh_stats()
 
     device.make_mesh(min_points=2000, smooth=100, max_edge_length=xi / 2)
-    device.coherence_length = xi
 
     _ = device.areas
     _ = device.boundary_sites()

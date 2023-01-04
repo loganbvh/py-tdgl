@@ -21,6 +21,7 @@ def test_plot_order_parameter(transport_device_solution: tdgl.Solution):
     fig, axes = transport_device_solution.plot_order_parameter()
     assert isinstance(fig, plt.Figure)
     assert len(axes) == 2
+    plt.close(fig)
 
 
 @pytest.mark.parametrize("vmin, vmax", [(None, None), (0, 5), (0, None)])

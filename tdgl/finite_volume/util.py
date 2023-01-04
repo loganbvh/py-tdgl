@@ -116,11 +116,11 @@ def generate_voronoi_vertices(
 def _get_polygon_indices(
     elements: np.ndarray, site_index: int
 ) -> Tuple[int, np.ndarray]:
-    """Helper function for get_surrounding_voronoi_polygons()."""
+    """Helper function for get_voronoi_polygon_indices()."""
     return np.where((elements == site_index).any(axis=1))[0]
 
 
-def get_surrounding_voronoi_polygons(
+def get_voronoi_polygon_indices(
     elements: np.ndarray,
     num_sites: int,
     parallel: bool = True,
@@ -157,7 +157,7 @@ def get_surrounding_voronoi_polygons(
     return [np.where((elements == i).any(axis=1))[0] for i in range(num_sites)]
 
 
-def compute_surrounding_area(
+def compute_voronoi_polygon_areas(
     sites: np.ndarray,
     dual_sites: np.ndarray,
     boundary: np.ndarray,
@@ -221,8 +221,9 @@ def compute_surrounding_area(
                 # TODO: Decide whether this should be an exception.
                 logger.warning(
                     f"Malformed Voronoi cell surrounding boundary site {site}."
-                    " Try changing the number of boundary mesh sites or using"
-                    " Polygon.buffer(eps), where eps is 0 or a small positive float."
+                    " Try changing the number of boundary mesh sites using"
+                    " Polygon.resample() or Polygon.buffer(eps) where eps"
+                    " is 0 or a small positive float."
                 )
             coords.append(sites[site])
         poly = np.array(coords)

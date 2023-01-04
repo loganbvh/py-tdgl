@@ -120,10 +120,10 @@ class EdgeMesh:
         ):
             raise IOError("Could not load edge mesh due to missing data.")
         return EdgeMesh(
-            centers=h5group["centers"],
-            edges=h5group["edges"],
-            boundary_edge_indices=h5group["boundary_edge_indices"],
-            directions=h5group["directions"],
-            edge_lengths=h5group["edge_lengths"],
-            dual_edge_lengths=h5group["dual_edge_lengths"],
+            centers=np.array(h5group["centers"]),
+            edges=np.array(h5group["edges"], dtype=np.int64),
+            boundary_edge_indices=np.array(h5group["boundary_edge_indices"], np.int64),
+            directions=np.array(h5group["directions"]),
+            edge_lengths=np.array(h5group["edge_lengths"]),
+            dual_edge_lengths=np.array(h5group["dual_edge_lengths"]),
         )

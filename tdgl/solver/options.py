@@ -35,6 +35,8 @@ class SolverOptions:
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
         include_screening: Whether to include screening in the simulation.
+        max_iterations_per_step: The maximum number of screening iterations per solve
+            step.
         screening_tolerance: Relative tolerance for the induced vector potential, used
             to evaluate convergence of the screening calculation within a single time
             step.

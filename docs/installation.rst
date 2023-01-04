@@ -2,6 +2,11 @@
 Installation
 ************
 
+.. image:: images/logo-transparent-large.png
+  :width: 300
+  :alt: pyTDGL logo.
+  :align: center
+
 .. role:: bash(code)
    :language: bash
 
@@ -21,13 +26,13 @@ for ``pyTDGL`` to avoid dependency conflicts with other packages. To create and 
 Install via ``pip``
 -------------------
 
-- From `GitHub <https://github.com/loganbvh/py-tdgl/>`_:
+* From `GitHub <https://github.com/loganbvh/py-tdgl/>`_:
 
     .. code-block:: bash
     
       pip install git+https://github.com/loganbvh/py-tdgl.git
 
-- From  PyPI, the Python Package index:
+* From  PyPI, the Python Package index:
     
     Coming soon...
 
@@ -45,4 +50,21 @@ To install an editable version of ``pyTDGL`` for development, run:
 .. seealso::
 
   :ref:`Contributing to pyTDGL <about/contributing:Contributing>`
+
+Verify the installation
+-----------------------
+
+To verify your installation by running the ``tdgl`` test suite,
+execute the following command in a terminal:
+
+.. code-block:: bash
+
+    python -m tdgl.testing
+
+If you prefer, you can instead run the following commands in a Python session:
+
+.. code-block:: python
+
+    >>> import tdgl.testing
+    >>> tdgl.testing.run()
 
