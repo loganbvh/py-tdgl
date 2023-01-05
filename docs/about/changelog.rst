@@ -16,7 +16,18 @@ View release history on `PyPI <https://pypi.org/project/tdgl/#history>`_ or `Git
 ----
 
 
+Version 0.1.1
+-------------
+
+Release date: 2022-01-05
+
+Changes
+=======
+
+* Removed ``pinning_sites`` argument in :func:`tdgl.solve` (`#10 <https://github.com/loganbvh/py-tdgl/pull/10>`_). Pinning should be implemented using ``disorder_epsilon``.
+
+
 Version 0.1.0 (initial release)
--------------------------------------------
+-------------------------------
 
 Release date: 2023-01-04
