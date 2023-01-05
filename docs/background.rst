@@ -109,7 +109,6 @@ From :eq:`current-cons`, it follows that the current boundary condition for term
 
     J_{\mathrm{ext},i}=-\frac{1}{L_i}\sum_{j\neq i}I_{\mathrm{ext},j}=-\frac{1}{L_i}\sum_{j\neq i}J_{\mathrm{ext},j}L_j.
 
-One may also model normal-metal inclusions by fixing :math:`\psi(\mathbf{r})=0` for some set of points :math:`\mathbf{r}` inside the film. This can be used to simulate pinning centers. 
 
 Units
 =====

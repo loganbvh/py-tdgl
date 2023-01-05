@@ -59,48 +59,6 @@ def validate_terminal_currents(
         check_total_current(terminal_currents)
 
 
-def select_pinning_sites(
-    pinning_sites: Union[Callable, str],
-    sites: np.ndarray,
-    areas: np.ndarray,
-    interior_indices: np.ndarray,
-    length_units: str,
-    rng_seed: int,
-) -> np.ndarray:
-    """Define the pinning sites."""
-    if callable(pinning_sites):
-        pinning_sites_indices = np.apply_along_axis(pinning_sites, 1, sites)
-        pinning_sites_indices = np.where(pinning_sites_indices.astype(bool))[0]
-        return pinning_sites_indices
-
-    if pinning_sites is None:
-        pinning_sites = f"0 * {length_units}**(-2)"
-    if not isinstance(pinning_sites, str):
-        raise ValueError(
-            f"Expected pinning sites to be a callable or str, "
-            f"but got {type(pinning_sites)}."
-        )
-    pinning_sites_density = ureg(pinning_sites).to(f"{length_units}**(-2)").magnitude
-    site_areas = areas[interior_indices]
-    total_area = site_areas.sum()
-    n_pinning_sites = int(pinning_sites_density * total_area)
-    if n_pinning_sites > len(interior_indices):
-        raise ValueError(
-            f"The total number of pinning sites ({n_pinning_sites}) for the requested"
-            f" areal density of pinning sites ({pinning_sites_density:~P})"
-            f" exceeds the total number of interior sites ({len(interior_indices)})."
-            f" Try setting a smaller density of pinning sites."
-        )
-    rng = np.random.default_rng(rng_seed)
-    pinning_sites_indices = rng.choice(
-        interior_indices,
-        size=n_pinning_sites,
-        p=site_areas / total_area,
-        replace=False,
-    )
-    return pinning_sites_indices
-
-
 def solve_for_psi_squared(
     *,
     psi: np.ndarray,
@@ -214,7 +172,6 @@ def solve(
     applied_vector_potential: Union[Callable, float] = 0,
     terminal_currents: Union[Callable, Dict[str, float], None] = None,
     disorder_epsilon: Union[float, Callable] = 1,
-    pinning_sites: Union[str, Callable, None] = None,
     seed_solution: Union[Solution, None] = None,
 ):
     """Solve a TDGL model.
@@ -236,15 +193,6 @@ def solve(
             :math:`\\epsilon(\\mathbf{r})=T_c(\\mathbf{r})/T_c - 1 < 1` suppresses the
             critical temperature at position :math:`\\mathbf{r}`, which can be used
             to model inhomogeneity.
-        pinning_sites: Pinning sites are sites in the mesh where the order parameter
-            fixed to :math:`\\psi(\\mathbf{r}, t)=0`. If ``pinning_sites``
-            is given as a pint-parseable string with dimensions of ``length ** (-2)``,
-            the argument represents the areal density of pinning sites. A corresponding
-            number of pinning sites will be chose at random according to ``options.rng_seed``.
-            If ``pinning_sites`` is a callable, it must have a signature
-            ``pinning_sites(r: Tuple[float, float]) -> bool``, where ``r`` is position
-            in the device (in ``device.length_units``). All sites for which
-            ``pinning_sites`` returns ``True`` will be fixed as pinning sites.
         seed_solution: A :class:`tdgl.Solution` instance to use as the initial state
             for the simulation.
 
@@ -254,7 +202,6 @@ def solve(
 
     start_time = datetime.now()
     options.validate()
-    rng_seed = int(options.rng_seed)
     current_units = options.current_units
     field_units = options.field_units
     output_file = options.output_file
@@ -306,7 +253,6 @@ def solve(
         )
     else:
         normal_boundary_index = np.array([], dtype=np.int64)
-    interior_indices = np.setdiff1d(np.arange(len(mesh.sites)), normal_boundary_index)
     # Define the source-drain current.
     if terminal_currents and device.probe_points is None:
         logger.warning(
@@ -327,18 +273,8 @@ def solve(
 
     validate_terminal_currents(current_func, terminal_info, options)
 
-    pinning_sites_indices = select_pinning_sites(
-        pinning_sites,
-        sites,
-        xi**2 * mesh.areas,
-        interior_indices,
-        device.length_units,
-        rng_seed,
-    )
-    fixed_sites = np.union1d(normal_boundary_index, pinning_sites_indices)
-
     # Construct finite-volume operators
-    operators = MeshOperators(mesh, fixed_sites=fixed_sites)
+    operators = MeshOperators(mesh, fixed_sites=normal_boundary_index)
     operators.build_operators()
     operators.set_link_exponents(vector_potential)
     divergence = operators.divergence
@@ -347,7 +283,7 @@ def solve(
     mu_gradient = operators.mu_gradient
     # Initialize the order parameter and electric potential
     psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
-    psi_init[fixed_sites] = 0
+    psi_init[normal_boundary_index] = 0
     mu_init = np.zeros(len(mesh.sites))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the epsilon parameter, which is the maximum value of |psi| at each position.
@@ -545,7 +481,6 @@ def solve(
             applied_vector_potential=applied_vector_potential,
             terminal_currents=terminal_currents,
             disorder_epsilon=disorder_epsilon,
-            pinning_sites=pinning_sites,
             total_seconds=(end_time - start_time).total_seconds(),
         )
         solution.to_hdf5()

@@ -30,7 +30,6 @@ def test_source_drain_current(transport_device, current, field):
         options,
         applied_vector_potential=field,
         terminal_currents=terminal_currents,
-        pinning_sites=lambda r: False,
     )
 
     if callable(current):
