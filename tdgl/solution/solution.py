@@ -69,7 +69,6 @@ class Solution:
         disorder_epsilon: The disorder parameter :math:`\\epsilon`. If
             :math:`\\epsilon(\\mathbf{r}) < 1` weakens the order parameter at position
             :math:`\\mathbf{r}`, which can be used to model inhomogeneity.
-        pinning_sites: The string or callable specifying pinning sites.
         total_seconds: The total wall time in seconds.
     """
 
@@ -82,7 +81,6 @@ class Solution:
         applied_vector_potential: Parameter,
         terminal_currents: Union[Dict[str, float], Callable],
         disorder_epsilon: Union[float, Callable],
-        pinning_sites: Union[str, Callable],
         total_seconds: float,
         _solve_step: int = -1,
     ):
@@ -93,7 +91,6 @@ class Solution:
         self.applied_vector_potential = applied_vector_potential
         self.terminal_currents = terminal_currents
         self.disorder_epsilon = disorder_epsilon
-        self.pinning_sites = pinning_sites
 
         self.data_range: Union[Tuple[int, int], None] = None
         """A tuple of ``(min_step, max_step)``."""
@@ -897,11 +894,6 @@ class Solution:
                 "disorder_epsilon",
                 group,
             )
-            serialize_func(
-                self.pinning_sites,
-                "pinning_sites",
-                group,
-            )
             group.attrs["total_seconds"] = self.total_seconds
             self.device.to_hdf5(group.create_group("device"), save_mesh=save_mesh)
 
@@ -958,7 +950,6 @@ class Solution:
             vector_potential = deserialize_func("applied_vector_potential", grp)
             terminal_currents = deserialize_func("terminal_currents", grp)
             disorder_epsilon = deserialize_func("disorder_epsilon", grp)
-            pinning_sites = deserialize_func("pinning_sites", grp)
             total_seconds = grp.attrs["total_seconds"]
             device = Device.from_hdf5(grp["device"])
 
@@ -969,7 +960,6 @@ class Solution:
             applied_vector_potential=vector_potential,
             terminal_currents=terminal_currents,
             disorder_epsilon=disorder_epsilon,
-            pinning_sites=pinning_sites,
             total_seconds=total_seconds,
             _solve_step=solve_step,
         )
@@ -1024,7 +1014,6 @@ class Solution:
             )
             and compare_callables(self.terminal_currents, other.terminal_currents)
             and compare_callables(self.disorder_epsilon, other.disorder_epsilon)
-            and compare_callables(self.pinning_sites, other.pinning_sites)
             and (self.tdgl_data == other.tdgl_data)
             and (self.dynamics == other.dynamics)
         ):

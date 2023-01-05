@@ -68,7 +68,7 @@ class TDGLData:
 
     Args:
         step: The solver iteration.
-        epsilon: The disorder/pinning parameter. :math:`\\epsilon<1` weakens the
+        epsilon: The disorder parameter. :math:`\\epsilon<1` weakens the
             order parameter.
         psi: The complex order parameter at each site in the mesh.
         mu: The scalar potential at each site in the mesh.

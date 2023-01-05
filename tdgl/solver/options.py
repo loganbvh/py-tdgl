@@ -2,8 +2,6 @@ import os
 from dataclasses import dataclass
 from typing import Union
 
-import numpy as np
-
 
 class SolverOptionsError(ValueError):
     pass
@@ -42,7 +40,6 @@ class SolverOptions:
             step.
         screening_step_size: Step size :math:`\\alpha` for Polyak's method.
         screening_step_drag: Drag parameter :math:`\\beta` for Polyak's method.
-        rng_seed: An integer to used as a seed for the pseudorandom number generator.
     """
 
     solve_time: float
@@ -63,12 +60,6 @@ class SolverOptions:
     screening_tolerance: float = 1e-3
     screening_step_size: float = 1.0
     screening_step_drag: float = 0.5
-    rng_seed: Union[int, str, None] = None
-
-    def __post_init__(self) -> None:
-        if self.rng_seed is None:
-            self.rng_seed = np.random.SeedSequence().entropy
-        self.rng_seed = str(self.rng_seed)
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
