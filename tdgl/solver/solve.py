@@ -286,11 +286,12 @@ def solve(
     psi_init[normal_boundary_index] = 0
     mu_init = np.zeros(len(mesh.sites))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
-    # Create the epsilon parameter, which is the maximum value of |psi| at each position.
+    # Create the epsilon parameter, which sets the local critical temperature.
     if callable(disorder_epsilon):
-        epsilon = np.apply_along_axis(disorder_epsilon, 1, sites).astype(float)
+        # Ensure that epsilon has dtype float
+        epsilon = np.apply_along_axis(lambda r: float(disorder_epsilon(r)), 1, sites)
     else:
-        epsilon = disorder_epsilon * np.ones(len(sites))
+        epsilon = disorder_epsilon * np.ones(len(sites), dtype=float)
     if np.any(epsilon < -1) or np.any(epsilon > 1):
         raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
 
