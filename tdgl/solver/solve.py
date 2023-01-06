@@ -288,8 +288,7 @@ def solve(
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the epsilon parameter, which sets the local critical temperature.
     if callable(disorder_epsilon):
-        # Ensure that epsilon has dtype float
-        epsilon = np.apply_along_axis(lambda r: float(disorder_epsilon(r)), 1, sites)
+        epsilon = np.array([float(disorder_epsilon(r)) for r in sites])
     else:
         epsilon = disorder_epsilon * np.ones(len(sites), dtype=float)
     if np.any(epsilon < -1) or np.any(epsilon > 1):
