@@ -17,7 +17,6 @@ from shapely.geometry import Point
 from ..em import ureg
 from ..finite_volume.mesh import Mesh
 from ..finite_volume.util import get_oriented_boundary
-from ..geometry import ensure_unique
 from .layer import Layer
 from .meshing import generate_mesh
 from .polygon import Polygon
@@ -517,21 +516,20 @@ class Device:
                 number of vertices in the underlying polygons, and ``max_edge_length``.
             max_edge_length: The maximum distance between vertices in the mesh.
                 Passing a value <= 0 means that the number of mesh points will be
-                determined solely by the density of points in the Device's film
-                and abstract regions. Defaults to 1.5 * self.coherence_length.
+                determined solely by the density of points in the Device's film and holes.
+                Defaults to 1.0 * self.coherence_length.
             smooth: Number of Laplacian smoothing iterations to perform.
             **meshpy_kwargs: Passed to meshpy.triangle.build().
         """
         logger.info("Generating mesh...")
-        boundary = self.film.points
         if max_edge_length is None:
-            max_edge_length = 1.5 * self.coherence_length.magnitude
+            max_edge_length = 1.0 * self.coherence_length.magnitude
         points, triangles = generate_mesh(
-            ensure_unique(self.film.points),
+            self.film.points,
             hole_coords=[hole.points for hole in self.holes],
             min_points=min_points,
             max_edge_length=max_edge_length,
-            boundary=boundary,
+            boundary=self.film.points,
             **meshpy_kwargs,
         )
         if smooth:

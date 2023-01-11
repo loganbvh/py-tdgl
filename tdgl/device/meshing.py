@@ -66,8 +66,8 @@ def generate_mesh(
         facets = spatial.ConvexHull(coords).simplices
     else:
         if boundary is not None:
-            boundary = list(map(tuple, boundary))
-            indices = [i for i in indices if tuple(coords[i]) in boundary - r0]
+            boundary = list(map(tuple, ensure_unique(boundary - r0)))
+            indices = [i for i in indices if tuple(coords[i]) in boundary]
         facets = np.array([indices, np.roll(indices, -1)]).T
     # Create facets for the holes.
     for hole in hole_coords:
