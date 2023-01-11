@@ -120,7 +120,7 @@ class Layer:
             f"london_lambda={self.london_lambda}, "
             f"coherence_length={self.coherence_length}, "
             f"thickness={self.thickness}, "
-            f"conducivitiy={self.conductivity}, "
+            f"conductivity={self.conductivity}, "
             f"u={self.u}, "
             f"gamma={self.gamma}, "
             f"z0={self.z0}"
