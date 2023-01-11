@@ -52,9 +52,6 @@ class Device:
         layer: The superconducting ``Layer``.
         film: The ``Polygon`` representing the superconducting film.
         holes: ``Polygons`` representing holes in the superconducting film.
-        abstract_regions: ``Polygons`` representing abstract regions in a device.
-            Abstract regions are areas that can be meshed, but need not correspond
-            to any physical structres in the device.
         terminals: A sequence of ``Polygons`` representing the current terminals.
             Any points that are on the boundary of the mesh and lie inside a
             terminal will have current source/sink boundary conditions.
@@ -72,7 +69,6 @@ class Device:
         layer: Layer,
         film: Polygon,
         holes: Union[List[Polygon], None] = None,
-        abstract_regions: Union[List[Polygon], None] = None,
         terminals: Union[List[Polygon], None] = None,
         probe_points: Sequence[float] = None,
         length_units: str = "um",
@@ -81,7 +77,6 @@ class Device:
         self.layer = layer
         self.film = film
         self.holes = holes or []
-        self.abstract_regions = abstract_regions or []
         self.terminals = tuple(terminals or [])
         names = set()
         for terminal in self.terminals:
@@ -248,12 +243,7 @@ class Device:
     @property
     def polygons(self) -> Tuple[Polygon, ...]:
         """Tuple of all ``Polygons`` in the ``Device``."""
-        return (
-            (self.film,)
-            + tuple(self.holes)
-            + tuple(self.abstract_regions)
-            + self.terminals
-        )
+        return (self.film,) + tuple(self.holes) + self.terminals
 
     @property
     def points(self) -> Union[np.ndarray, None]:
@@ -355,19 +345,6 @@ class Device:
             return np.where(mask)[0]
         return mask
 
-    @property
-    def poly_points(self) -> np.ndarray:
-        """A shape (n, 2) array of (x, y) coordinates of all Polygons in the Device."""
-        points = np.concatenate(
-            [self.film.points]
-            + [poly.points for poly in self.abstract_regions if poly.mesh],
-            axis=0,
-        )
-        # Remove duplicate points to avoid meshing issues.
-        # If you don't do this and there are duplicate points,
-        # meshpy.triangle will segfault.
-        return ensure_unique(points)
-
     def copy(self, with_mesh: bool = True) -> "Device":
         """Copy this Device to create a new one.
 
@@ -378,7 +355,6 @@ class Device:
             A new Device instance, copied from self.
         """
         holes = [hole.copy() for hole in self.holes]
-        abstract_regions = [region.copy() for region in self.abstract_regions]
         terminals = [term.copy() for term in self.terminals]
         if self.probe_points is None:
             probe_points = None
@@ -390,7 +366,6 @@ class Device:
             layer=self.layer.copy(),
             film=self.film.copy(),
             holes=holes,
-            abstract_regions=abstract_regions,
             terminals=terminals,
             probe_points=probe_points,
             length_units=self.length_units,
@@ -552,7 +527,7 @@ class Device:
         if max_edge_length is None:
             max_edge_length = 1.5 * self.coherence_length.magnitude
         points, triangles = generate_mesh(
-            self.poly_points,
+            ensure_unique(self.film.points),
             hole_coords=[hole.points for hole in self.holes],
             min_points=min_points,
             max_edge_length=max_edge_length,
@@ -692,7 +667,6 @@ class Device:
         """Returns a dict of ``{polygon_name: PathPatch}``
         for visualizing the device.
         """
-        abstract_regions = self.abstract_regions
         hole_names = {hole.name for hole in self.holes}
         patches = dict()
         for polygon in self.polygons:
@@ -704,7 +678,7 @@ class Device:
             codes[-1] = Path.CLOSEPOLY
             poly = polygon.polygon
             for hole in self.holes:
-                if polygon.name not in abstract_regions and poly.contains(hole.polygon):
+                if poly.contains(hole.polygon):
                     hole_coords = hole.points.tolist()[::-1]
                     hole_codes = [Path.LINETO for _ in hole_coords]
                     hole_codes[0] = Path.MOVETO
@@ -744,7 +718,7 @@ class Device:
             exclude = [exclude]
         patches = self.patches()
         units = ureg(self.length_units).units
-        x, y = self.poly_points.T
+        x, y = self.film.points.T
         margin = 0.1
         dx = np.ptp(x)
         dy = np.ptp(y)
@@ -812,9 +786,6 @@ class Device:
             for hole in sorted(self.holes, key=attrgetter("name")):
                 group = f.require_group("holes")
                 hole.to_hdf5(group.create_group(hole.name))
-            for i, polygon in enumerate(self.abstract_regions):
-                group = f.require_group("abstract_regions")
-                polygon.to_hdf5(group.create_group(str(i)))
             if save_mesh and self.mesh is not None:
                 self.mesh.to_hdf5(f.create_group("mesh"))
 
@@ -839,7 +810,7 @@ class Device:
                 )
             h5_context = nullcontext(path_or_group)
         terminals = probe_points = None
-        holes = abstract_regions = mesh = None
+        holes = mesh = None
         with h5_context as f:
             name = f.attrs["name"]
             length_units = f.attrs["length_units"]
@@ -854,13 +825,6 @@ class Device:
                     Polygon.from_hdf5(grp)
                     for _, grp in sorted(f["holes"].items(), key=itemgetter(0))
                 ]
-            if "abstract_regions" in f:
-                abstract_regions = [
-                    Polygon.from_hdf5(grp)
-                    for _, grp in sorted(
-                        f["abstract_regions"].items(), key=itemgetter(0)
-                    )
-                ]
             if "probe_points" in f:
                 probe_points = np.array(f["probe_points"])
             if "mesh" in f:
@@ -871,7 +835,6 @@ class Device:
             layer=layer,
             film=film,
             holes=holes,
-            abstract_regions=abstract_regions,
             terminals=terminals,
             probe_points=probe_points,
             length_units=length_units,
@@ -893,7 +856,6 @@ class Device:
             f"layer={self.layer!r}",
             f"film={self.film!r}",
             f"holes={self.holes!r}",
-            f"abstract_regions={self.abstract_regions!r}",
             f"terminals={self.terminals!r}",
             f"probe_points={self.probe_points!r}",
             f"length_units={self.length_units!r}",
@@ -928,7 +890,6 @@ class Device:
             and self.layer == other.layer
             and self.film == other.film
             and compare(self.holes, other.holes)
-            and compare(self.abstract_regions, other.abstract_regions)
             and compare(self.terminals, other.terminals)
             and same_probe_points
             and self.length_units == other.length_units
