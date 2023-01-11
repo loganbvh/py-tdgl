@@ -143,13 +143,6 @@ def device():
     )
     assert np.isclose(film.area, np.pi * 3 * 2, rtol=1e-3)
 
-    abstract_regions = [
-        tdgl.Polygon(
-            "abstract",
-            points=tdgl.geometry.box(2.5, angle=45),
-        ),
-    ]
-
     bad_probe_points = [
         [(0, 0, 0)],
         [(5, 0), (5, 5)],
@@ -162,7 +155,6 @@ def device():
                 layer=layer,
                 film=film,
                 holes=[hole],
-                abstract_regions=abstract_regions,
                 probe_points=probe_points,
             )
 
@@ -171,7 +163,6 @@ def device():
         layer=layer,
         film=film,
         holes=[hole],
-        abstract_regions=abstract_regions,
         probe_points=[(-1.5, 0), (1.5, 0)],
         length_units="um",
     )
@@ -269,7 +260,7 @@ def device_with_mesh():
     d = device.copy()
     assert d.translate(dx, dy, dz=dz, inplace=True) is d
 
-    for points in ("poly_points", "points"):
+    for points in ("points",):
         x0, y0 = getattr(device, points).mean(axis=0)
         z0 = device.layer.z0
         with device.translation(dx, dy, dz=dz):
