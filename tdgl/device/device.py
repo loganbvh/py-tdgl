@@ -853,8 +853,8 @@ class Device:
             f"{self.name!r}",
             f"layer={self.layer!r}",
             f"film={self.film!r}",
-            f"holes={self.holes!r}",
-            f"terminals={self.terminals!r}",
+            f"holes={tuple(self.holes)!r}",
+            f"terminals={tuple(self.terminals)!r}",
             f"probe_points={self.probe_points!r}",
             f"length_units={self.length_units!r}",
         ]
