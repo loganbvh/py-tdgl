@@ -18,7 +18,6 @@ class InteractivePlot:
         input_file: str,
         logger: logging.Logger = None,
     ):
-
         self.input_file = input_file
         self.frame = 0
         self.quantity = Quantity.ORDER_PARAMETER

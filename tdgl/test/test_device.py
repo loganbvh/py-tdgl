@@ -51,7 +51,6 @@ def test_polygon_on_boundary(radius=1):
 
 
 def test_polygon_join():
-
     square1 = tdgl.Polygon(points=tdgl.geometry.box(1))
     square2 = tdgl.Polygon(points=tdgl.geometry.box(1)).translate(dx=0.5, dy=0.5)
     square3 = tdgl.geometry.box(1, center=(-0.25, 0.25))
@@ -124,7 +123,6 @@ def test_plot_polygon():
 
 @pytest.fixture(scope="module")
 def device():
-
     layer = tdgl.Layer(london_lambda=1, coherence_length=1, thickness=0.1, z0=0)
     film = tdgl.Polygon("ring", points=tdgl.geometry.ellipse(3, 2, angle=5))
     hole = tdgl.Polygon("hole", points=tdgl.geometry.circle(1))
@@ -199,7 +197,6 @@ def device():
 
 @pytest.fixture(scope="module")
 def device_with_mesh():
-
     with pytest.raises(ValueError):
         _ = tdgl.Polygon("poly", points=tdgl.geometry.circle(1).T)
 
@@ -354,7 +351,6 @@ def test_make_mesh(device: tdgl.Device, min_points, smooth):
 
 @pytest.mark.parametrize("save_mesh", [False, True])
 def test_device_to_file(device: tdgl.Device, device_with_mesh: tdgl.Device, save_mesh):
-
     with tempfile.TemporaryDirectory() as directory:
         path = os.path.join(directory, "device.h5")
         device.to_hdf5(os.path.join(path), save_mesh=save_mesh)
@@ -369,7 +365,6 @@ def test_device_to_file(device: tdgl.Device, device_with_mesh: tdgl.Device, save
 
 
 def test_pickle_device(device: tdgl.Device, device_with_mesh: tdgl.Device):
-
     loaded_device = pickle.loads(pickle.dumps(device))
     loaded_device_with_mesh = pickle.loads(pickle.dumps(device_with_mesh))
 
@@ -381,7 +376,6 @@ def test_pickle_device(device: tdgl.Device, device_with_mesh: tdgl.Device):
 
 @pytest.mark.parametrize("origin", [(0, 0), (4, 5)])
 def test_transforms(transport_device: tdgl.Device, origin):
-
     device = transport_device
     device.scale(xfact=2, yfact=0.5, origin=origin)
     device.rotate(-40, origin=origin)
