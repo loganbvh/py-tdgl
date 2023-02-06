@@ -30,6 +30,9 @@ pyTDGL: Time-dependent Ginzburg Landau in Python
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
    :target: https://github.com/psf/black
 
+.. image:: https://zenodo.org/badge/535746543.svg
+   :target: https://zenodo.org/badge/latestdoi/535746543
+
 
 `pyTDGL <https://github.com/loganbvh/py-tdgl>`_ is a Python package that solves a generalized time-dependent Ginzburg-Landau (TDGL)
 model in two dimensions, enabling simulations of vortex and phase dynamics in thin film superconducting devices of arbitrary
