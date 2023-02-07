@@ -15,11 +15,20 @@ View release history on `PyPI <https://pypi.org/project/tdgl/#history>`_ or `Git
 
 ----
 
+Version 0.2.1
+-------------
+
+Release date: 2023-02-07
+
+Changes
+=======
+
+* Fix typos in docs (`# 15 <https://github.com/loganbvh/py-tdgl/pull/15>`_).
 
 Version 0.1.1
 -------------
 
-Release date: 2022-01-05
+Release date: 2023-01-05
 
 Changes
 =======
