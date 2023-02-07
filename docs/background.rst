@@ -41,12 +41,13 @@ The order parameter :math:`\psi` evolves according to:
 
 The quantity :math:`(\nabla-i\mathbf{A})^2\psi` is the covariant Laplacian of :math:`\psi`,
 which is used in place of an ordinary Laplacian in order to maintain gauge-invariance of the order parameter. Similarly,
-the quantity :math:`(\frac{\partial}{\partial t}+i\mu)\psi` is the covariant time derivative of :math:`\psi`.
+:math:`(\frac{\partial}{\partial t}+i\mu)\psi` is the covariant time derivative of :math:`\psi`.
 :math:`u=\pi^4/(14\zeta(3))\approx5.79` is the ratio of relaxation times for the amplitude and phase of the order parameter in dirty superconductors
 (:math:`\zeta` is the Riemann zeta function) and
 :math:`\gamma` is a material parameter which is proportional to the inelastic scattering time and the size of the superconducting gap.
 :math:`\epsilon(\mathbf{r})=T_c(\mathbf{r})/T - 1 \in [-1,1]` is a real-valued parameter that adjusts the local critical temperature of the film.
-Setting :math:`\epsilon(\mathbf{r}) < 1` suppresses the critical temperature at position :math:`\mathbf{r}`
+Setting :math:`\epsilon(\mathbf{r}) < 1` suppresses the critical temperature at position :math:`\mathbf{r}`, and extended
+regions of :math:`\epsilon(\mathbf{r}) < 0` can be used to model large-scale metallic pinning sites
 :footcite:p:`Sadovskyy2015-ha,Al_Luhaibi2022-cl,Kwok2016-of`.
 
 The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to the Poisson equation:
@@ -147,7 +148,7 @@ than to any other site in the mesh. The side of the Voronoi region that intersec
 `dual <https://en.wikipedia.org/wiki/Dual_graph>`_ to the triangular Delaunay mesh.
 
 .. image:: images/mesh-py.png
-  :width: 600
+  :width: 800
   :alt: Schematic of a mesh.
   :align: center
 
@@ -205,9 +206,9 @@ The discretized form of the covariant gradient of :math:`\psi` at time :math:`t^
 .. math::
     :label: grad-psi
 
-    \left.\left(\nabla-i\mathbf{A}\right)\psi\right|_{\mathbf{r}_{ij}}^{t^{n}}=\frac{\psi_j^{n}\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})-\psi_i^{n}}{e_{ij}},
+    \left.\left(\nabla-i\mathbf{A}\right)\psi\right|_{\mathbf{r}_{ij}}^{t^{n}}=\frac{U^{n}_{ij}\psi_j^{n}-\psi_i^{n}}{e_{ij}},
 
-where the quantity :math:`U^{n}_{ij}=\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})` is the spatial link variable.
+where :math:`U^{n}_{ij}=\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})` is the spatial link variable.
 :eq:`grad-psi` is similar to the `gauge-invariant phase difference <https://link.springer.com/article/10.1007/s10948-020-05784-9>`_
 in Josephson junction physics.
 
@@ -216,16 +217,16 @@ The discretized form of the covariant Laplacian of :math:`\psi` at time :math:`t
 .. math::
     :label: laplacian-psi
 
-    \left.\left(\nabla-i\mathbf{A}\right)^2\psi\right|_{\mathbf{r}_{i}}^{t^{n}}=\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_j^{n}\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
+    \left.\left(\nabla-i\mathbf{A}\right)^2\psi\right|_{\mathbf{r}_{i}}^{t^{n}}=\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{U^{n}_{ij}\psi_j^{n}-\psi_i^{n}}{e_{ij}}s_{ij}
 
 The discretized form of the covariant time-derivative of :math:`\psi` at time :math:`t^{n}` and site :math:`\mathbf{r}_i` is
 
 .. math::
     :label: dmu_dt
 
-    \left.\left(\frac{\partial}{\partial t}+i\mu\right)\psi\right|_{\mathbf{r}_i}^{t^{n}}=\frac{\psi_i^{n+1}\exp(i\mu_i^{n}\Delta t^{n})-\psi_i^{n}}{\Delta t^{n}},
+    \left.\left(\frac{\partial}{\partial t}+i\mu\right)\psi\right|_{\mathbf{r}_i}^{t^{n}}=\frac{U_i^{n, n+1}\psi_i^{n+1}-\psi_i^{n}}{\Delta t^{n}},
 
-where the quantity :math:`U_i^{(n, n+1)}=\exp(i\mu_i^{n}\Delta t^{n})` is the temoral link variable.
+where :math:`U_i^{n, n+1}=\exp(i\mu_i^{n}\Delta t^{n})` is the temporal link variable.
 
 Implicit Euler method
 =====================
@@ -241,7 +242,7 @@ The discretized form of the equations of motion for :math:`\psi(\mathbf{r}, t)` 
             \psi_i^{n+1}\exp(i\mu_i^{n}\Delta t^{n})-\psi_i^{n}
             +\frac{\gamma^2}{2}\left(\left|\psi_i^{n+1}\right|^2-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}
         \right]\\
-        &=\left(\epsilon_i-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}+\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
+        &=\left(\epsilon_i-\left|\psi_i^{n}\right|^2\right)\psi_i^{n}+\frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{U^{n}_{ij}\psi_j^{n}-\psi_i^{n}}{e_{ij}}s_{ij}
     \end{split}
 
 .. math::
@@ -249,7 +250,7 @@ The discretized form of the equations of motion for :math:`\psi(\mathbf{r}, t)` 
 
     \begin{split}
     \sum_{j\in\mathcal{N}(i)}\frac{\mu_j^{n}-\mu_i^{n}}{e_{ij}}s_{ij}&=\sum_{j\in\mathcal{N}(i)}J_{ij}^{n}|s_{ij}|\\
-    &=\sum_{j\in\mathcal{N}(i)}\mathrm{Im}\left\{\left(\psi_i^{n}\right)^*\,\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}\right\}|s_{ij}|
+    &=\sum_{j\in\mathcal{N}(i)}\mathrm{Im}\left\{\left(\psi_i^{n}\right)^*\,\frac{U^{n}_{ij}\psi_j^{n}-\psi_i^{n}}{e_{ij}}\right\}|s_{ij}|
     \end{split}
 
 If we isloate the terms in :eq:`tdgl-num` involving the order parameter at time :math:`t^{n+1}`, we can rewrite :eq:`tdgl-num` in the form
@@ -273,11 +274,11 @@ and
     :label: w
 
     \begin{split}
-    w_i^{n}=&z_{i}^{n}\left|\psi_i^{n}\right|+\exp(-i\mu_i^{n}\Delta t^{n})\times\\
+    w_i^{n}=&z_{i}^{n}\left|\psi_i^{n}\right|^2+\exp(-i\mu_i^{n}\Delta t^{n})\times\\
     &\Biggl[\psi_i^{n}+\frac{\Delta t^{n}}{u}\sqrt{1+\gamma^2\left|\psi_i^{n}\right|^2}\times\\
     &\quad\biggl(
-        \left(1-\left|\psi_i^{n}\right|^2\right)\psi_{i}^{n} +
-        \frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{\psi_i^{n}\exp(-iA_{ij}e_{ij})-\psi_i^{n}}{e_{ij}}s_{ij}
+        \left(\epsilon_i-\left|\psi_i^{n}\right|^2\right)\psi_{i}^{n} +
+        \frac{1}{a_i}\sum_{j\in\mathcal{N}(i)}\frac{U^{n}_{ij}\psi_j^{n}-\psi_i^{n}}{e_{ij}}s_{ij}
     \biggr)
     \Biggr]
     \end{split}
@@ -289,14 +290,18 @@ we arrive at a quadratic equation in :math:`\left|\psi_i^{n+1}\right|^2`
 .. math::
     :label: quad-2
 
-    \begin{split}
-    0 =& \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4\\
-    &-\left(2\left[
-        \mathrm{Re}\left\{z_i^{n}\right\}\mathrm{Re}\left\{w_i^{n}\right\}
-        +\mathrm{Im}\left\{z_i^{n}\right\}\mathrm{Im}\left\{w_i^{n}\right\}
-    \right] + 1\right)\left|\psi_i^{n+1}\right|^2\\
-    &+ \left|w_i^{n}\right|^2
-    \end{split}
+    \left|z_i^{n}\right|^2\left|\psi_i^{n+1}\right|^4
+    -\left(2c_i^{n} + 1\right)\left|\psi_i^{n+1}\right|^2
+    + \left|w_i^{n}\right|^2
+    =0,
+
+where we have defined 
+
+.. math::
+
+    c_i^{n}=
+    \mathrm{Re}\left\{z_i^{n}\right\}\mathrm{Re}\left\{w_i^{n}\right\}
+    +\mathrm{Im}\left\{z_i^{n}\right\}\mathrm{Im}\left\{w_i^{n}\right\}.
 
 To solve :eq:`quad-2`, which has the form :math:`0=ax^2+bx+c`, we use a modified quadratic formula:
 
@@ -317,14 +322,6 @@ Applying :eq:`citardauq` to :eq:`quad-2` yields
     :label: quad-root
 
     \left|\psi_i^{n+1}\right|^2=\frac{2\left|w_i^{n}\right|^2}{(2c_i^{n} + 1)+\sqrt{(2c_i^{n} + 1)^2 - 4\left|z_i^{n}\right|^2\left|w_i^{n}\right|^2}},
-
-where we have defined 
-
-.. math::
-
-    c_i^{n}=
-    \mathrm{Re}\left\{z_i^{n}\right\}\mathrm{Re}\left\{w_i^{n}\right\}
-    +\mathrm{Im}\left\{z_i^{n}\right\}\mathrm{Im}\left\{w_i^{n}\right\}.
 
 We take the root with the ":math:`+`" sign in :eq:`quad-root` because the ":math:`-`" sign results in unphysical behavior where
 :math:`\left|\psi_i^{n+1}\right|^2` diverges when :math:`\left|z_i^{n}\right|^2` vanishes (i.e., when :math:`\left|\psi_i^{n}\right|^2` is zero).
@@ -359,14 +356,14 @@ There are four parameters that control the adaptive time step algorithm, which a
 and :math:`N_\mathrm{window}` (``SolverOptions.adaptive_window``) :math:`M_\mathrm{adaptive}` (``SolverOptions.adaptive_time_step_multiplier``).
 The initial time step at iteration :math:`n=0` is set to :math:`\Delta t^{(0)}=\Delta t_\mathrm{init}`. We keep a running list of
 :math:`\Delta|\psi|^2_n=\max_i \left|\left(\left|\psi_i^{n}\right|^2-\left|\psi_i^{n-1}\right|^2\right)\right|` for each iteration :math:`n`.
-Then, for each iteration :math:`n > N_\mathrm{window}`, we define a tentative new time step :math:`\Delta t_?`
+Then, for each iteration :math:`n > N_\mathrm{window}`, we define a tentative new time step :math:`\Delta t_\star`
 using the following heuristic:
 
 .. math::
     :label: dt-tentative
 
     \delta_n &= \frac{1}{N_\mathrm{window}}\sum_{\ell=0}^{N_\mathrm{window}-1}\Delta|\psi|^2_{n-\ell}\\
-    \Delta t_? & = \min\left(\frac{1}{2}\left(\Delta t^n +  \frac{\Delta t_\mathrm{init}}{\delta_n}\right),\;\Delta t_\mathrm{max}\right)
+    \Delta t_\star & = \min\left(\frac{1}{2}\left(\Delta t^n +  \frac{\Delta t_\mathrm{init}}{\delta_n}\right),\;\Delta t_\mathrm{max}\right)
 
 :eq:`dt-tentative` has the effect of automatically selecting a small time step if the recent dynamics
 of the order parameter are fast, and a larger time step if the dynamics are slow.
@@ -479,9 +476,9 @@ Adaptive Euler update
 
 Adaptive Euler update subroutine. The parameters :math:`M_\mathrm{adaptive}` and :math:`N_\mathrm{retries}^\mathrm{max}` can be set by the user.
 
-    | **Data**: :math:`\psi_i^n`, :math:`\Delta t_?`, :math:`M_\mathrm{adaptive}`, :math:`N_\mathrm{retries}^\mathrm{max}`
+    | **Data**: :math:`\psi_i^n`, :math:`\Delta t_\star`, :math:`M_\mathrm{adaptive}`, :math:`N_\mathrm{retries}^\mathrm{max}`
     | **Result**: :math:`\psi_i^{n+1}`, :math:`\Delta t^n`
-    - :math:`\Delta t^n \gets \Delta t_?`
+    - :math:`\Delta t^n \gets \Delta t_\star`
     - Calculate :math:`z_i^n`, :math:`w_i^n`, :math:`\left|\psi_i^{n+1}\right|^2` given :math:`\Delta t^n` (:eq:`z`, :eq:`w`, :eq:`quad-root`)
     - if *adaptive*:
 
@@ -503,8 +500,8 @@ A single solve step, in which we solve for the state of the system at time :math
 given the state of the system at time :math:`t^n`, with no screening.
 
 
-    | **Data**: :math:`n`, :math:`t^n`, :math:`\Delta t_?`, :math:`\psi_i^{n}`, :math:`\mu_i^{n}`
-    | **Result**: :math:`t^{n+1}`, :math:`\Delta t^{n}`, :math:`\psi_i^{n+1}`, :math:`\mu_i^{n+1}`, :math:`J_{s,ij}^{n+1}`, :math:`J_{n,ij}^{n+1}`, :math:`\Delta t_?`
+    | **Data**: :math:`n`, :math:`t^n`, :math:`\Delta t_\star`, :math:`\psi_i^{n}`, :math:`\mu_i^{n}`
+    | **Result**: :math:`t^{n+1}`, :math:`\Delta t^{n}`, :math:`\psi_i^{n+1}`, :math:`\mu_i^{n+1}`, :math:`J_{s,ij}^{n+1}`, :math:`J_{n,ij}^{n+1}`, :math:`\Delta t_\star`
 
     - Evaluate current density :math:`J^{n+1}_{\mathrm{ext},\,k}` for terminals :math:`k` (:eq:`bc-current`)
     - Update boundary conditions for :math:`\mu_i^{n+1}` (:eq:`bc-normal`)
@@ -514,7 +511,7 @@ given the state of the system at time :math:`t^n`, with no screening.
     - Evaluate normal current density :math:`J_{n,ij}^{n+1}` via :math:`\mathbf{J}_n=-\nabla\mu`
     - if *adaptive*:
 
-        - Select new tentative time step :math:`\Delta t_?` given :math:`\Delta t^n` (:eq:`dt-tentative`)
+        - Select new tentative time step :math:`\Delta t_\star` given :math:`\Delta t^n` (:eq:`dt-tentative`)
     - :math:`t^{n+1} \gets t^{n} + \Delta t^{n}`
     - :math:`n \gets n + 1`
 
@@ -523,8 +520,8 @@ Solve step, with screening
 
     A single solve step, with screening. The parameters :math:`A_\mathrm{tol}` and :math:`N_\mathrm{screening}^\mathrm{max}` can be set by the user.
 
-    | **Data**: :math:`n`, :math:`t^n`, :math:`\Delta t_?`, :math:`\psi_i^{n}`, :math:`\mu_i^{n}`, :math:`\mathbf{A}^n_{\mathrm{induced}}`
-    | **Result**: :math:`t^{n+1}`, :math:`\Delta t^{n}`, :math:`\psi_i^{n+1}`, :math:`\mu_i^{n+1}`, :math:`J_{s,ij}^{n+1}`, :math:`J_{n,ij}^{n+1}`, :math:`\mathbf{A}^{n+1}_{\mathrm{induced}}`, :math:`\Delta t_?`
+    | **Data**: :math:`n`, :math:`t^n`, :math:`\Delta t_\star`, :math:`\psi_i^{n}`, :math:`\mu_i^{n}`, :math:`\mathbf{A}^n_{\mathrm{induced}}`
+    | **Result**: :math:`t^{n+1}`, :math:`\Delta t^{n}`, :math:`\psi_i^{n+1}`, :math:`\mu_i^{n+1}`, :math:`J_{s,ij}^{n+1}`, :math:`J_{n,ij}^{n+1}`, :math:`\mathbf{A}^{n+1}_{\mathrm{induced}}`, :math:`\Delta t_\star`
     
     - Evaluate current density :math:`J^{n+1}_{\mathrm{ext},\,k}` for terminals :math:`k` (:eq:`bc-current`)
     - Update boundary conditions for :math:`\mu_i^{n+1}` (:eq:`bc-normal`)
@@ -538,7 +535,7 @@ Solve step, with screening
             - Failed to converge - raise an error.
         - if :math:`s==0`:
 
-            - :math:`\Delta t^n \gets \Delta t_?`, initial guess for new time step
+            - :math:`\Delta t^n \gets \Delta t_\star`, initial guess for new time step
         - Update link variables in :math:`(\nabla-i\mathbf{A})` and :math:`(\nabla -i\mathbf{A})^2` given :math:`\mathbf{A}_\mathrm{induced}^{n+1,s}` (:eq:`grad-psi`, :eq:`laplacian-psi`)
         - Calculate :math:`\psi_i^{n+1}` and :math:`\Delta t^n` via `Adaptive Euler update <#adaptive-euler-update>`_
         - Calculate the supercurrent density :math:`J_{s,ij}^{n+1}` (:eq:`poisson-num`)
@@ -554,7 +551,7 @@ Solve step, with screening
     - :math:`\mathbf{A}^{n+1}_\mathrm{induced} \gets \mathbf{A}^{n+1,s}_\mathrm{induced}`, self-consistent value of the induced vector potential
     - if *adaptive*:
         
-        - Select new tentative time step :math:`\Delta t_?` (:eq:`dt-tentative`)
+        - Select new tentative time step :math:`\Delta t_\star` (:eq:`dt-tentative`)
     - :math:`t^{n+1} \gets t^{n} + \Delta t^{n}`
     - :math:`n \gets n + 1`
 
