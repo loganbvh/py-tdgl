@@ -70,7 +70,7 @@ EXTRAS_REQUIRE = {
     ],
     "docs": [
         "IPython",
-        # https://stackoverflow.com/a/71069918
+        # https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
         "sphinx==5.3.0",
         "sphinx-rtd-theme>=0.5.2",
         "sphinx-autodoc-typehints",
