@@ -41,7 +41,7 @@ def make_parser():
         choices=Quantity.get_keys() + ["ALL"],
         nargs="*",
         help=(
-            "Name(s) of the quantities to show. Because ``quantities`` takes a "
+            "Name(s) of the quantities to show. Because 'quantities' takes a "
             "variable number of arguments, it must be the last argument provided."
         ),
     )
@@ -59,6 +59,13 @@ def make_parser():
     )
     animate_parser.add_argument(
         "-d", "--dpi", type=float, default=200, help="Resolution in dots per inch."
+    )
+    animate_parser.add_argument(
+        "--figsize",
+        type=float,
+        nargs=2,
+        default=None,
+        help="Figure size (width, height) in inches.",
     )
     animate_parser.add_argument(
         "--min-frame",
@@ -112,6 +119,8 @@ def animate_tdgl(args):
         axes_off=args.axes_off,
         title_off=args.title_off,
     )
+    if args.figsize is not None:
+        kwargs["figure_kwargs"] = dict(figsize=args.figsize)
     if args.quantities is None or "ALL" in args.quantities:
         kwargs["quantities"] = DEFAULT_QUANTITIES
     else:
