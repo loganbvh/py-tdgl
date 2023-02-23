@@ -50,6 +50,7 @@ class PlotDefault:
     ylabel: str = "$y/\\xi$"
     vmin: Union[float, None] = None
     vmax: Union[float, None] = None
+    symmetric: bool = False
 
 
 PLOT_DEFAULTS = {
@@ -72,7 +73,9 @@ PLOT_DEFAULTS = {
         cmap="viridis", clabel="$\\epsilon$", vmin=-1, vmax=1
     ),
     Quantity.VORTICITY: PlotDefault(
-        cmap="coolwarm", clabel="$(\\vec{{\\nabla}}\\times\\vec{{J}})\\cdot\\hat{{z}}$"
+        cmap="coolwarm",
+        clabel="$(\\vec{{\\nabla}}\\times\\vec{{J}})\\cdot\\hat{{z}}$",
+        symmetric=True,
     ),
 }
 

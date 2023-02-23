@@ -172,6 +172,10 @@ def create_animation(
                         vmaxs[i] = max(vmaxs[i], np.max(values[mask]))
                     else:
                         vmaxs[i] = opts.vmax
+                    if opts.symmetric:
+                        vmax = max(abs(vmins[i]), abs(vmaxs[i]))
+                        vmaxs[i] = vmax
+                        vmins[i] = -vmax
                     collection.set_array(values)
                     collection.set_clim(vmins[i], vmaxs[i])
                 if quiver:
