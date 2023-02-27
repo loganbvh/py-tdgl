@@ -868,7 +868,9 @@ class Solution:
             data_grp = f.require_group("data")
             if save_tdgl_data:
                 self.tdgl_data.to_hdf5(data_grp)
-                self.dynamics.to_hdf5(data_grp.require_group(str(self.tdgl_data.step)))
+                self.dynamics.to_hdf5(
+                    data_grp.require_group(f"{self.tdgl_data.step}/running_state")
+                )
             if "solution" in f:
                 del f["solution"]
             group = f.create_group("solution")
@@ -916,7 +918,7 @@ class Solution:
 
         if h5path is None:
             raise ValueError(
-                "The solution HDF5 file does not exist, "
+                "The solution HDF5 file does not exist "
                 "and a new HDF5 file was not given."
             )
         self._save_to_hdf5_file(h5path, save_tdgl_data=True, save_mesh=save_mesh)

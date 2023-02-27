@@ -78,7 +78,7 @@ def create_animation(
     figure_kwargs.setdefault("constrained_layout", True)
     default_figsize = (
         3.25 * min(max_cols, num_plots),
-        3 * max(1, num_plots // max_cols),
+        2.5 * max(1, num_plots // max_cols),
     )
     figure_kwargs.setdefault("figsize", default_figsize)
 
@@ -124,6 +124,8 @@ def create_animation(
                     triangles=mesh.elements,
                     shading="gouraud",
                     cmap=opts.cmap,
+                    vmin=opts.vmin,
+                    vmax=opts.vmax,
                 )
                 if quiver:
                     quiver = ax.quiver(
@@ -150,6 +152,7 @@ def create_animation(
             def update(frame):
                 if not h5file:
                     return
+                frame += min_frame
                 state = get_state_string(h5file, frame, max_frame)
                 if not full_title:
                     state = state.split(",")[0]
@@ -158,12 +161,22 @@ def create_animation(
                 for i, (quantity, collection) in enumerate(
                     zip(quantities, collections)
                 ):
-                    value, direction, limits = get_plot_data(
-                        h5file, mesh, quantity, frame
-                    )
-                    vmins[i] = min(vmins[i], limits[0])
-                    vmaxs[i] = max(vmaxs[i], limits[1])
-                    collection.set_array(value)
+                    opts = PLOT_DEFAULTS[quantity]
+                    values, direction, _ = get_plot_data(h5file, mesh, quantity, frame)
+                    mask = np.abs(values - np.mean(values)) <= 6 * np.std(values)
+                    if opts.vmin is None:
+                        vmins[i] = min(vmins[i], np.min(values[mask]))
+                    else:
+                        vmins[i] = opts.vmin
+                    if opts.vmax is None:
+                        vmaxs[i] = max(vmaxs[i], np.max(values[mask]))
+                    else:
+                        vmaxs[i] = opts.vmax
+                    if opts.symmetric:
+                        vmax = max(abs(vmins[i]), abs(vmaxs[i]))
+                        vmaxs[i] = vmax
+                        vmins[i] = -vmax
+                    collection.set_array(values)
                     collection.set_clim(vmins[i], vmaxs[i])
                 if quiver:
                     quiver.set_UVC(direction[:, 0], direction[:, 1])

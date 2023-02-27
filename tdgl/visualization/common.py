@@ -48,13 +48,17 @@ class PlotDefault:
     clabel: str
     xlabel: str = "$x/\\xi$"
     ylabel: str = "$y/\\xi$"
+    vmin: Union[float, None] = None
+    vmax: Union[float, None] = None
+    symmetric: bool = False
 
 
 PLOT_DEFAULTS = {
-    Quantity.ORDER_PARAMETER: PlotDefault(cmap="viridis", clabel="$|\\psi|$"),
+    Quantity.ORDER_PARAMETER: PlotDefault(
+        cmap="viridis", clabel="$|\\psi|$", vmin=0, vmax=1
+    ),
     Quantity.PHASE: PlotDefault(
-        cmap="twilight_shifted",
-        clabel="$\\arg(\\psi)/\\pi$",
+        cmap="twilight_shifted", clabel="$\\arg(\\psi)/\\pi$", vmin=-1, vmax=1
     ),
     Quantity.SUPERCURRENT: PlotDefault(cmap="inferno", clabel="$|\\vec{{J}}_s|/J_0$"),
     Quantity.NORMAL_CURRENT: PlotDefault(cmap="inferno", clabel="$|\\vec{{J}}_n|/J_0$"),
@@ -65,9 +69,13 @@ PLOT_DEFAULTS = {
     Quantity.INDUCED_VECTOR_POTENTIAL: PlotDefault(
         cmap="cividis", clabel="$a_\\mathrm{{induced}}/(\\xi B_{{c2}})$"
     ),
-    Quantity.EPSILON: PlotDefault(cmap="viridis", clabel="$\\epsilon$"),
+    Quantity.EPSILON: PlotDefault(
+        cmap="viridis", clabel="$\\epsilon$", vmin=-1, vmax=1
+    ),
     Quantity.VORTICITY: PlotDefault(
-        cmap="coolwarm", clabel="$(\\vec{{\\nabla}}\\times\\vec{{J}})\\cdot\\hat{{z}}$"
+        cmap="coolwarm",
+        clabel="$(\\vec{{\\nabla}}\\times\\vec{{J}})\\cdot\\hat{{z}}$",
+        symmetric=True,
     ),
 }
 

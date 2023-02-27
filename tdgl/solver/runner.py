@@ -241,7 +241,7 @@ class Runner:
         )
         # Thermalize if enabled
         if self.options.skip_time:
-            self._run_stage_(
+            self._run_stage(
                 "Thermalizing",
                 start_time=self.time,
                 end_time=self.options.skip_time,
@@ -253,14 +253,14 @@ class Runner:
         self.state["time"] = self.time
         self.state["dt"] = self.options.dt_init
         # Run the simulation
-        self._run_stage_(
+        self._run_stage(
             "Simulating",
             start_time=self.time,
             end_time=self.options.solve_time,
             save=True,
         )
 
-    def _run_stage_(
+    def _run_stage(
         self,
         name: str,
         start_time: float,
