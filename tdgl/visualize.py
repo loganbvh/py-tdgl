@@ -80,6 +80,11 @@ def make_parser():
         help="The last frame to render (-1 indicates the last step in the simulation).",
     )
     animate_parser.add_argument(
+        "--autoscale",
+        action="store_true",
+        help="Autoscale colorbar limits at each frame.",
+    )
+    animate_parser.add_argument(
         "--axes-off",
         action="store_true",
         help="Turn the axes off.",
@@ -116,6 +121,7 @@ def animate_tdgl(args):
         fps=args.fps,
         min_frame=args.min_frame,
         max_frame=args.max_frame,
+        autoscale=args.autoscale,
         axes_off=args.axes_off,
         title_off=args.title_off,
     )

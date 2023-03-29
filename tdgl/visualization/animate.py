@@ -27,6 +27,7 @@ def create_animation(
     max_cols: int = 4,
     min_frame: int = 0,
     max_frame: int = -1,
+    autoscale: bool = False,
     quiver: bool = False,
     axes_off: bool = False,
     title_off: bool = False,
@@ -51,6 +52,7 @@ def create_animation(
         max_cols: The maxiumum number of columns in the subplot grid.
         min_frame: The first frame of the animation.
         max_frame: The last frame of the animation.
+        autoscale: Autoscale colorbar limits at each frame.
         quiver: Add quiver arrows to the plots.
         axes_off: Turn off the axes for each subplot.
         title_off: Turn off the figure suptitle.
@@ -165,11 +167,17 @@ def create_animation(
                     values, direction, _ = get_plot_data(h5file, mesh, quantity, frame)
                     mask = np.abs(values - np.mean(values)) <= 6 * np.std(values)
                     if opts.vmin is None:
-                        vmins[i] = min(vmins[i], np.min(values[mask]))
+                        if autoscale:
+                            vmins[i] = np.min(values[mask])
+                        else:
+                            vmins[i] = min(vmins[i], np.min(values[mask]))
                     else:
                         vmins[i] = opts.vmin
                     if opts.vmax is None:
-                        vmaxs[i] = max(vmaxs[i], np.max(values[mask]))
+                        if autoscale:
+                            vmaxs[i] = np.max(values[mask])
+                        else:
+                            vmaxs[i] = max(vmaxs[i], np.max(values[mask]))
                     else:
                         vmaxs[i] = opts.vmax
                     if opts.symmetric:
