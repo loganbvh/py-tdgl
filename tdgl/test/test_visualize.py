@@ -111,7 +111,8 @@ def test_animation(solution, quantities, ext, max_cols):
         # "order_parameter phase vorticity supercurrent",
     ],
 )
-def test_animate_cli(solution, quantities):
+@pytest.mark.parametrize("autoscale", [True, False])
+def test_animate_cli(solution, quantities, autoscale):
     parser = visualize.make_parser()
     cmd = [
         "--input",
@@ -128,6 +129,8 @@ def test_animate_cli(solution, quantities):
         "--dpi",
         "200",
     ]
+    if autoscale:
+        cmd.append("--autoscale")
     if quantities is not None:
         cmd.extend(["--quantities"] + quantities.split(" "))
     args = parser.parse_args(cmd)
