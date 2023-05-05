@@ -294,5 +294,8 @@ class MeshOperators:
                     self.laplacian_weights * link_variables / areas0,
                     self.laplacian_weights * link_variables.conjugate() / areas1,
                 ]
-            )[free_rows]
+            )
+            if self.fix_psi:
+                values = values[free_rows]
+
             self.psi_laplacian[rows, cols] = values
