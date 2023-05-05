@@ -53,7 +53,7 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
-    terminal_psi: Union[float, complex, None] = None
+    terminal_psi: Union[float, complex, None] = 0.0
     boundary_terminals: bool = True
     save_every: int = 100
     progress_interval: int = 0
