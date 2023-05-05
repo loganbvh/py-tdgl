@@ -25,8 +25,6 @@ class SolverOptions:
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
         terminal_psi: Fixed value for the order parameter in current terminals.
-        boundary_terminals: Only apply source/drain boundary conditions to points
-            on the boundary of the mesh.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
         output_file: Path to an HDF5 file in which to save the data.
@@ -54,7 +52,6 @@ class SolverOptions:
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
     terminal_psi: Union[float, complex, None] = None
-    boundary_terminals: bool = True
     save_every: int = 100
     progress_interval: int = 0
     field_units: str = "mT"
