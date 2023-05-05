@@ -274,7 +274,12 @@ def solve(
     validate_terminal_currents(current_func, terminal_info, options)
 
     # Construct finite-volume operators
-    operators = MeshOperators(mesh, fixed_sites=normal_boundary_index)
+    terminal_psi = options.terminal_psi
+    operators = MeshOperators(
+        mesh,
+        fixed_sites=normal_boundary_index,
+        fix_psi=(terminal_psi is not None),
+    )
     operators.build_operators()
     operators.set_link_exponents(vector_potential)
     divergence = operators.divergence
@@ -283,7 +288,8 @@ def solve(
     mu_gradient = operators.mu_gradient
     # Initialize the order parameter and electric potential
     psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
-    psi_init[normal_boundary_index] = 0
+    if terminal_psi is not None:
+        psi_init[normal_boundary_index] = terminal_psi
     mu_init = np.zeros(len(mesh.sites))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the epsilon parameter, which sets the local critical temperature.

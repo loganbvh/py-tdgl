@@ -178,7 +178,7 @@ def build_neumann_boundary_laplacian(
         # Change the rows corresponding to the fixed sites
         neumann_laplacian[fixed_sites, :] = 0
 
-    return neumann_laplacian.tocsr()
+    return neumann_laplacian.tocsr(copy=False)
 
 
 class MeshOperators:
@@ -191,10 +191,16 @@ class MeshOperators:
             and :math:`\\mu` are fixed as boundary conditions.
     """
 
-    def __init__(self, mesh: Mesh, fixed_sites: Union[np.ndarray, None] = None):
+    def __init__(
+        self,
+        mesh: Mesh,
+        fixed_sites: Union[np.ndarray, None] = None,
+        fix_psi: bool = True,
+    ):
         self.mesh = mesh
         edge_mesh = mesh.edge_mesh
         self.fixed_sites = fixed_sites
+        self.fix_psi = fix_psi
         self.laplacian_free_rows: Union[np.ndarray, None] = None
         self.divergence: Union[sp.spmatrix, None] = None
         self.mu_laplacian: Union[sp.spmatrix, None] = None
@@ -243,11 +249,16 @@ class MeshOperators:
                 link_exponents=link_exponents,
                 weights=self.gradient_weights,
             )
+            if self.fix_psi:
+                fixed_sites = self.fixed_sites
+                free_rows = self.laplacian_free_rows
+            else:
+                fixed_sites = free_rows = None
             self.psi_laplacian, self.laplacian_free_rows = build_laplacian(
                 mesh,
                 link_exponents=link_exponents,
-                fixed_sites=self.fixed_sites,
-                free_rows=self.laplacian_free_rows,
+                fixed_sites=fixed_sites,
+                free_rows=free_rows,
                 weights=self.laplacian_weights,
             )
             return
@@ -271,9 +282,13 @@ class MeshOperators:
             areas0 = mesh.areas[mesh.edge_mesh.edges[:, 0]]
             areas1 = mesh.areas[mesh.edge_mesh.edges[:, 1]]
             # Only update rows that are not fixed by boundary conditions
-            free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
-            rows = self.laplacian_link_rows[free_rows]
-            cols = self.laplacian_link_cols[free_rows]
+            if self.fix_psi:
+                free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
+                rows = self.laplacian_link_rows[free_rows]
+                cols = self.laplacian_link_cols[free_rows]
+            else:
+                rows = self.laplacian_link_rows
+                cols = self.laplacian_link_cols
             values = np.concatenate(
                 [
                     self.laplacian_weights * link_variables / areas0,

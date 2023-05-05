@@ -24,6 +24,9 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
+        terminal_psi: Fixed value for the order parameter in current terminals.
+        boundary_terminals: Only apply source/drain boundary conditions to points
+            on the boundary of the mesh.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
         output_file: Path to an HDF5 file in which to save the data.
@@ -50,6 +53,8 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
+    terminal_psi: Union[float, complex, None] = None
+    boundary_terminals: bool = True
     save_every: int = 100
     progress_interval: int = 0
     field_units: str = "mT"
@@ -64,6 +69,11 @@ class SolverOptions:
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
             raise SolverOptionsError("dt_init must be less than or equal to dt_max.")
+        if self.terminal_psi is not None and not (0 <= abs(self.terminal_psi) <= 1):
+            raise SolverOptionsError(
+                "terminal_psi must be None or have absolute value in [0, 1]"
+                f" (got {self.terminal_psi})."
+            )
         if not (0 < self.adaptive_time_step_multiplier < 1):
             raise SolverOptionsError(
                 "adaptive_time_step_multiplier must be in (0, 1)"
