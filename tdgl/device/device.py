@@ -104,7 +104,6 @@ class Device:
         self._length_units = length_units
 
         self.mesh = None
-        self.mesh_info = None
 
     @property
     def length_units(self) -> str:
@@ -141,7 +140,7 @@ class Device:
     @property
     def kappa(self) -> float:
         """The Ginzburg-Landau parameter, :math:`\\kappa=\\lambda/\\xi`."""
-        return (self.london_lambda / self.coherence_length).magnitude
+        return (self.london_lambda / self.coherence_length).to_base_units().magnitude
 
     @property
     def Bc2(self) -> pint.Quantity:
