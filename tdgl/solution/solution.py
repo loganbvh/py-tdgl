@@ -637,9 +637,7 @@ class Solution:
         J_dot_n = (J_edge * unit_normals).sum(axis=1)
         # Exclude points that are not inside the device.
         in_device = self.device.contains_points(edge_positions)
-        total_current = np.trapz((J_dot_n * edge_lengths)[in_device]).to(
-            units
-        ) / np.sum(in_device)
+        total_current = np.trapz((J_dot_n * edge_lengths)[in_device]).to(units)
         if not with_units:
             total_current = total_current.magnitude
         return total_current
