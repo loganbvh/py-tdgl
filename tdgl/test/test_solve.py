@@ -5,9 +5,10 @@ import tdgl
 from tdgl.solver.options import SolverOptionsError
 
 
-@pytest.mark.parametrize("current", [5.0, 10.0, lambda t: 10])
+@pytest.mark.parametrize("current", [5.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
-def test_source_drain_current(transport_device, current, field):
+@pytest.mark.parametrize("terminal_psi", [None, 0, 1])
+def test_source_drain_current(transport_device, current, field, terminal_psi):
     device = transport_device
     total_time = 100
 
@@ -16,6 +17,7 @@ def test_source_drain_current(transport_device, current, field):
         field_units="uT",
         current_units="uA",
         save_every=100,
+        terminal_psi=terminal_psi,
     )
     if callable(current):
 
@@ -79,6 +81,7 @@ def test_screening(box_device):
 
     for r0 in centers:
         fluxoid = solution.polygon_fluxoid(circle + np.atleast_2d(r0), with_units=False)
+        # Without screening the fluxoid will not be quantized.
         assert abs(sum(fluxoid) / fluxoid.flux_part) >= 2e-2
 
     options.include_screening = True
