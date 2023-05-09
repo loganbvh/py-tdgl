@@ -62,6 +62,7 @@ class SolverOptions:
     screening_tolerance: float = 1e-3
     screening_step_size: float = 1.0
     screening_step_drag: float = 0.5
+    screening_use_jax: bool = False
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:

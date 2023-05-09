@@ -4,6 +4,19 @@ import pytest
 import tdgl
 from tdgl.solver.options import SolverOptionsError
 
+from ..solver.solve import get_A_induced_cpu
+
+
+def test_get_A_induced():
+    nedges = 2000
+    nsites = 1000
+    Jsite = np.random.random((nsites, 2))
+    inv_rho = np.random.random((nedges, nsites))
+
+    A_nb = get_A_induced_cpu(inv_rho, Jsite)
+    A_np = inv_rho @ Jsite
+    assert np.allclose(A_nb, A_np)
+
 
 @pytest.mark.parametrize("current", [5.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
@@ -47,9 +60,10 @@ def test_source_drain_current(transport_device, current, field, terminal_psi):
     assert np.allclose(measured_currents, current, rtol=0.1)
 
 
-def test_screening(box_device):
+@pytest.mark.parametrize("use_jax", [False, True])
+def test_screening(box_device, use_jax):
     device = box_device
-    total_time = 50
+    total_time = 10
 
     with pytest.raises(SolverOptionsError):
         tdgl.SolverOptions(solve_time=total_time, screening_step_size=-1).validate()
@@ -66,6 +80,7 @@ def test_screening(box_device):
         solve_time=total_time,
         field_units="uT",
         current_units="uA",
+        screening_use_jax=use_jax,
     )
     field = tdgl.sources.ConstantField(50)
 

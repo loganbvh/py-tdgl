@@ -3,9 +3,10 @@ import logging
 from datetime import datetime
 from typing import Callable, Dict, Sequence, Tuple, Union
 
+import joblib
+import numba
 import numpy as np
 import scipy.sparse as sp
-from scipy import spatial
 
 try:
     import jax
@@ -13,6 +14,7 @@ try:
 except (ModuleNotFoundError, ImportError):
     jax = None
 
+from .. import distance
 from ..device.device import Device, TerminalInfo
 from ..em import ureg
 from ..finite_volume.operators import MeshOperators
@@ -24,11 +26,19 @@ from .runner import DataHandler, Runner
 
 logger = logging.getLogger(__name__)
 
+_numba_use_parallel = joblib.cpu_count(only_physical_cores=True) > 2
 
-if jax is None:
-    einsum = np.einsum
-else:
-    einsum = jnp.einsum
+
+@numba.njit(fastmath=True, parallel=_numba_use_parallel)
+def get_A_induced_cpu(inv_rho: np.ndarray, J_site_dA: np.ndarray) -> np.ndarray:
+    out = np.empty((inv_rho.shape[0], J_site_dA.shape[1]), dtype=J_site_dA.dtype)
+    for i in numba.prange(inv_rho.shape[0]):
+        for k in range(J_site_dA.shape[1]):
+            element = 0.0
+            for j in range(inv_rho.shape[1]):
+                element += inv_rho[i, j] * J_site_dA[j, k]
+            out[i, k] = element
+    return out
 
 
 def validate_terminal_currents(
@@ -302,18 +312,18 @@ def solve(
 
     if options.include_screening:
         # Pre-compute the kernel for the screening integral.
-        directions = mesh.edge_mesh.directions
-        directions = directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
-        inv_rho = 1 / spatial.distance.cdist(mesh.edge_mesh.centers, mesh.sites)
-        # (edges, sites, spatial dimensions)
-        inv_rho = inv_rho[:, :, np.newaxis] * mesh.areas[np.newaxis, :, np.newaxis]
+        edge_centers = mesh.edge_mesh.centers
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
-        inv_rho *= A_scale
+        inv_rho = A_scale / distance.cdist(edge_centers, sites).astype(np.float32)
+        areas = mesh.areas[:, np.newaxis].astype(np.float32)
 
-        if jax is not None:
-            # Even without a GPU, jax.numpy.einsum seems to be much faster
-            # than numpy.einsum. This may just be because jax uses float32 by default.
-            inv_rho = jax.device_put(inv_rho)
+        if options.screening_use_jax:
+            if jax is None:
+                logger.warning(
+                    "Ignoring options.screening_use_jax because jax is not available."
+                )
+            else:
+                inv_rho = jax.device_put(inv_rho)
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
@@ -392,9 +402,14 @@ def solve(
                 break
 
             # Evaluate the induced vector potential
-            J_site = mesh.get_quantity_on_site(supercurrent + normal_current)
-            # i: edges, j: sites, k: spatial dimensions
-            new_A_induced = np.asarray(einsum("jk, ijk -> ik", J_site, inv_rho))
+            J_site_dA = (
+                mesh.get_quantity_on_site(supercurrent + normal_current) * areas
+            ).astype(np.float32)
+            if options.screening_use_jax and jax is not None:
+                new_A_induced = jnp.matmul(inv_rho, J_site_dA)
+            else:
+                # Use numba
+                new_A_induced = get_A_induced_cpu(inv_rho, J_site_dA)
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
             v.append((1 - drag) * v[-1] + step_size * dA)

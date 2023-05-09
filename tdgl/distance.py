@@ -77,7 +77,8 @@ def cdist(XA: np.ndarray, XB: np.ndarray, metric: str = "euclidean"):
     """Pointwise distance between observations in 2D or 3D space.
 
     This function provides a subset of the functionality of
-    ``scipy.spatial.distance.cdist``.
+    ``scipy.spatial.distance.cdist``. The output array has the same dtype
+    as the first input, XA.
 
     Args:
         XA: An (mA, n) array of observations, where n is 2 or 3.
