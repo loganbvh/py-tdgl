@@ -53,6 +53,7 @@ INSTALL_REQUIRES = [
     "jupyter",
     "matplotlib",
     "meshpy",
+    "numba",
     "numpy",
     "pint",
     "pytest",

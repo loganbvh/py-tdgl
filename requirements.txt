@@ -4,6 +4,7 @@ joblib
 jupyter
 matplotlib
 meshpy
+numba
 numpy
 pint
 pytest

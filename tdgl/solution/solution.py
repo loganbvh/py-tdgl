@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pint
 from scipy import interpolate
-from scipy.spatial import distance
 
+from .. import distance
 from ..about import version_dict
 from ..device.device import Device
 from ..device.polygon import Polygon

@@ -5,6 +5,7 @@ import pint
 from scipy import spatial, special
 from scipy.constants import mu_0
 
+from .distance import pairwise_difference
 from .finite_volume.mesh import Mesh
 
 ureg = pint.UnitRegistry()
@@ -102,9 +103,9 @@ def biot_savart(
     assert current_vectors.shape[-1] == 3
     assert currents.shape[-1] == 1
 
-    dx = np.subtract.outer(eval_positions[:, 0], current_positions[:, 0])
-    dy = np.subtract.outer(eval_positions[:, 1], current_positions[:, 1])
-    dz = np.subtract.outer(eval_positions[:, 2], current_positions[:, 2])
+    dx = pairwise_difference(eval_positions[:, 0], current_positions[:, 0])
+    dy = pairwise_difference(eval_positions[:, 1], current_positions[:, 1])
+    dz = pairwise_difference(eval_positions[:, 2], current_positions[:, 2])
     rprime = np.stack([dx, dy, dz], axis=-1)
     denom = (np.linalg.norm(rprime, axis=-1) ** 3)[:, :, np.newaxis]
     integrand = np.cross(current_vectors, rprime) / denom
@@ -189,9 +190,9 @@ def biot_savart_2d(
     # points for each axis.
     x0, y0 = positions[:, 0], positions[:, 1]
     Jx, Jy = current_densities[:, 0], current_densities[:, 1]
-    dx = np.subtract.outer(x, x0)
-    dy = np.subtract.outer(y, y0)
-    dz = np.subtract.outer(z, z0 * np.ones_like(x0))
+    dx = pairwise_difference(x, x0)
+    dy = pairwise_difference(y, y0)
+    dz = pairwise_difference(z, z0 * np.ones_like(x0))
     if areas is None:
         # Triangulate the current sheet to assign an effective area to each vertex.
         triangles = spatial.Delaunay(positions).simplices
