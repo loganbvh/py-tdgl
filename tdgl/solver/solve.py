@@ -30,14 +30,25 @@ _numba_use_parallel = joblib.cpu_count(only_physical_cores=True) > 2
 
 
 @numba.njit(fastmath=True, parallel=_numba_use_parallel)
-def get_A_induced_cpu(inv_rho: np.ndarray, J_site_dA: np.ndarray) -> np.ndarray:
-    out = np.empty((inv_rho.shape[0], J_site_dA.shape[1]), dtype=J_site_dA.dtype)
-    for i in numba.prange(inv_rho.shape[0]):
-        for k in range(J_site_dA.shape[1]):
-            element = 0.0
-            for j in range(inv_rho.shape[1]):
-                element += inv_rho[i, j] * J_site_dA[j, k]
-            out[i, k] = element
+def fast_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+    """Performs ``A @ B`` for 2D matrices efficiently using numba."""
+    # I have found that pre-allocating ``out`` and passing it in as an argument does
+    # not speed things up very much.
+    # On my M1 MacBook with 10 cores, this function is faster and has lower CPU
+    # utilization than A @ B using numpy. It is also slightly faster than
+    # jax.numpy.matmul(A, B) running on the CPU.
+    # jax.numpy.matmul(A, B) on the GPU is likely the fastest.
+    # Your mileage may vary...
+    assert A.ndim == 2
+    assert B.ndim == 2
+    assert A.shape[1] == B.shape[0]
+    out = np.empty((A.shape[0], B.shape[1]), dtype=A.dtype)
+    for i in numba.prange(A.shape[0]):
+        for j in range(B.shape[1]):
+            tmp = 0.0
+            for k in range(B.shape[0]):
+                tmp += A[i, k] * B[k, j]
+            out[i, j] = tmp
     return out
 
 
@@ -361,10 +372,10 @@ def solve(
         A_induced_vals = []
         v = [0]  # Velocity for Polyak's method
         # This loop runs only once if options.include_screening is False
-        for screening_iterations in itertools.count():
+        for screening_iteration in itertools.count():
             if screening_error < options.screening_tolerance:
                 break  # Screening calculation converged.
-            if screening_iterations > options.max_iterations_per_step:
+            if screening_iteration > options.max_iterations_per_step:
                 raise RuntimeError(
                     f"Screening calculation failed to converge at step {step} after"
                     f" {options.max_iterations_per_step} iterations. Relative error in"
@@ -372,12 +383,12 @@ def solve(
                     f" (tolerance: {options.screening_tolerance:.2e})."
                 )
             if options.include_screening:
-                # If screening is included, update the link variables in the covariant
-                # Laplacian and gradient for psi based on the induced vector potential
-                # from the previous iteration.
+                # Update the link variables in the covariant Laplacian and gradient
+                # for psi based on the induced vector potential from the previous iteration.
                 operators.set_link_exponents(vector_potential + A_induced)
+
             # Adjust the time step and calculate the new the order parameter
-            if screening_iterations == 0:
+            if screening_iteration == 0:
                 # Find a new time step only for the first screening iteration.
                 dt = tentative_dt
             psi, abs_sq_psi, dt = adaptive_euler_step(
@@ -401,15 +412,18 @@ def solve(
             if not options.include_screening:
                 break
 
-            # Evaluate the induced vector potential
+            # Evaluate the induced vector potential.
+            # This matrix multiplication takes the vast majority of the time
+            # during a solve with screening.
             J_site_dA = (
                 mesh.get_quantity_on_site(supercurrent + normal_current) * areas
             ).astype(np.float32)
             if options.screening_use_jax and jax is not None:
-                new_A_induced = jnp.matmul(inv_rho, J_site_dA)
+                new_A_induced = np.asarray(jnp.matmul(inv_rho, J_site_dA))
+            elif options.screening_use_numba:
+                new_A_induced = fast_matmul(inv_rho, J_site_dA)
             else:
-                # Use numba
-                new_A_induced = get_A_induced_cpu(inv_rho, J_site_dA)
+                new_A_induced = inv_rho @ J_site_dA
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
             v.append((1 - drag) * v[-1] + step_size * dA)
@@ -428,7 +442,7 @@ def solve(
             running_state.append("mu", mu[probe_points])
             running_state.append("theta", np.angle(psi[probe_points]))
         if options.include_screening:
-            running_state.append("screening_iterations", screening_iterations)
+            running_state.append("screening_iterations", screening_iteration)
 
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,

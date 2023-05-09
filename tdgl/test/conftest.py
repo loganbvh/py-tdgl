@@ -75,7 +75,7 @@ def transport_device_solution(transport_device):
 
 @pytest.fixture(scope="package")
 def box_device():
-    london_lambda = 0.5
+    london_lambda = 1.0
     xi = 1.5
     d = 0.1
     layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
