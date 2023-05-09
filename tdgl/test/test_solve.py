@@ -44,9 +44,19 @@ def test_source_drain_current(transport_device, current, field, terminal_psi):
 
     else:
         terminal_currents = dict(source=current, drain=-current)
+
+    with pytest.raises(ValueError):
+        solution = tdgl.solve(
+            device,
+            options,
+            disorder_epsilon=2,
+            applied_vector_potential=field,
+            terminal_currents=terminal_currents,
+        )
     solution = tdgl.solve(
         device,
         options,
+        disorder_epsilon=lambda r: 1,
         applied_vector_potential=field,
         terminal_currents=terminal_currents,
     )
@@ -72,6 +82,10 @@ def test_screening(box_device, use_numba, use_jax):
     device = box_device
     total_time = 5
 
+    with pytest.raises(SolverOptionsError):
+        tdgl.SolverOptions(solve_time=total_time, dt_init=1e-3, dt_max=1e-4).validate()
+    with pytest.raises(SolverOptionsError):
+        tdgl.SolverOptions(solve_time=total_time, terminal_psi=2).validate()
     with pytest.raises(SolverOptionsError):
         tdgl.SolverOptions(solve_time=total_time, screening_step_size=-1).validate()
     with pytest.raises(SolverOptionsError):
