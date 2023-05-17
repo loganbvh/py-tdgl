@@ -19,6 +19,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: setup-env
+      run: |
+        echo "OPENBLAS_NUM_THREADS=1" >> $GITHUB_OUTPUT
+        echo "OMP_NUM_THREADS=1" >> $GITHUB_OUTPUT
+        echo "NUMBA_NUM_THREADS=1" >> $GITHUB_OUTPUT
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
@@ -31,7 +36,7 @@ jobs:
     - name: Get pip cache dir
       id: pip-cache
       run: |
-        echo "::set-output name=dir::$(pip cache dir)"
+        echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
     - name: pip cache
       uses: actions/cache@v2
       with:
