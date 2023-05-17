@@ -1,11 +1,8 @@
-import joblib
 import numba
 import numpy as np
 
-_use_parallel = joblib.cpu_count(only_physical_cores=True) > 2
 
-
-@numba.njit(fastmath=True, parallel=_use_parallel)
+@numba.njit(fastmath=True, parallel=True)
 def pairwise_difference(xA: np.ndarray, xB: np.ndarray):
     """Pairwise different between two 1D arrays.
 
@@ -25,7 +22,7 @@ def pairwise_difference(xA: np.ndarray, xB: np.ndarray):
     return out
 
 
-@numba.njit(fastmath=True, parallel=_use_parallel)
+@numba.njit(fastmath=True, parallel=True)
 def sqeuclidean_distance_2d(XA: np.ndarray, XB: np.ndarray):
     """Squared Euclidean pointwise distance between two 2D arrays."""
     out = np.empty((XA.shape[0], XB.shape[0]), dtype=XA.dtype)
@@ -35,7 +32,7 @@ def sqeuclidean_distance_2d(XA: np.ndarray, XB: np.ndarray):
     return out
 
 
-@numba.njit(fastmath=True, parallel=_use_parallel)
+@numba.njit(fastmath=True, parallel=True)
 def sqeuclidean_distance_3d(XA: np.ndarray, XB: np.ndarray):
     """Squared Euclidean pointwise distance between two 3D arrays."""
     out = np.empty((XA.shape[0], XB.shape[0]), dtype=XA.dtype)
@@ -49,7 +46,7 @@ def sqeuclidean_distance_3d(XA: np.ndarray, XB: np.ndarray):
     return out
 
 
-@numba.njit(fastmath=True, parallel=_use_parallel)
+@numba.njit(fastmath=True, parallel=True)
 def euclidean_distance_2d(XA: np.ndarray, XB: np.ndarray):
     """Euclidean pointwise distance between two 2D arrays."""
     out = np.empty((XA.shape[0], XB.shape[0]), dtype=XA.dtype)
@@ -59,7 +56,7 @@ def euclidean_distance_2d(XA: np.ndarray, XB: np.ndarray):
     return out
 
 
-@numba.njit(fastmath=True, parallel=_use_parallel)
+@numba.njit(fastmath=True, parallel=True)
 def euclidean_distance_3d(XA: np.ndarray, XB: np.ndarray):
     """Euclidean pointwise distance between two 3D arrays."""
     out = np.empty((XA.shape[0], XB.shape[0]), dtype=XA.dtype)

@@ -3,7 +3,6 @@ import logging
 from datetime import datetime
 from typing import Callable, Dict, Sequence, Tuple, Union
 
-import joblib
 import numba
 import numpy as np
 import scipy.sparse as sp
@@ -26,29 +25,41 @@ from .runner import DataHandler, Runner
 
 logger = logging.getLogger(__name__)
 
-_numba_use_parallel = joblib.cpu_count(only_physical_cores=True) > 2
 
+@numba.njit(fastmath=True, parallel=True)
+def get_A_induced_numba(
+    J_site: np.ndarray,
+    areas: np.ndarray,
+    sites: np.ndarray,
+    edge_centers: np.ndarray,
+) -> np.ndarray:
+    """Calculates the induced vector potential on the mesh edges.
 
-@numba.njit(fastmath=True, parallel=_numba_use_parallel)
-def fast_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
-    """Performs ``A @ B`` for 2D matrices efficiently using numba."""
-    # I have found that pre-allocating ``out`` and passing it in as an argument does
-    # not speed things up very much.
-    # On my M1 MacBook with 10 cores, this function is faster and has lower CPU
-    # utilization than A @ B using numpy. It is also slightly faster than
-    # jax.numpy.matmul(A, B) running on the CPU.
-    # jax.numpy.matmul(A, B) on the GPU is likely the fastest.
-    # Your mileage may vary...
-    assert A.ndim == 2
-    assert B.ndim == 2
-    assert A.shape[1] == B.shape[0]
-    out = np.empty((A.shape[0], B.shape[1]), dtype=A.dtype)
-    for i in numba.prange(A.shape[0]):
-        for j in range(B.shape[1]):
+    Args:
+        J_site: The current density on the sites, shape ``(n, )``
+        areas: The mesh site areas, shape ``(n, )``
+        sites: The mesh site coordinates, shape ``(n, 2)``
+        edge_centers: The coordinates of the edge centers, shape ``(m, 2)``
+
+    Returns:
+        The induced vector potential on the mesh edges.
+    """
+    assert J_site.ndim == 2
+    assert J_site.shape[1] == 2
+    assert sites.shape == J_site.shape
+    assert edge_centers.ndim == 2
+    assert edge_centers.shape[1] == 2
+    out = np.empty((edge_centers.shape[0], sites.shape[1]), dtype=J_site.dtype)
+    for i in numba.prange(edge_centers.shape[0]):
+        for k in range(J_site.shape[1]):
             tmp = 0.0
-            for k in range(B.shape[0]):
-                tmp += A[i, k] * B[k, j]
-            out[i, j] = tmp
+            for j in range(J_site.shape[0]):
+                dr = np.sqrt(
+                    (edge_centers[i, 0] - sites[j, 0]) ** 2
+                    + (edge_centers[i, 1] - sites[j, 1]) ** 2
+                )
+                tmp += J_site[j, k] * areas[j] / dr
+            out[i, k] = tmp
     return out
 
 
@@ -322,19 +333,23 @@ def solve(
         raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
 
     if options.include_screening:
-        # Pre-compute the kernel for the screening integral.
-        edge_centers = mesh.edge_mesh.centers
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
-        inv_rho = A_scale / distance.cdist(edge_centers, sites).astype(np.float32)
-        areas = mesh.areas[:, np.newaxis].astype(np.float32)
+        areas = A_scale * mesh.areas
+        edge_centers = mesh.edge_mesh.centers
+        if not options.screening_use_numba:
+            # Pre-compute the kernel for the screening integral.
+            inv_rho = A_scale / distance.cdist(
+                edge_centers.astype(np.float32), sites.astype(np.float32)
+            )
+            areas = areas[:, np.newaxis].astype(np.float32)
 
-        if options.screening_use_jax:
-            if jax is None:
-                logger.warning(
-                    "Ignoring options.screening_use_jax because jax is not available."
-                )
-            else:
-                inv_rho = jax.device_put(inv_rho)
+            if options.screening_use_jax:
+                if jax is None:
+                    logger.warning(
+                        "Ignoring options.screening_use_jax because jax is not available."
+                    )
+                else:
+                    inv_rho = jax.device_put(inv_rho)
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
@@ -415,15 +430,13 @@ def solve(
             # Evaluate the induced vector potential.
             # This matrix multiplication takes the vast majority of the time
             # during a solve with screening.
-            J_site_dA = (
-                mesh.get_quantity_on_site(supercurrent + normal_current) * areas
-            ).astype(np.float32)
-            if options.screening_use_jax and jax is not None:
-                new_A_induced = np.asarray(jnp.matmul(inv_rho, J_site_dA))
-            elif options.screening_use_numba:
-                new_A_induced = fast_matmul(inv_rho, J_site_dA)
+            J_site = mesh.get_quantity_on_site(supercurrent + normal_current)
+            if options.screening_use_numba:
+                new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
+            elif options.screening_use_jax and jax is not None:
+                new_A_induced = np.asarray(jnp.matmul(inv_rho, J_site * areas))
             else:
-                new_A_induced = inv_rho @ J_site_dA
+                new_A_induced = np.matmul(inv_rho, J_site * areas)
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
             v.append((1 - drag) * v[-1] + step_size * dA)

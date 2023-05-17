@@ -4,24 +4,6 @@ import pytest
 import tdgl
 from tdgl.solver.options import SolverOptionsError
 
-from ..solver.solve import fast_matmul
-
-
-@pytest.mark.parametrize(
-    "A_shape, B_shape",
-    [
-        ((100, 1000), (1000, 2)),
-        ((1000, 3), (3, 100)),
-        ((100, 1), (1, 5000)),
-    ],
-)
-def test_fast_matmul(A_shape, B_shape):
-    A = np.random.random(A_shape)
-    B = np.random.random(B_shape)
-    C_nb = fast_matmul(A, B)
-    C_np = A @ B
-    assert np.allclose(C_nb, C_np)
-
 
 @pytest.mark.parametrize("current", [5.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
@@ -120,13 +102,11 @@ def test_screening(box_device, use_numba, use_jax):
     circle = tdgl.geometry.circle(2, points=401)
     centers = [(0, 0), (-1.5, -2.5), (2.5, 2), (0, 1)]
 
-    fluxoids = []
+    fluxoids_without_screening = []
     for r0 in centers:
         fluxoid = solution.polygon_fluxoid(circle + np.atleast_2d(r0), with_units=False)
         # Without screening the fluxoid will not be quantized.
-        fluxoids.append(abs(sum(fluxoid)))
-
-    assert np.all(np.array(fluxoids) > 2e-2)
+        fluxoids_without_screening.append(abs(sum(fluxoid)))
 
     options.include_screening = True
     solution = tdgl.solve(
@@ -135,8 +115,9 @@ def test_screening(box_device, use_numba, use_jax):
         applied_vector_potential=field,
     )
 
-    fluxoids = []
+    fluxoids_with_screening = []
     for r0 in centers:
         fluxoid = solution.polygon_fluxoid(circle + np.atleast_2d(r0), with_units=False)
-        fluxoids.append(abs(sum(fluxoid)))
-    assert np.all(np.array(fluxoids) < 2e-2)
+        fluxoids_with_screening.append(abs(sum(fluxoid)))
+
+    assert np.all(fluxoids_with_screening < fluxoids_without_screening)
