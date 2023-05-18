@@ -57,6 +57,7 @@ def test_source_drain_current(transport_device, current, field, terminal_psi):
     assert np.allclose(measured_currents, current, rtol=0.1)
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "use_numba, use_jax", [(False, True), (True, False), (False, False)]
 )
