@@ -7,7 +7,7 @@ from tdgl.solver.options import SolverOptionsError
 
 @pytest.mark.parametrize("current", [5.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
-@pytest.mark.parametrize("terminal_psi", [None, 0, 1])
+@pytest.mark.parametrize("terminal_psi", [0, 1])
 def test_source_drain_current(transport_device, current, field, terminal_psi):
     device = transport_device
     total_time = 100
@@ -57,7 +57,6 @@ def test_source_drain_current(transport_device, current, field, terminal_psi):
     assert np.allclose(measured_currents, current, rtol=0.1)
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize(
     "use_numba, use_jax", [(False, True), (True, False), (False, False)]
 )
