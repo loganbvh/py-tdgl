@@ -15,15 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10']
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
 
     steps:
     - uses: actions/checkout@v3
     - name: setup-env
       run: |
-        echo "OPENBLAS_NUM_THREADS=1" >> $GITHUB_OUTPUT
-        echo "OMP_NUM_THREADS=1" >> $GITHUB_OUTPUT
-        echo "NUMBA_NUM_THREADS=1" >> $GITHUB_OUTPUT
+        echo "OPENBLAS_NUM_THREADS=2" >> $GITHUB_OUTPUT
+        echo "OMP_NUM_THREADS=2" >> $GITHUB_OUTPUT
+        echo "NUMBA_NUM_THREADS=2" >> $GITHUB_OUTPUT
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
