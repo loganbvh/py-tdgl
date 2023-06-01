@@ -3,9 +3,9 @@ import logging
 from datetime import datetime
 from typing import Callable, Dict, Sequence, Tuple, Union
 
+import numba
 import numpy as np
 import scipy.sparse as sp
-from scipy import spatial
 
 try:
     import jax
@@ -13,6 +13,7 @@ try:
 except (ModuleNotFoundError, ImportError):
     jax = None
 
+from .. import distance
 from ..device.device import Device, TerminalInfo
 from ..em import ureg
 from ..finite_volume.operators import MeshOperators
@@ -25,10 +26,41 @@ from .runner import DataHandler, Runner
 logger = logging.getLogger(__name__)
 
 
-if jax is None:
-    einsum = np.einsum
-else:
-    einsum = jnp.einsum
+@numba.njit(fastmath=True, parallel=True)
+def get_A_induced_numba(
+    J_site: np.ndarray,
+    areas: np.ndarray,
+    sites: np.ndarray,
+    edge_centers: np.ndarray,
+) -> np.ndarray:
+    """Calculates the induced vector potential on the mesh edges.
+
+    Args:
+        J_site: The current density on the sites, shape ``(n, )``
+        areas: The mesh site areas, shape ``(n, )``
+        sites: The mesh site coordinates, shape ``(n, 2)``
+        edge_centers: The coordinates of the edge centers, shape ``(m, 2)``
+
+    Returns:
+        The induced vector potential on the mesh edges.
+    """
+    assert J_site.ndim == 2
+    assert J_site.shape[1] == 2
+    assert sites.shape == J_site.shape
+    assert edge_centers.ndim == 2
+    assert edge_centers.shape[1] == 2
+    out = np.empty((edge_centers.shape[0], sites.shape[1]), dtype=J_site.dtype)
+    for i in numba.prange(edge_centers.shape[0]):
+        for k in range(J_site.shape[1]):
+            tmp = 0.0
+            for j in range(J_site.shape[0]):
+                dr = np.sqrt(
+                    (edge_centers[i, 0] - sites[j, 0]) ** 2
+                    + (edge_centers[i, 1] - sites[j, 1]) ** 2
+                )
+                tmp += J_site[j, k] * areas[j] / dr
+            out[i, k] = tmp
+    return out
 
 
 def validate_terminal_currents(
@@ -274,7 +306,12 @@ def solve(
     validate_terminal_currents(current_func, terminal_info, options)
 
     # Construct finite-volume operators
-    operators = MeshOperators(mesh, fixed_sites=normal_boundary_index)
+    terminal_psi = options.terminal_psi
+    operators = MeshOperators(
+        mesh,
+        fixed_sites=normal_boundary_index,
+        fix_psi=(terminal_psi is not None),
+    )
     operators.build_operators()
     operators.set_link_exponents(vector_potential)
     divergence = operators.divergence
@@ -283,7 +320,8 @@ def solve(
     mu_gradient = operators.mu_gradient
     # Initialize the order parameter and electric potential
     psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
-    psi_init[normal_boundary_index] = 0
+    if terminal_psi is not None:
+        psi_init[normal_boundary_index] = terminal_psi
     mu_init = np.zeros(len(mesh.sites))
     mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
     # Create the epsilon parameter, which sets the local critical temperature.
@@ -295,19 +333,23 @@ def solve(
         raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
 
     if options.include_screening:
-        # Pre-compute the kernel for the screening integral.
-        directions = mesh.edge_mesh.directions
-        directions = directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
-        inv_rho = 1 / spatial.distance.cdist(mesh.edge_mesh.centers, mesh.sites)
-        # (edges, sites, spatial dimensions)
-        inv_rho = inv_rho[:, :, np.newaxis] * mesh.areas[np.newaxis, :, np.newaxis]
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
-        inv_rho *= A_scale
+        areas = A_scale * mesh.areas
+        edge_centers = mesh.edge_mesh.centers
+        if not options.screening_use_numba:
+            # Pre-compute the kernel for the screening integral.
+            inv_rho = A_scale / distance.cdist(
+                edge_centers.astype(np.float32), sites.astype(np.float32)
+            )
+            areas = areas[:, np.newaxis].astype(np.float32)
 
-        if jax is not None:
-            # Even without a GPU, jax.numpy.einsum seems to be much faster
-            # than numpy.einsum. This may just be because jax uses float32 by default.
-            inv_rho = jax.device_put(inv_rho)
+            if options.screening_use_jax:
+                if jax is None:
+                    logger.warning(
+                        "Ignoring options.screening_use_jax because jax is not available."
+                    )
+                else:
+                    inv_rho = jax.device_put(inv_rho)
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
@@ -345,10 +387,10 @@ def solve(
         A_induced_vals = []
         v = [0]  # Velocity for Polyak's method
         # This loop runs only once if options.include_screening is False
-        for screening_iterations in itertools.count():
+        for screening_iteration in itertools.count():
             if screening_error < options.screening_tolerance:
                 break  # Screening calculation converged.
-            if screening_iterations > options.max_iterations_per_step:
+            if screening_iteration > options.max_iterations_per_step:
                 raise RuntimeError(
                     f"Screening calculation failed to converge at step {step} after"
                     f" {options.max_iterations_per_step} iterations. Relative error in"
@@ -356,12 +398,12 @@ def solve(
                     f" (tolerance: {options.screening_tolerance:.2e})."
                 )
             if options.include_screening:
-                # If screening is included, update the link variables in the covariant
-                # Laplacian and gradient for psi based on the induced vector potential
-                # from the previous iteration.
+                # Update the link variables in the covariant Laplacian and gradient
+                # for psi based on the induced vector potential from the previous iteration.
                 operators.set_link_exponents(vector_potential + A_induced)
+
             # Adjust the time step and calculate the new the order parameter
-            if screening_iterations == 0:
+            if screening_iteration == 0:
                 # Find a new time step only for the first screening iteration.
                 dt = tentative_dt
             psi, abs_sq_psi, dt = adaptive_euler_step(
@@ -385,10 +427,16 @@ def solve(
             if not options.include_screening:
                 break
 
-            # Evaluate the induced vector potential
+            # Evaluate the induced vector potential.
+            # This matrix multiplication takes the vast majority of the time
+            # during a solve with screening.
             J_site = mesh.get_quantity_on_site(supercurrent + normal_current)
-            # i: edges, j: sites, k: spatial dimensions
-            new_A_induced = np.asarray(einsum("jk, ijk -> ik", J_site, inv_rho))
+            if options.screening_use_numba:
+                new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
+            elif options.screening_use_jax and jax is not None:
+                new_A_induced = np.asarray(jnp.matmul(inv_rho, J_site * areas))
+            else:
+                new_A_induced = np.matmul(inv_rho, J_site * areas)
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
             v.append((1 - drag) * v[-1] + step_size * dA)
@@ -407,7 +455,7 @@ def solve(
             running_state.append("mu", mu[probe_points])
             running_state.append("theta", np.angle(psi[probe_points]))
         if options.include_screening:
-            running_state.append("screening_iterations", screening_iterations)
+            running_state.append("screening_iterations", screening_iteration)
 
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,

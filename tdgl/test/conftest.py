@@ -75,11 +75,11 @@ def transport_device_solution(transport_device):
 
 @pytest.fixture(scope="package")
 def box_device():
-    london_lambda = 1.5
+    london_lambda = 1.0
     xi = 1.5
     d = 0.1
     layer = tdgl.Layer(coherence_length=xi, london_lambda=london_lambda, thickness=d)
-    film = tdgl.Polygon("film", points=box(10))
+    film = tdgl.Polygon("film", points=box(10)).resample(501)
     device = tdgl.Device("film", layer=layer, film=film)
     device.make_mesh(min_points=2000, smooth=40, max_edge_length=xi / 2)
     return device

@@ -15,10 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10']
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
 
     steps:
     - uses: actions/checkout@v3
+    - name: setup-env
+      run: |
+        echo "OPENBLAS_NUM_THREADS=2" >> $GITHUB_OUTPUT
+        echo "OMP_NUM_THREADS=2" >> $GITHUB_OUTPUT
+        echo "NUMBA_NUM_THREADS=2" >> $GITHUB_OUTPUT
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
@@ -31,7 +36,7 @@ jobs:
     - name: Get pip cache dir
       id: pip-cache
       run: |
-        echo "::set-output name=dir::$(pip cache dir)"
+        echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
     - name: pip cache
       uses: actions/cache@v2
       with:
@@ -52,7 +57,7 @@ jobs:
         flake8 . --count --exit-zero --select=C,E,F,W,B,B950 --extend-ignore=E203,E501,W503 --max-complexity=18 --max-line-length=88 --statistics
     - name: Test with pytest
       run: |
-        pytest --cov=./ --cov-report=xml
+        pytest -v --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:

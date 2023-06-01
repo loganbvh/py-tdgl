@@ -24,6 +24,7 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
+        terminal_psi: Fixed value for the order parameter in current terminals.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
         output_file: Path to an HDF5 file in which to save the data.
@@ -40,6 +41,8 @@ class SolverOptions:
             step.
         screening_step_size: Step size :math:`\\alpha` for Polyak's method.
         screening_step_drag: Drag parameter :math:`\\beta` for Polyak's method.
+        screening_use_numba: Use numba for the screening calculation.
+        screening_use_jax: Use jax for the screenig calculation.
     """
 
     solve_time: float
@@ -50,6 +53,7 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
+    terminal_psi: Union[float, complex, None] = 0.0
     save_every: int = 100
     progress_interval: int = 0
     field_units: str = "mT"
@@ -60,10 +64,17 @@ class SolverOptions:
     screening_tolerance: float = 1e-3
     screening_step_size: float = 1.0
     screening_step_drag: float = 0.5
+    screening_use_numba: bool = True
+    screening_use_jax: bool = False
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
             raise SolverOptionsError("dt_init must be less than or equal to dt_max.")
+        if self.terminal_psi is not None and not (0 <= abs(self.terminal_psi) <= 1):
+            raise SolverOptionsError(
+                "terminal_psi must be None or have absolute value in [0, 1]"
+                f" (got {self.terminal_psi})."
+            )
         if not (0 < self.adaptive_time_step_multiplier < 1):
             raise SolverOptionsError(
                 "adaptive_time_step_multiplier must be in (0, 1)"
@@ -83,4 +94,8 @@ class SolverOptions:
             raise SolverOptionsError(
                 "screening_tolerance must be in > 0"
                 f" (got {self.screening_tolerance})."
+            )
+        if self.screening_use_jax and self.screening_use_numba:
+            raise SolverOptionsError(
+                "screening_use_jax and screening_use_numba cannot both be true."
             )

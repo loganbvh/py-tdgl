@@ -598,7 +598,7 @@ class Polygon:
         )
 
     def __repr__(self) -> str:
-        name = f'"{self.name}"' if self.name is not None else None
+        name = f"{self.name!r}" if self.name is not None else None
         return (
             f"{self.__class__.__name__}(name={name}, "
             f"points=<ndarray: shape={self.points.shape}>, mesh={self.mesh})"
