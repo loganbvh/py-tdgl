@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from contextlib import contextmanager, nullcontext
 from operator import attrgetter, itemgetter
 from typing import Any, Dict, List, NamedTuple, Sequence, Tuple, Union
@@ -521,6 +522,7 @@ class Device:
             **meshpy_kwargs: Passed to meshpy.triangle.build().
         """
         logger.info("Generating mesh...")
+        t0 = time.perf_counter()
         if max_edge_length is None:
             max_edge_length = 1.0 * self.coherence_length.magnitude
         points, triangles = generate_mesh(
@@ -537,11 +539,13 @@ class Device:
             ).smooth(smooth, create_submesh=False)
             points = mesh.sites
             triangles = mesh.elements
+        self._create_dimensionless_mesh(points, triangles)
+        t1 = time.perf_counter()
         logger.info(
             f"Finished generating mesh with {len(points)} points and "
             f"{len(triangles)} triangles."
         )
-        self._create_dimensionless_mesh(points, triangles)
+        logger.info(f"Total mesh generation time: {(t1 - t0):.3f} seconds")
 
     def _create_dimensionless_mesh(
         self, points: np.ndarray, triangles: np.ndarray
