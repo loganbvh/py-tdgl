@@ -112,10 +112,9 @@ def generate_mesh(
         points = np.array(mesh.points) + r0
         triangles = np.array(mesh.elements)
         max_length = get_edge_lengths(points, triangles).max()
-        logger.debug(
-            f"Iteration {i}: Made mesh with {len(points)} points and "
-            f"{len(triangles)} triangles with maximum edge length: "
-            f"{max_length:.2e}. Target maximum edge length: {max_edge_length:.2e}."
+        logger.info(
+            f"Iteration {i}: {len(points)} points, {len(triangles)} triangles,"
+            f" max_edge_length: {max_length:.1e} (target: {max_edge_length:.1e})."
         )
         if np.isfinite(max_edge_length):
             kwargs["max_volume"] *= min(0.98, np.sqrt(max_edge_length / max_length))
