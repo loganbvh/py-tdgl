@@ -1,14 +1,13 @@
 import logging
-import multiprocessing as mp
-from functools import partial
+from collections import defaultdict
 from typing import List, Tuple
 
-import joblib
 import numpy as np
 import scipy.sparse as sp
 from scipy.spatial import ConvexHull, Delaunay, QhullError
 from shapely.geometry import MultiLineString
 from shapely.ops import orient, polygonize
+from tqdm import tqdm
 
 logger = logging.getLogger("tdgl.finite_volume")
 
@@ -113,48 +112,54 @@ def generate_voronoi_vertices(
     return np.array([Ux, Uy]).T + A
 
 
-def _get_polygon_indices(
-    elements: np.ndarray, site_index: int
-) -> Tuple[int, np.ndarray]:
-    """Helper function for get_voronoi_polygon_indices()."""
-    return np.where((elements == site_index).any(axis=1))[0]
+def make_adj_directed_tri_indices(elements: np.ndarray, num_sites: int) -> sp.csc_array:
+    """Construct the directed adjacency matrix.
+
+    Each element (i, j) represents an edge in the mesh, and the value at (i, j)
+    is 1 + the index of a triangle containing that edge.
+
+    Args:
+        elements: The triangle indices, shape ``(m, 3)``
+        num_sites: The number of sites in the mesh
+
+    Returns:
+        A directed adjacency matrix containing triangle indices + 1
+    """
+    t0 = elements[:, 0]
+    t1 = elements[:, 1]
+    t2 = elements[:, 2]
+    i = np.column_stack((t0, t1, t2)).reshape(-1)
+    j = np.column_stack((t1, t2, t0)).reshape(-1)
+    # store triangle index + 1 (zero means no edge connecting i and j)
+    data = np.repeat(np.arange(1, elements.shape[0] + 1), 3)
+    return sp.csc_array((data, (i, j)), shape=(num_sites, num_sites))
 
 
 def get_voronoi_polygon_indices(
-    elements: np.ndarray,
-    num_sites: int,
-    parallel: bool = True,
-    min_sites_for_multiprocessing: int = 10_000,
+    elements: np.ndarray, num_sites: int
 ) -> List[np.ndarray]:
     """Find the polygons surrounding each site.
+
+    The indices of the Voronoi vertices surrounding each site are the
+    same as the indices of the triangles adjacent to each site.
 
     Args:
         elements: The triangular elements in the tesselation.
         num_sites: The number of sites
-        parallel: If True and the number of sites is greater than
-            ``min_sites_for_multiprocessing``, then use multiprocessing.
-        min_sites_for_multiprocessing: If ``parallel`` is True and ``num_sites``
-            is greater than this value, then use multiprocessing.
 
     Returns:
         A list of arrays of Voronoi polygon indices.
     """
-    # Iterate over all sites and find the triangles that the site belongs to
-    # The indices for the triangles are the same as the indices for the
-    # Voronoi lattice
-    # This is by far the costliest step in Mesh.from_triangulation(),
-    # so by default we will use multiprocessing if there are many sites.
-    if (
-        parallel
-        and (ncpus := joblib.cpu_count(only_physical_cores=True)) > 1
-        and num_sites > min_sites_for_multiprocessing
-    ):
-        with mp.Pool(processes=ncpus) as pool:
-            results = pool.map(
-                partial(_get_polygon_indices, elements), range(num_sites)
-            )
-        return results
-    return [np.where((elements == i).any(axis=1))[0] for i in range(num_sites)]
+    adj = make_adj_directed_tri_indices(elements, num_sites)
+    edges = np.array(adj.nonzero()).T
+    voronoi_indices = defaultdict(set)
+    for i, j in tqdm(edges, desc="Finding Voronoi indices"):
+        tri = adj[i, j] - 1
+        voronoi_indices[i].add(tri)
+        voronoi_indices[j].add(tri)
+    voronoi_indices = dict(voronoi_indices)
+    voronoi_indices = [np.sort(list(voronoi_indices[i])) for i in range(num_sites)]
+    return voronoi_indices
 
 
 def compute_voronoi_polygon_areas(
@@ -187,7 +192,9 @@ def compute_voronoi_polygon_areas(
     boundary_edges = edges[boundary_edge_indices]
     areas = np.zeros(len(polygons), dtype=float)
     voronoi_sites = []
-    for site, polygon in enumerate(polygons):
+    for site, polygon in enumerate(
+        tqdm(polygons, desc="Constructing Voronoi polygons")
+    ):
         # Get the polygon points
         poly = dual_sites[polygon]
         # Polygon vertices may end up very close (e.g. delta = 2e-17) due to floating
