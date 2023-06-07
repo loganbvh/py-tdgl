@@ -1,14 +1,13 @@
 import logging
-import multiprocessing as mp
-from functools import partial
+from collections import defaultdict
 from typing import List, Tuple
 
-import joblib
 import numpy as np
 import scipy.sparse as sp
 from scipy.spatial import ConvexHull, Delaunay, QhullError
 from shapely.geometry import MultiLineString
 from shapely.ops import orient, polygonize
+from tqdm import tqdm
 
 logger = logging.getLogger("tdgl.finite_volume")
 
@@ -17,7 +16,7 @@ def get_edges(elements: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Finds the edges from a list of triangle indices.
 
     Args:
-        elements: The triangle indices, shape ``(n, 3)``.
+        elements: The triangle indices, shape ``(n, 3)``
 
     Returns:
         A tuple containing an integer array of edges and a boolean array
@@ -33,14 +32,28 @@ def get_edge_lengths(points: np.ndarray, elements: np.ndarray) -> np.ndarray:
     """Returns the lengths of all edges in a triangulation.
 
     Args:
-        points: Vertex coordinates.
-        elements: Triangle indices.
+        points: Vertex coordinates
+        elements: Triangle indices
 
     Returns:
-        An array of edge lengths.
+        An array of edge lengths
     """
     edges, _ = get_edges(elements)
     return np.linalg.norm(np.diff(points[edges], axis=1), axis=2).squeeze()
+
+
+def get_max_edge_length(points: np.ndarray, elements: np.ndarray) -> float:
+    """Returns the maximum edge length in a triangulation.
+
+    Args:
+        points: Vertex coordinates
+        elements: Triangle indices
+
+    Returns:
+        The maximum edge length
+    """
+    edges = np.concatenate([elements[:, e] for e in [(0, 1), (1, 2), (2, 0)]])
+    return np.linalg.norm(np.diff(points[edges], axis=1), axis=2).max()
 
 
 def get_dual_edge_lengths(
@@ -48,6 +61,7 @@ def get_dual_edge_lengths(
     elements: np.ndarray,
     dual_sites: np.ndarray,
     edges: np.ndarray,
+    num_sites: float,
 ) -> np.ndarray:
     """
     Compute the lengths of the dual edges.
@@ -57,29 +71,26 @@ def get_dual_edge_lengths(
         elements: The triangular elements in the tesselation.
         dual_sites: The (x, y) coordinates for the dual mesh (Voronoi sites).
         edges: The edges connecting the sites.
+        num_sites: The number of sites in the mesh.
 
     Returns:
         An array of dual edge lengths.
     """
     # Create a dict with keys corresponding to the edges and values
-    # corresponding to the triangles
-    edge_to_element = {}
-    # Iterate over all elements to create the edge_to_element dict
-    edge_element_indices = [[0, 1], [1, 2], [2, 0]]
-    for i, element in enumerate(elements):
-        for idx in edge_element_indices:
-            # Make the array hashable by converting it to a tuple
-            edge = tuple(np.sort(element[idx]))
-            if edge in edge_to_element:
-                edge_to_element[edge].append(i)
-            else:
-                edge_to_element[edge] = [i]
+    # corresponding to the triangle indices
+    adj = make_adj_directed_tri_indices(elements, num_sites)
+    edge_to_element = defaultdict(list)
+    for i, j, v in zip(*sp.find(adj)):
+        # The triangle index is the entry in the adjacency matrix minus 1
+        edge_to_element[frozenset((i, j))].append(v - 1)
+    edge_to_element = dict(edge_to_element)
+
     dual_lengths = np.zeros(len(edge_centers), dtype=float)
     for i, edge in enumerate(edges):
-        indices = edge_to_element[tuple(edge)]
-        if len(indices) == 1:  # Boundary edges
+        indices = edge_to_element[frozenset(edge)]
+        if len(indices) == 1:  # Boundary edge
             dual_lengths[i] = np.linalg.norm(dual_sites[indices[0]] - edge_centers[i])
-        else:  # Inner edges
+        else:  # Inner edge
             dual_lengths[i] = np.linalg.norm(
                 dual_sites[indices[0]] - dual_sites[indices[1]]
             )
@@ -113,48 +124,46 @@ def generate_voronoi_vertices(
     return np.array([Ux, Uy]).T + A
 
 
-def _get_polygon_indices(
-    elements: np.ndarray, site_index: int
-) -> Tuple[int, np.ndarray]:
-    """Helper function for get_voronoi_polygon_indices()."""
-    return np.where((elements == site_index).any(axis=1))[0]
+def make_adj_directed_tri_indices(elements: np.ndarray, num_sites: int) -> sp.csc_array:
+    """Construct the directed adjacency matrix.
+
+    Each element (i, j) represents an edge in the mesh, and the value at (i, j)
+    is 1 + the index of a triangle containing that edge.
+
+    Args:
+        elements: The triangle indices, shape ``(m, 3)``
+        num_sites: The number of sites in the mesh
+
+    Returns:
+        A directed adjacency matrix containing triangle indices + 1
+    """
+    t0 = elements[:, 0]
+    t1 = elements[:, 1]
+    t2 = elements[:, 2]
+    i = np.column_stack([t0, t1, t2]).ravel()
+    j = np.column_stack([t1, t2, t0]).ravel()
+    # store triangle index + 1 (zero means no edge connecting i and j)
+    data = np.repeat(np.arange(1, elements.shape[0] + 1), 3)
+    return sp.csc_array((data, (i, j)), shape=(num_sites, num_sites))
 
 
 def get_voronoi_polygon_indices(
-    elements: np.ndarray,
-    num_sites: int,
-    parallel: bool = True,
-    min_sites_for_multiprocessing: int = 10_000,
+    elements: np.ndarray, num_sites: int
 ) -> List[np.ndarray]:
     """Find the polygons surrounding each site.
+
+    The indices of the Voronoi vertices surrounding each site are the
+    same as the indices of the triangles adjacent to each site.
 
     Args:
         elements: The triangular elements in the tesselation.
         num_sites: The number of sites
-        parallel: If True and the number of sites is greater than
-            ``min_sites_for_multiprocessing``, then use multiprocessing.
-        min_sites_for_multiprocessing: If ``parallel`` is True and ``num_sites``
-            is greater than this value, then use multiprocessing.
 
     Returns:
         A list of arrays of Voronoi polygon indices.
     """
-    # Iterate over all sites and find the triangles that the site belongs to
-    # The indices for the triangles are the same as the indices for the
-    # Voronoi lattice
-    # This is by far the costliest step in Mesh.from_triangulation(),
-    # so by default we will use multiprocessing if there are many sites.
-    if (
-        parallel
-        and (ncpus := joblib.cpu_count(only_physical_cores=True)) > 1
-        and num_sites > min_sites_for_multiprocessing
-    ):
-        with mp.Pool(processes=ncpus) as pool:
-            results = pool.map(
-                partial(_get_polygon_indices, elements), range(num_sites)
-            )
-        return results
-    return [np.where((elements == i).any(axis=1))[0] for i in range(num_sites)]
+    adj = make_adj_directed_tri_indices(elements, num_sites).tolil()
+    return [np.array(tri) - 1 for tri in adj.data]
 
 
 def compute_voronoi_polygon_areas(
@@ -187,13 +196,15 @@ def compute_voronoi_polygon_areas(
     boundary_edges = edges[boundary_edge_indices]
     areas = np.zeros(len(polygons), dtype=float)
     voronoi_sites = []
-    for site, polygon in enumerate(polygons):
+    for site, polygon in enumerate(
+        tqdm(polygons, desc="Constructing Voronoi polygons")
+    ):
         # Get the polygon points
         poly = dual_sites[polygon]
-        # Polygon vertices may end up very close (e.g. delta = 2e-17) due to floating
-        # point errors, so we need to remove near-duplicate vertices.
-        _, unique = np.unique(poly.round(decimals=13), axis=0, return_index=True)
-        poly = poly[unique]
+        # # Polygon vertices may end up very close (e.g. delta = 2e-17) due to floating
+        # # point errors, so we need to remove near-duplicate vertices.
+        # _, unique = np.unique(poly.round(decimals=13), axis=0, return_index=True)
+        # poly = poly[unique]
         if site not in boundary_set:
             areas[site], is_convex = get_convex_polygon_area(poly)
             assert is_convex  # All interior Voronoi cells are convex.
@@ -343,7 +354,7 @@ def get_oriented_boundary(
 
 
 def get_supercurrent(
-    psi: np.ndarray, gradient: sp.csr_matrix, edges: np.ndarray
+    psi: np.ndarray, gradient: sp.csr_array, edges: np.ndarray
 ) -> np.ndarray:
     """Compute the supercurrent on the edges.
 

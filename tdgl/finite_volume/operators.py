@@ -7,7 +7,7 @@ import scipy.sparse as sp
 from .mesh import Mesh
 
 
-def build_divergence(mesh: Mesh) -> sp.csr_matrix:
+def build_divergence(mesh: Mesh) -> sp.csr_array:
     """Build the divergence matrix that takes the divergence of a function living
     on the edges onto the sites.
 
@@ -30,7 +30,7 @@ def build_divergence(mesh: Mesh) -> sp.csr_matrix:
     values = np.concatenate(
         [weights / mesh.areas[edges0], -weights / mesh.areas[edges1]]
     )
-    return sp.csr_matrix(
+    return sp.csr_array(
         (values, (rows, cols)), shape=(len(mesh.sites), len(edge_mesh.edges))
     )
 
@@ -39,7 +39,7 @@ def build_gradient(
     mesh: Mesh,
     link_exponents: Union[np.ndarray, None] = None,
     weights: Union[np.ndarray, None] = None,
-) -> sp.csr_matrix:
+) -> sp.csr_array:
     """Build the gradient for a function living on the sites onto the edges.
 
     Args:
@@ -63,7 +63,7 @@ def build_gradient(
     rows = np.concatenate([edge_indices, edge_indices])
     cols = np.concatenate([edge_mesh.edges[:, 1], edge_mesh.edges[:, 0]])
     values = np.concatenate([link_variable_weights * weights, -weights])
-    return sp.csr_matrix(
+    return sp.csr_array(
         (values, (rows, cols)), shape=(len(edge_mesh.edges), len(mesh.sites))
     )
 
@@ -75,7 +75,7 @@ def build_laplacian(
     free_rows: Union[np.ndarray, None] = None,
     fixed_sites_eigenvalues: float = 1,
     weights: Union[np.ndarray, None] = None,
-) -> Tuple[sp.csc_matrix, np.ndarray]:
+) -> Tuple[sp.csc_array, np.ndarray]:
     """Build a Laplacian matrix on a given mesh.
 
     The default boundary condition is homogenous Neumann conditions. To get
@@ -130,7 +130,7 @@ def build_laplacian(
     values = np.concatenate(
         [values, fixed_sites_eigenvalues * np.ones(len(fixed_sites))]
     )
-    laplacian = sp.csc_matrix(
+    laplacian = sp.csc_array(
         (values, (rows, cols)), shape=(len(mesh.sites), len(mesh.sites))
     )
     return laplacian, free_rows
@@ -138,7 +138,7 @@ def build_laplacian(
 
 def build_neumann_boundary_laplacian(
     mesh: Mesh, fixed_sites: Union[np.ndarray, None] = None
-) -> sp.csr_matrix:
+) -> sp.csr_array:
     """Build extra matrix for the Laplacian to set non-homogenous Neumann
     boundary conditions.
 
@@ -167,7 +167,7 @@ def build_neumann_boundary_laplacian(
         ]
     )
     # Build the matrix
-    neumann_laplacian = sp.csr_matrix(
+    neumann_laplacian = sp.csr_array(
         (values, (rows, cols)), shape=(len(mesh.sites), len(boundary_index))
     )
     # Change the rows corresponding to fixed sites to identity

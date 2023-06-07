@@ -279,6 +279,12 @@ def solve(
 
     # Find the current terminal sites.
     terminal_info = device.terminal_info()
+    for term_info in terminal_info:
+        if term_info.length == 0:
+            raise ValueError(
+                f"Terminal {term_info.name!r} does not contain any points"
+                " on the boundary of the mesh."
+            )
     if terminal_info:
         normal_boundary_index = np.concatenate(
             [t.site_indices for t in terminal_info], dtype=np.int64
