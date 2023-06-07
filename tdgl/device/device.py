@@ -534,11 +534,13 @@ class Device:
             **meshpy_kwargs,
         )
         if smooth:
+            logger.info("Smoothing mesh.")
             mesh = Mesh.from_triangulation(
                 points, triangles, create_submesh=False
             ).smooth(smooth, create_submesh=False)
             points = mesh.sites
             triangles = mesh.elements
+        logger.info("Creating Mesh object from triangulation.")
         self._create_dimensionless_mesh(points, triangles)
         t1 = time.perf_counter()
         logger.info(
