@@ -6,7 +6,7 @@ from meshpy import triangle
 from scipy import spatial
 from shapely.geometry.polygon import Polygon
 
-from ..finite_volume.util import get_edge_lengths
+from ..finite_volume.util import get_max_edge_length
 from ..geometry import ensure_unique
 
 logger = logging.getLogger(__name__)
@@ -90,8 +90,8 @@ def generate_mesh(
         ]
         mesh_info.set_holes(holes)
 
-    if "min_angle" not in kwargs:
-        kwargs["min_angle"] = min_angle
+    kwargs = kwargs.copy()
+    kwargs["min_angle"] = min_angle
 
     mesh = triangle.build(mesh_info=mesh_info, **kwargs)
     points = np.array(mesh.points) + r0
@@ -99,19 +99,18 @@ def generate_mesh(
     if min_points is None and (max_edge_length is None or max_edge_length <= 0):
         return points, triangles
 
-    kwargs = kwargs.copy()
     kwargs["max_volume"] = dx * dy / 100
     i = 1
     if min_points is None:
         min_points = 0
     if max_edge_length is None or max_edge_length <= 0:
         max_edge_length = np.inf
-    max_length = get_edge_lengths(points, triangles).max()
+    max_length = get_max_edge_length(points, triangles)
     while (len(points) < min_points) or (max_length > max_edge_length):
         mesh = triangle.build(mesh_info=mesh_info, **kwargs)
         points = np.array(mesh.points) + r0
         triangles = np.array(mesh.elements)
-        max_length = get_edge_lengths(points, triangles).max()
+        max_length = get_max_edge_length(points, triangles)
         logger.info(
             f"Iteration {i}: {len(points)} points, {len(triangles)} triangles,"
             f" max_edge_length: {max_length:.1e} (target: {max_edge_length:.1e})."
