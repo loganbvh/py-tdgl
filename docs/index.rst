@@ -49,9 +49,38 @@ interactively online via `Binder <https://mybinder.org/>`_:
 .. image:: https://mybinder.org/badge_logo.svg
  :target: https://mybinder.org/v2/gh/loganbvh/py-tdgl/HEAD
 
+.. tip::
+
+   ``pyTDGL`` is described in detail in the following paper:
+
+     pyTDGL: Time-dependent Ginzburg-Landau in Python,
+     Computer Physics Communications **291**, 108799 (2023),
+     DOI: `10.1016/j.cpc.2023.108799 <https://doi.org/10.1016/j.cpc.2023.108799>`_.
+
+   The accepted version of the paper can also be found on arXiv: `arXiv:2302.03812 <https://doi.org/10.48550/arXiv.2302.03812>`_.
+
 
 Acknowledgements
 ----------------
+
+If you use ``pyTDGL`` in your research, please cite the paper linked above.
+
+.. code-block::
+
+   % BibTeX citation
+   @article{
+       Bishop-Van_Horn2023-wr,
+       title    = "{pyTDGL}: Time-dependent {Ginzburg-Landau} in Python",
+       author   = "Bishop-Van Horn, Logan",
+       journal  = "Comput. Phys. Commun.",
+       volume   =  291,
+       pages    = "108799",
+       month    =  may,
+       year     =  2023,
+       url      = "http://dx.doi.org/10.1016/j.cpc.2023.108799",
+       issn     = "0010-4655",
+       doi      = "10.1016/j.cpc.2023.108799"
+   }
 
 Parts of this package have been adapted from `SuperDetectorPy <https://github.com/afsa/super-detector-py>`_,
 a GitHub repo authored by `Mattias Jönsson <https://github.com/afsa>`_. Both ``SuperDetectorPy`` and ``pyTDGL``
