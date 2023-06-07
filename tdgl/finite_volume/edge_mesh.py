@@ -77,6 +77,7 @@ class EdgeMesh:
             elements,
             dual_sites,
             edges,
+            len(sites),
         )
         return EdgeMesh(
             edge_centers,
