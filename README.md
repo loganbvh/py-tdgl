@@ -29,7 +29,7 @@ Click the badge below and navigate to `docs/notebooks/` to try `pyTDGL` interact
 
 ## Install `pyTDGL`
 
-`pyTDGL` requires `python` `3.8`, `3.9`, or `3.10`. We recommend installing `pyTDGL` in a [`conda` environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html), e.g.
+`pyTDGL` requires `python` `3.8`, `3.9`, `3.10`, or `3.11`. We recommend installing `pyTDGL` in a [`conda` environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html), e.g.
 
 ```bash
 conda create --name tdgl python="3.10"
