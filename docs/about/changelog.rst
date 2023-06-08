@@ -15,28 +15,57 @@ View release history on `PyPI <https://pypi.org/project/tdgl/#history>`_ or `Git
 
 ----
 
+.. contents::
+    :depth: 2
+
+----
+
+Version 0.3.0
+-------------
+
+Release date: 2023-06-08 | `PyPI <https://pypi.org/project/tdgl/0.3.0/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.3.0>`_
+
+Changes
+=======
+
+* Save dynamics data (`#16 <https://github.com/loganbvh/py-tdgl/pull/16>`_)
+* Add autoscale option in animate (`#17 <https://github.com/loganbvh/py-tdgl/pull/17>`_)
+* Boundary conditions (`#18 <https://github.com/loganbvh/py-tdgl/pull/18>`_)
+  
+  * Use `numba <https://numba.pydata.org/>`_ where possible to avoid allocation of large intermediate arrays
+  * Allow ``psi != 0`` on transport terminals
+
+* Optimize dual mesh construction (`#20 <https://github.com/loganbvh/py-tdgl/pull/20>`_)
+  
+  * Significantly speeds up mesh generation for large meshes
+
+----
+
 Version 0.2.1
 -------------
 
-Release date: 2023-02-07
+Release date: 2023-02-07 | `PyPI <https://pypi.org/project/tdgl/0.2.1/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.2.1>`_
 
 Changes
 =======
 
 * Fix typos in docs (`# 15 <https://github.com/loganbvh/py-tdgl/pull/15>`_).
 
+----
+
 Version 0.1.1
 -------------
 
-Release date: 2023-01-05
+Release date: 2023-01-05 | `PyPI <https://pypi.org/project/tdgl/0.1.1/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.1.1>`_
 
 Changes
 =======
 
 * Removed ``pinning_sites`` argument in :func:`tdgl.solve` (`#10 <https://github.com/loganbvh/py-tdgl/pull/10>`_). Pinning should be implemented using ``disorder_epsilon``.
 
+----
 
 Version 0.1.0 (initial release)
 -------------------------------
 
-Release date: 2023-01-04
+Release date: 2023-01-04 | `PyPI <https://pypi.org/project/tdgl/0.1.0/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.1.0>`_

@@ -9,6 +9,16 @@ Theoretical Background
   :alt: pyTDGL logo.
   :align: center
 
+.. tip::
+
+   ``pyTDGL`` is described in detail in the following paper:
+
+     pyTDGL: Time-dependent Ginzburg-Landau in Python,
+     Computer Physics Communications **291**, 108799 (2023),
+     DOI: `10.1016/j.cpc.2023.108799 <https://doi.org/10.1016/j.cpc.2023.108799>`_.
+
+   The accepted version of the paper can also be found on arXiv: `arXiv:2302.03812 <https://doi.org/10.48550/arXiv.2302.03812>`_.
+
 Here we sketch out the generalized time-dependent Ginzburg-Landau model implemented in ``pyTDGL``, and the numerical methods used to solve it.
 This material and portions of the ``pyTDGL`` package are based on Refs. :footcite:p:`Jonsson2022-xe, Jonsson2022-mb` (`repo <https://github.com/afsa/super-detector-py>`_). The generalized
 time-dependent Ginzburg-Landau theory is based on Refs. :footcite:p:`Kramer1978-kb, Watts-Tobin1981-mn`. The numerical methods are based on
