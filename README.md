@@ -23,9 +23,9 @@ The documentation for `pyTDGL` can be found at [py-tdgl.readthedocs.io](https://
 
 ## Try `pyTDGL`
 
-Click the badge below and navigate to `docs/notebooks/` to try `pyTDGL` interactively online via [Binder](https://mybinder.org/)
+Click the badge below to try `pyTDGL` interactively online via [Google Colab](https://colab.research.google.com/):
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/loganbvh/py-tdgl/HEAD)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/loganbvh/py-tdgl/blob/main/docs/notebooks/quickstart.ipynb)
 
 ## Install `pyTDGL`
 

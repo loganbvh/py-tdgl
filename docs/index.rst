@@ -43,11 +43,11 @@ spatially- and temporally-resolved simulation results.
 
 To get started using ``pyTDGL`` see `Installation <installation.rst>`_ and `Quickstart <notebooks/quickstart.ipynb>`_.
 To learn more about the physics and numerics, see `Theoretical Background <background.rst>`_.
-Click the badge below and navigate to ``docs/notebooks/`` to try ``pyTDGL``
-interactively online via `Binder <https://mybinder.org/>`_:
 
-.. image:: https://mybinder.org/badge_logo.svg
- :target: https://mybinder.org/v2/gh/loganbvh/py-tdgl/HEAD
+Click the badge below to try ``pyTDGL`` interactively online via `Google Colab <https://colab.research.google.com/>`_:
+
+.. image:: https://colab.research.google.com/assets/colab-badge.svg
+ :target: https://colab.research.google.com/github/loganbvh/py-tdgl/blob/main/docs/notebooks/quickstart.ipynb
 
 .. tip::
 
