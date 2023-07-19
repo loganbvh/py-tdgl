@@ -6,7 +6,9 @@ from .device.polygon import Polygon
 from .em import ureg
 from .fluxoid import Fluxoid, make_fluxoid_polygons
 from .parameter import Constant, Parameter
+from .solution.data import get_current_through_paths
 from .solution.plot_solution import (
+    plot_current_through_paths,
     plot_currents,
     plot_field_at_positions,
     plot_order_parameter,

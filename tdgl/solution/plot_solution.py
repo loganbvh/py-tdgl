@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import matplotlib as mpl
@@ -7,6 +8,7 @@ from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from scipy import interpolate
 
 from ..visualization import auto_grid, auto_range_iqr
+from .data import get_current_through_paths
 from .solution import Solution
 
 
@@ -633,6 +635,74 @@ def plot_scalar_potential(
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y.min(), y.max())
     return fig, ax
+
+
+def plot_current_through_paths(
+    solution_path: os.PathLike,
+    paths: Union[np.ndarray, List[np.ndarray]],
+    dataset: Optional[str] = None,
+    interp_method: str = "linear",
+    units: Optional[str] = None,
+    progress_bar: bool = True,
+    grid: bool = True,
+    labels: bool = True,
+    legend: bool = True,
+    **figure_kwargs,
+) -> Tuple[
+    Tuple[plt.Figure, plt.Axes], Tuple[np.ndarray, Union[np.ndarray, List[np.ndarray]]]
+]:
+    """Plots the current through one or more paths for each saved time step.
+
+    Args:
+        solution_path: Path to the solution HDF5 file.
+        paths: A list of ``(n, 2)`` arrays of ``(x, y)`` coordinates defining
+            the paths. A single ``(n, 2)`` array is also allowed.
+        dataset: ``None``, ``"supercurrent"``, or ``"normal_current"``.
+            ``None`` indicates the total current.
+        interp_method: Interpolation method: either "linear" or "cubic".
+        units: The current units to return.
+        with_units: Whether to return a :class:`pint.Quantity` with units attached.
+        progress_bar: Whether to display a progress bar.
+        grid: Whether to add grid lines to the plot.
+        labels: Whether to include axis labels.
+        legend: Whether to include a legend.
+
+    Returns:
+        ``(fig, ax), (times, currents)``, where ``currents`` is a list of arrays of
+        the time-dependent current through each path. If ``paths`` is given as a
+        single array, ``currents`` will be returned as a single array.
+    """
+    times, currents = get_current_through_paths(
+        solution_path,
+        paths,
+        dataset=dataset,
+        interp_method=interp_method,
+        units=units,
+        with_units=True,
+        progress_bar=progress_bar,
+    )
+    if isinstance(paths, np.ndarray):
+        currents = [currents]
+    current_units = currents[0].units
+
+    label = {
+        "supercurrent": "Supercurrent",
+        "normal_current": "Normal current",
+        None: "Total current",
+    }[dataset]
+
+    fig, ax = plt.subplots(**figure_kwargs)
+    ax.grid(grid)
+    for i, current in enumerate(currents):
+        ax.plot(times, current.magnitude, label=f"Path {i}")
+
+    if labels:
+        ax.set_ylabel(f"{label} [${current_units:~L}$]")
+        ax.set_xlabel("Time, $t$ [$\\tau_0$]")
+    if legend:
+        ax.legend(loc=0)
+
+    return (fig, ax), (times, currents)
 
 
 def _patch_docstring(func):

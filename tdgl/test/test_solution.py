@@ -120,3 +120,58 @@ def test_dynamics(solution: tdgl.Solution):
     time = solution.times
     assert len(time) == (solution.data_range[1] + 1)
     assert solution.closest_solve_step(0) == 0
+
+
+@pytest.mark.parametrize("dataset", [None, "supercurrent", "normal_current", "invalid"])
+@pytest.mark.parametrize("interp_method", ["linear", "cubic", "invalid"])
+def test_get_current_through_paths(solution: tdgl.Solution, dataset, interp_method):
+    ys = np.linspace(-2, 2, 101)
+    xs = 7.5 * np.ones_like(ys)
+    paths = [
+        np.array([+xs, ys]).T,
+        np.array([-xs, ys]).T,
+    ]
+
+    with_units = True
+    if dataset == "invalid" or interp_method == "invalid":
+        with pytest.raises(ValueError):
+            times, currents = tdgl.get_current_through_paths(
+                solution.path,
+                paths[0],
+                dataset=dataset,
+                interp_method=interp_method,
+                with_units=with_units,
+            )
+    else:
+        times, currents = tdgl.get_current_through_paths(
+            solution.path,
+            paths[0],
+            dataset=dataset,
+            interp_method=interp_method,
+            with_units=True,
+            progress_bar=False,
+        )
+        assert len(times) == len(currents)
+        if with_units:
+            assert isinstance(currents, pint.Quantity)
+        else:
+            assert isinstance(currents, np.ndarray)
+
+    with_units = False
+    if dataset == "invalid" or interp_method == "invalid":
+        pass
+    else:
+        times, currents = tdgl.get_current_through_paths(
+            solution.path,
+            paths,
+            dataset=dataset,
+            interp_method=interp_method,
+            with_units=with_units,
+            progress_bar=True,
+        )
+        assert len(paths) == len(currents)
+        assert len(times) == len(currents[0])
+        if with_units:
+            assert isinstance(currents[0], pint.Quantity)
+        else:
+            assert isinstance(currents[0], np.ndarray)

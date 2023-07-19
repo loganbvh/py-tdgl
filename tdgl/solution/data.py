@@ -1,11 +1,15 @@
 import dataclasses
-from typing import Any, Dict, Sequence, Tuple, Union
+import os
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import interpolate
+from tqdm import tqdm
 
 from ..finite_volume.mesh import Mesh
+from ..geometry import path_vectors
 
 
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:
@@ -437,3 +441,111 @@ class DynamicsData:
 
     def __eq__(self, other: Any) -> bool:
         return dataclass_equals(self, other)
+
+
+def get_current_through_paths(
+    solution_path: os.PathLike,
+    paths: Union[np.ndarray, List[np.ndarray]],
+    dataset: Optional[str] = None,
+    interp_method: str = "linear",
+    units: Optional[str] = None,
+    with_units: bool = True,
+    progress_bar: bool = True,
+) -> Tuple[np.ndarray, Union[np.ndarray, List[np.ndarray]]]:
+    """Calculates the current through one or more paths for each saved time step.
+
+    Args:
+        solution_path: Path to the solution HDF5 file.
+        paths: A list of ``(n, 2)`` arrays of ``(x, y)`` coordinates defining
+            the paths. A single ``(n, 2)`` array is also allowed.
+        dataset: ``None``, ``"supercurrent"``, or ``"normal_current"``.
+            ``None`` indicates the total current.
+        interp_method: Interpolation method: either "linear" or "cubic".
+        units: The current units to return.
+        with_units: Whether to return a :class:`pint.Quantity` with units attached.
+        progress_bar: Whether to display a progress bar.
+
+    Returns:
+        ``(times, currents)``, where ``currents`` is a list of arrays of the
+        time-dependent current through each path. If ``paths`` is given as a
+        single array, ``currents`` will be returned as a single array.
+    """
+    from .solution import Solution
+
+    solution = Solution.from_hdf5(solution_path)
+    device = solution.device
+    mesh = device.mesh
+    ureg = device.ureg
+
+    valid_methods = ("linear", "cubic")
+    if interp_method not in valid_methods:
+        raise ValueError(
+            f"Interpolation method must be one of {valid_methods} (got {interp_method})."
+        )
+    if interp_method == "linear":
+        interpolator = interpolate.LinearNDInterpolator
+        interp_kwargs = dict(fill_value=0)
+    else:  # "cubic"
+        interpolator = interpolate.CloughTocher2DInterpolator
+        interp_kwargs = dict(fill_value=0)
+
+    valid_datasets = ("supercurrent", "normal_current", None)
+    if dataset not in valid_datasets:
+        raise ValueError(
+            f"Dataset name must be one of {valid_datasets} (got {dataset})."
+        )
+
+    if units is None:
+        units = solution.current_units
+
+    length_units = ureg(device.length_units)
+
+    if isinstance(paths, np.ndarray):
+        paths = [paths]
+    paths = [np.asarray(p) for p in paths]
+    edge_positions = []
+    edge_lengths = []
+    unit_normals = []
+    in_device = []
+    for path in paths:
+        edge_positions.append((path[:-1] + path[1:]) / 2)
+        lengths, normals = path_vectors(path)
+        edge_lengths.append(lengths)
+        unit_normals.append(normals)
+        in_device.append(device.contains_points(edge_positions[-1]))
+
+    step_min, step_max = solution.data_range
+    times = solution.times
+    sites = device.points
+    raw_currents = [np.zeros_like(times) for _ in paths]
+    with h5py.File(solution_path, "r") as h5file:
+        for i in tqdm(
+            range(step_min, step_max + 1), desc="Time steps", disable=(not progress_bar)
+        ):
+            grp = h5file[f"data/{i}"]
+            if dataset is None:
+                K = np.array(grp["normal_current"]) + np.array(grp["supercurrent"])
+            else:
+                K = np.array(grp[dataset])
+            K = mesh.get_quantity_on_site(K)
+            K_interp = interpolator(sites, K, **interp_kwargs)
+            for j, (path, lengths, normals, ix) in enumerate(
+                zip(paths, edge_lengths, unit_normals, in_device)
+            ):
+                K_path = K_interp(path)
+                # Evaluate the sheet current at the edge centers
+                K_edge = (K_path[:-1] + K_path[1:]) / 2
+                K_dot_n = (K_edge * normals).sum(axis=1)
+                raw_currents[j][i] = np.trapz((K_dot_n * lengths)[ix])
+
+    currents = []
+    for current in raw_currents:
+        J = current * (device.K0 * length_units).to(units)
+        if not with_units:
+            J = J.magnitude
+        currents.append(J)
+
+    if len(currents) == 1:
+        currents = currents[0]
+
+    return times, currents
