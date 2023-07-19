@@ -88,7 +88,7 @@ INSTALL_REQUIRES = [
     "pint",
     "pytest",
     "pytest-cov",
-    "scipy",
+    "scipy<1.11",
     "shapely",
     "tqdm",
 ]
