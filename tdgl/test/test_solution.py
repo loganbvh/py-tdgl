@@ -132,7 +132,8 @@ def test_get_current_through_paths(solution: tdgl.Solution, dataset, interp_meth
         np.array([-xs, ys]).T,
     ]
 
-    with_units = True
+    Isrc = solution.terminal_currents(0)["source"]
+
     if dataset == "invalid" or interp_method == "invalid":
         with pytest.raises(ValueError):
             times, currents = tdgl.get_current_through_paths(
@@ -140,38 +141,18 @@ def test_get_current_through_paths(solution: tdgl.Solution, dataset, interp_meth
                 paths[0],
                 dataset=dataset,
                 interp_method=interp_method,
-                with_units=with_units,
             )
     else:
-        times, currents = tdgl.get_current_through_paths(
+        (fig, ax), (times, currents) = tdgl.plot_current_through_paths(
             solution.path,
             paths[0],
             dataset=dataset,
             interp_method=interp_method,
-            with_units=True,
             progress_bar=False,
         )
-        assert len(times) == len(currents)
-        if with_units:
-            assert isinstance(currents, pint.Quantity)
-        else:
-            assert isinstance(currents, np.ndarray)
-
-    with_units = False
-    if dataset == "invalid" or interp_method == "invalid":
-        pass
-    else:
-        times, currents = tdgl.get_current_through_paths(
-            solution.path,
-            paths,
-            dataset=dataset,
-            interp_method=interp_method,
-            with_units=with_units,
-            progress_bar=True,
-        )
-        assert len(paths) == len(currents)
+        assert len(currents) == 1
         assert len(times) == len(currents[0])
-        if with_units:
-            assert isinstance(currents[0], pint.Quantity)
-        else:
-            assert isinstance(currents[0], np.ndarray)
+        for cs in currents:
+            assert isinstance(cs[0], pint.Quantity)
+            if dataset is None:
+                assert np.allclose(cs.m[1:], Isrc, rtol=2e-2)
