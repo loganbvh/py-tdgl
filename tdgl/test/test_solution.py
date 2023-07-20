@@ -120,3 +120,39 @@ def test_dynamics(solution: tdgl.Solution):
     time = solution.times
     assert len(time) == (solution.data_range[1] + 1)
     assert solution.closest_solve_step(0) == 0
+
+
+@pytest.mark.parametrize("dataset", [None, "supercurrent", "normal_current", "invalid"])
+@pytest.mark.parametrize("interp_method", ["linear", "cubic", "invalid"])
+def test_get_current_through_paths(solution: tdgl.Solution, dataset, interp_method):
+    ys = np.linspace(-2, 2, 101)
+    xs = 7.5 * np.ones_like(ys)
+    paths = [
+        np.array([+xs, ys]).T,
+        np.array([-xs, ys]).T,
+    ]
+
+    Isrc = solution.terminal_currents(0)["source"]
+
+    if dataset == "invalid" or interp_method == "invalid":
+        with pytest.raises(ValueError):
+            times, currents = tdgl.get_current_through_paths(
+                solution.path,
+                paths[0],
+                dataset=dataset,
+                interp_method=interp_method,
+            )
+    else:
+        (fig, ax), (times, currents) = tdgl.plot_current_through_paths(
+            solution.path,
+            paths[0],
+            dataset=dataset,
+            interp_method=interp_method,
+            progress_bar=False,
+        )
+        assert len(currents) == 1
+        assert len(times) == len(currents[0])
+        for cs in currents:
+            assert isinstance(cs[0], pint.Quantity)
+            if dataset is None:
+                assert np.allclose(cs.m[1:], Isrc, rtol=2e-2)
