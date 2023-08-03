@@ -1,11 +1,11 @@
 import dataclasses
 import os
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
+import matplotlib.tri as mtri
 import numpy as np
-from scipy import interpolate
 from tqdm import tqdm
 
 from ..finite_volume.mesh import Mesh
@@ -447,7 +447,7 @@ def get_current_through_paths(
     solution_path: os.PathLike,
     paths: Union[np.ndarray, List[np.ndarray]],
     dataset: Optional[str] = None,
-    interp_method: str = "linear",
+    interp_method: Literal["linear", "cubic"] = "linear",
     units: Optional[str] = None,
     with_units: bool = True,
     progress_bar: bool = True,
@@ -474,7 +474,7 @@ def get_current_through_paths(
 
     solution = Solution.from_hdf5(solution_path)
     device = solution.device
-    mesh = device.mesh
+    tri = device.triangulation
     ureg = device.ureg
 
     valid_methods = ("linear", "cubic")
@@ -482,12 +482,10 @@ def get_current_through_paths(
         raise ValueError(
             f"Interpolation method must be one of {valid_methods} (got {interp_method})."
         )
-    if interp_method == "linear":
-        interpolator = interpolate.LinearNDInterpolator
-        interp_kwargs = dict(fill_value=0)
-    else:  # "cubic"
-        interpolator = interpolate.CloughTocher2DInterpolator
-        interp_kwargs = dict(fill_value=0)
+    interp_type = {
+        "linear": mtri.LinearTriInterpolator,
+        "cubic": mtri.CubicTriInterpolator,
+    }[interp_method]
 
     valid_datasets = ("supercurrent", "normal_current", None)
     if dataset not in valid_datasets:
@@ -516,7 +514,6 @@ def get_current_through_paths(
 
     step_min, step_max = solution.data_range
     times = solution.times
-    sites = device.points
     raw_currents = [np.zeros_like(times) for _ in paths]
     with h5py.File(solution_path, "r") as h5file:
         for i in tqdm(
@@ -527,12 +524,16 @@ def get_current_through_paths(
                 K = np.array(grp["normal_current"]) + np.array(grp["supercurrent"])
             else:
                 K = np.array(grp[dataset])
-            K = mesh.get_quantity_on_site(K)
-            K_interp = interpolator(sites, K, **interp_kwargs)
+            K = device.mesh.get_quantity_on_site(K)
+            Kx_interp = interp_type(tri, K[:, 0])
+            Ky_interp = interp_type(tri, K[:, 1])
             for j, (path, lengths, normals, ix) in enumerate(
                 zip(paths, edge_lengths, unit_normals, in_device)
             ):
-                K_path = K_interp(path)
+                Kx_path = Kx_interp(path[:, 0], path[:, 1]).data
+                Ky_path = Ky_interp(path[:, 0], path[:, 1]).data
+                K_path = np.array([Kx_path, Ky_path]).T
+                K_path[~np.isfinite(K_path).all(axis=1)] = 0
                 # Evaluate the sheet current at the edge centers
                 K_edge = (K_path[:-1] + K_path[1:]) / 2
                 K_dot_n = (K_edge * normals).sum(axis=1)

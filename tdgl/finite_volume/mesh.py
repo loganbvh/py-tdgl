@@ -1,8 +1,9 @@
-from typing import List, Sequence, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.tri import Triangulation
 
 from ..geometry import close_curve
 from .edge_mesh import EdgeMesh
@@ -60,6 +61,7 @@ class Mesh:
         self.dual_sites = dual_sites
         self.edge_mesh = edge_mesh
         self.voronoi_polygons = voronoi_polygons
+        self._triangulation: Optional[Triangulation] = None
 
     @property
     def x(self) -> np.ndarray:

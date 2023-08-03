@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -77,7 +77,7 @@ def cross_section(
     dataset_coords: np.ndarray,
     dataset_values: np.ndarray,
     cross_section_coords: Union[np.ndarray, Sequence[np.ndarray]],
-    interp_method: str = "linear",
+    interp_method: Literal["linear", "cubic"] = "linear",
 ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
     """Takes a cross-section of the specified dataset values along
     a path given by the given dataset coordinates.
@@ -89,24 +89,22 @@ def cross_section(
         cross_section_coords: A shape (m, 2) array of (x, y) coordinates specifying
             the cross-section path (or a list of such arrays for multiple
             cross sections).
-        interp_method: The interpolation method to use: "nearest", "linear", "cubic".
+        interp_method: The interpolation method to use: "linear" or "cubic".
 
     Returns:
         A list of coordinate arrays, a list of curvilinear coordinate (path) arrays,
         and a list of cross section values.
     """
-    valid_methods = ("nearest", "linear", "cubic")
+    valid_methods = ("linear", "cubic")
     if interp_method not in valid_methods:
         raise ValueError(
             f"Interpolation method must be one of {valid_methods} "
             f"(got {interp_method})."
         )
-    if interp_method == "nearest":
-        interpolator = interpolate.NearestNDInterpolator
-    elif interp_method == "linear":
-        interpolator = interpolate.LinearNDInterpolator
-    else:  # "cubic"
-        interpolator = interpolate.CloughTocher2DInterpolator
+    interpolator = {
+        "linear": interpolate.LinearNDInterpolator,
+        "cubic": interpolate.CloughTocher2DInterpolator,
+    }[interp_method]
 
     if not (isinstance(cross_section_coords, Sequence)):
         cross_section_coords = [cross_section_coords]
@@ -641,7 +639,7 @@ def plot_current_through_paths(
     solution_path: os.PathLike,
     paths: Union[np.ndarray, List[np.ndarray]],
     dataset: Optional[str] = None,
-    interp_method: str = "linear",
+    interp_method: Literal["linear", "cubic"] = "linear",
     units: Optional[str] = None,
     progress_bar: bool = True,
     grid: bool = True,
