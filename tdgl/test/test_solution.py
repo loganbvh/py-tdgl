@@ -64,7 +64,7 @@ def test_save_and_load_solution(solution, tempdir):
 @pytest.mark.parametrize("hole", ["hole1", "hole2", "invalid"])
 @pytest.mark.parametrize("with_units", [False, True])
 @pytest.mark.parametrize("units", ["Phi_0", "mT * um**2"])
-@pytest.mark.parametrize("interp_method", ["linear", "cubic", "nearest"])
+@pytest.mark.parametrize("interp_method", ["linear", "cubic"])
 def test_hole_fluxoid(solution, hole, with_units, units, interp_method):
     if hole == "invalid":
         with pytest.raises(KeyError):

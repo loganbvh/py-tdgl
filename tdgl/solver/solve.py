@@ -312,6 +312,7 @@ def solve(
     validate_terminal_currents(current_func, terminal_info, options)
 
     # Construct finite-volume operators
+    logger.info("Constructing finite volume operators.")
     terminal_psi = options.terminal_psi
     operators = MeshOperators(
         mesh,

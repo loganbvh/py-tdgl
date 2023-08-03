@@ -6,11 +6,12 @@ import pickle
 import shutil
 from contextlib import nullcontext
 from datetime import datetime
-from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Literal, NamedTuple, Optional, Tuple, Union
 
 import cloudpickle
 import h5py
 import matplotlib.pyplot as plt
+import matplotlib.tri as mtri
 import numpy as np
 import pint
 from scipy import interpolate
@@ -336,7 +337,7 @@ class Solution:
         positions: np.ndarray,
         *,
         dataset: Union[str, None] = None,
-        method: str = "linear",
+        method: Literal["linear", "cubic"] = "linear",
         units: Union[str, None] = None,
         with_units: bool = False,
     ) -> np.ndarray:
@@ -352,8 +353,7 @@ class Solution:
             dataset: The dataset to interpolate. One of ``"supercurrent"``,
                 ``"normal_current"``, or ``None``. If ``None``, then the total
                 sheet current density is used.
-            method: Interpolation method to use, ``"nearest"``, ``"linear"``,
-                or ``"cubic"``.
+            method: Interpolation method to use, ``"linear"`` or ``"cubic"``.
             units: The desired units for the current density. Defaults to
                 ``self.current_units / self.device.length_units``.
             with_units: Whether to return a :class:`pint.Quantity` array
@@ -363,21 +363,6 @@ class Solution:
             The interpolated current density as an array of floats
             or a :class:`pint.Quantity` array.
         """
-        valid_methods = ("nearest", "linear", "cubic")
-        if method not in valid_methods:
-            raise ValueError(
-                f"Interpolation method must be one of {valid_methods} (got {method})."
-            )
-        if method == "nearest":
-            interpolator = interpolate.NearestNDInterpolator
-            interp_kwargs = dict()
-        elif method == "linear":
-            interpolator = interpolate.LinearNDInterpolator
-            interp_kwargs = dict(fill_value=0)
-        else:  # "cubic"
-            interpolator = interpolate.CloughTocher2DInterpolator
-            interp_kwargs = dict(fill_value=0)
-
         if dataset is None:
             J = self.current_density
         elif dataset == "supercurrent":
@@ -389,11 +374,26 @@ class Solution:
 
         if units is None:
             units = f"{self.current_units} / {self.device.length_units}"
+
+        valid_methods = ("linear", "cubic")
+        if method not in valid_methods:
+            raise ValueError(
+                f"Interpolation method must be one of {valid_methods} (got {method})."
+            )
+        interp_type = {
+            "linear": mtri.LinearTriInterpolator,
+            "cubic": mtri.CubicTriInterpolator,
+        }[method]
+
         positions = np.atleast_2d(positions)
-        xy = self.device.points
-        J_interp = interpolator(xy, J.to(units).magnitude, **interp_kwargs)
-        J = J_interp(positions)
-        J[~np.isfinite(J)] = 0
+        J = J.to(units).magnitude
+        tri = self.device.mesh.triangulation
+        Jx_interp = interp_type(tri, J[:, 0])
+        Jy_interp = interp_type(tri, J[:, 1])
+        Jx = Jx_interp(positions[:, 0], positions[:, 1]).data
+        Jy = Jy_interp(positions[:, 0], positions[:, 1]).data
+        J = np.array([Jx, Jy]).T
+        J[~np.isfinite(J).all(axis=1)] = 0
         J[~self.device.contains_points(positions)] = 0
         if with_units:
             J = J * self.device.ureg(units)
@@ -402,43 +402,40 @@ class Solution:
     def interp_order_parameter(
         self,
         positions: np.ndarray,
-        method: str = "linear",
+        method: Literal["linear", "cubic"] = "linear",
     ) -> np.ndarray:
         """Interpolates the order parameter at unstructured coordinates.
 
         Args:
             positions: Shape ``(m, 2)`` array of x, y coordinates at which to evaluate
                 the order parameter.
-            method: Interpolation method to use, ``"nearest"``, ``"linear"``,
-                or ``"cubic"``.
+            method: Interpolation method to use, ``"linear"`` or ``"cubic"``.
 
         Returns:
             The interpolated order parameter.
         """
-        valid_methods = ("nearest", "linear", "cubic")
+        valid_methods = ("linear", "cubic")
         if method not in valid_methods:
             raise ValueError(
                 f"Interpolation method must be one of {valid_methods} (got {method})."
             )
-        if method == "nearest":
-            interpolator = interpolate.NearestNDInterpolator
-            interp_kwargs = dict()
-        elif method == "linear":
-            interpolator = interpolate.LinearNDInterpolator
-            interp_kwargs = dict(fill_value=1)
-        else:  # "cubic"
-            interpolator = interpolate.CloughTocher2DInterpolator
-            interp_kwargs = dict(fill_value=1)
+        interp_type = {
+            "linear": mtri.LinearTriInterpolator,
+            "cubic": mtri.CubicTriInterpolator,
+        }[method]
         positions = np.atleast_2d(positions)
-        xy = self.device.points
+        tri = self.device.mesh.triangulation
         psi = self.tdgl_data.psi
-        psi_interp = interpolator(xy, psi, **interp_kwargs)
-        return psi_interp(positions)
+        psi_interp_real = interp_type(tri, psi.real)
+        psi_interp_imag = interp_type(tri, psi.imag)
+        psi_real = psi_interp_real(positions[:, 0], positions[:, 1]).data
+        psi_imag = psi_interp_imag(positions[:, 0], positions[:, 1]).data
+        return psi_real + 1j * psi_imag
 
     def polygon_fluxoid(
         self,
         polygon_points: Union[np.ndarray, Polygon],
-        interp_method: str = "linear",
+        interp_method: Literal["linear", "cubic"] = "linear",
         units: str = "Phi_0",
         with_units: bool = True,
     ) -> Fluxoid:
@@ -467,8 +464,7 @@ class Solution:
         Args:
             polygon_points: A shape ``(n, 2)`` array of ``(x, y)`` coordinates of
                 polygon vertices defining the closed region :math:`S`.
-            interp_method: Interpolation method to use, ``"nearest"``, ``"linear"``,
-                or ``"cubic"``.
+            interp_method: Interpolation method to use, ``"linear"`` or ``"cubic"``.
             units: The desired units for the fluxoid.
             with_units: Whether to return values as :class:`pint.Quantity` instances
                 with units attached.
@@ -526,7 +522,7 @@ class Solution:
         self,
         hole_name: str,
         points: Union[np.ndarray, None] = None,
-        interp_method: str = "linear",
+        interp_method: Literal["linear", "cubic"] = "linear",
         units: str = "Phi_0",
         with_units: bool = True,
     ) -> Fluxoid:
@@ -541,8 +537,7 @@ class Solution:
             points: The vertices of the polygon enclosing the hole. If None is given,
                 a polygon is generated using
                 :func:`tdgl.make_fluxoid_polygons`.
-            interp_method: Interpolation method to use, ``"nearest"``, ``"linear"``,
-                or ``"cubic"``.
+            interp_method: Interpolation method to use, ``"linear"`` or ``"cubic"``.
             units: The desired units for the fluxoid.
             with_units: Whether to return values as :class:`pint.Quantity` instances
                 with units attached.
@@ -600,7 +595,7 @@ class Solution:
         self,
         path_coords: np.ndarray,
         dataset: Union[str, None] = None,
-        method: str = "linear",
+        method: Literal["linear", "cubic"] = "linear",
         units: Union[str, None] = None,
         with_units: bool = True,
     ) -> Union[float, pint.Quantity]:

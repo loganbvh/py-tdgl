@@ -1,8 +1,9 @@
-from typing import List, Sequence, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.tri import Triangulation
 
 from ..geometry import close_curve
 from .edge_mesh import EdgeMesh
@@ -60,6 +61,7 @@ class Mesh:
         self.dual_sites = dual_sites
         self.edge_mesh = edge_mesh
         self.voronoi_polygons = voronoi_polygons
+        self._triangulation: Optional[Triangulation] = None
 
     @property
     def x(self) -> np.ndarray:
@@ -70,6 +72,15 @@ class Mesh:
     def y(self) -> np.ndarray:
         """The y-coordinates of the mesh sites."""
         return self.sites[:, 1]
+
+    @property
+    def triangulation(self) -> Triangulation:
+        """Matplotlib triangulation of the mesh."""
+        if self._triangulation is None:
+            self._triangulation = Triangulation(
+                self.sites[:, 0], self.sites[:, 1], self.elements
+            )
+        return self._triangulation
 
     def closest_site(self, xy: Tuple[float, float]) -> int:
         """Returns the index of the mesh site closest to ``(x, y)``.
