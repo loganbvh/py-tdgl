@@ -474,8 +474,7 @@ def get_current_through_paths(
 
     solution = Solution.from_hdf5(solution_path)
     device = solution.device
-    mesh = device.mesh
-    tri = mesh.triangulation
+    tri = device.triangulation
     ureg = device.ureg
 
     valid_methods = ("linear", "cubic")
@@ -525,7 +524,7 @@ def get_current_through_paths(
                 K = np.array(grp["normal_current"]) + np.array(grp["supercurrent"])
             else:
                 K = np.array(grp[dataset])
-            K = mesh.get_quantity_on_site(K)
+            K = device.mesh.get_quantity_on_site(K)
             Kx_interp = interp_type(tri, K[:, 0])
             Ky_interp = interp_type(tri, K[:, 1])
             for j, (path, lengths, normals, ix) in enumerate(

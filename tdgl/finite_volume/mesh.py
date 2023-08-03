@@ -73,15 +73,6 @@ class Mesh:
         """The y-coordinates of the mesh sites."""
         return self.sites[:, 1]
 
-    @property
-    def triangulation(self) -> Triangulation:
-        """Matplotlib triangulation of the mesh."""
-        if self._triangulation is None:
-            self._triangulation = Triangulation(
-                self.sites[:, 0], self.sites[:, 1], self.elements
-            )
-        return self._triangulation
-
     def closest_site(self, xy: Tuple[float, float]) -> int:
         """Returns the index of the mesh site closest to ``(x, y)``.
 

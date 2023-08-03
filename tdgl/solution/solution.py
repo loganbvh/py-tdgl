@@ -387,7 +387,7 @@ class Solution:
 
         positions = np.atleast_2d(positions)
         J = J.to(units).magnitude
-        tri = self.device.mesh.triangulation
+        tri = self.device.triangulation
         Jx_interp = interp_type(tri, J[:, 0])
         Jy_interp = interp_type(tri, J[:, 1])
         Jx = Jx_interp(positions[:, 0], positions[:, 1]).data
@@ -424,7 +424,7 @@ class Solution:
             "cubic": mtri.CubicTriInterpolator,
         }[method]
         positions = np.atleast_2d(positions)
-        tri = self.device.mesh.triangulation
+        tri = self.device.triangulation
         psi = self.tdgl_data.psi
         psi_interp_real = interp_type(tri, psi.real)
         psi_interp_imag = interp_type(tri, psi.imag)

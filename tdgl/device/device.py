@@ -3,7 +3,7 @@ import os
 import time
 from contextlib import contextmanager, nullcontext
 from operator import attrgetter, itemgetter
-from typing import Any, Dict, List, NamedTuple, Sequence, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
@@ -12,6 +12,7 @@ import pint
 from IPython.display import HTML
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
+from matplotlib.tri import Triangulation
 from shapely import affinity
 from shapely.geometry import Point
 
@@ -104,7 +105,8 @@ class Device:
         # It should never be changed after instantiation.
         self._length_units = length_units
 
-        self.mesh = None
+        self.mesh: Optional[Mesh] = None
+        self._triangulation: Optional[Triangulation] = None
 
     @property
     def length_units(self) -> str:
@@ -201,6 +203,18 @@ class Device:
             )
         J0 = self.K0 / self.thickness
         return (self.coherence_length * J0 / conductivity).to("volts")
+
+    @property
+    def triangulation(self) -> Optional[Triangulation]:
+        """Matplotlib triangulation of the mesh."""
+        if self.mesh is None:
+            return None
+        if self._triangulation is None:
+            xi = self.layer.coherence_length
+            sites = xi * self.mesh.sites
+            triangles = self.mesh.elements
+            self._triangulation = Triangulation(sites[:, 0], sites[:, 1], triangles)
+        return self._triangulation
 
     def terminal_info(self) -> Tuple[TerminalInfo, ...]:
         """Returns a tuple of ``TerminalInfo`` objects,
