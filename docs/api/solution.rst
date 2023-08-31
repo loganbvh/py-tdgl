@@ -29,6 +29,7 @@ Post-processing methods:
 * :meth:`tdgl.Solution.hole_fluxoid`
 * :meth:`tdgl.Solution.boundary_phases`
 * :meth:`tdgl.Solution.current_through_path`
+* :func:`tdgl.get_current_through_paths`
 * :meth:`tdgl.Solution.field_at_position`
 * :meth:`tdgl.Solution.vector_potential_at_position`
 * :meth:`tdgl.solution.data.DynamicsData.mean_voltage`
@@ -42,6 +43,7 @@ Visualization methods:
 * :meth:`tdgl.Solution.plot_vorticity`
 * :meth:`tdgl.solution.data.DynamicsData.plot`
 * :meth:`tdgl.solution.data.DynamicsData.plot_dt`
+* :func:`tdgl.plot_current_through_paths`
 
 I/O methods:
 
@@ -63,6 +65,8 @@ Solution
 
 .. autoclass:: tdgl.BiotSavartField
     :show-inheritance:
+
+.. autofunction:: tdgl.get_current_through_paths
 
 Fluxoid Quantization
 --------------------

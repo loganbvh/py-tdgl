@@ -43,6 +43,8 @@ Plot ``Solutions``
 
 .. autofunction:: tdgl.plot_scalar_potential
 
+.. autofunction:: tdgl.plot_current_through_paths
+
 Plotting utilities
 ------------------
 

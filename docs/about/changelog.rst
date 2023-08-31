@@ -20,6 +20,32 @@ View release history on `PyPI <https://pypi.org/project/tdgl/#history>`_ or `Git
 
 ----
 
+Version 0.4.0
+-------------
+
+Release date: 2023-08-30 | `PyPI <https://pypi.org/project/tdgl/0.4.0/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.4.0>`_
+
+Changes
+=======
+
+* Use matplotlib tri interpolators (`#25 <https://github.com/loganbvh/py-tdgl/pull/25>`_)
+
+----
+
+Version 0.3.1
+-------------
+
+Release date: 2023-07-24 | `PyPI <https://pypi.org/project/tdgl/0.3.1/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.3.1>`_
+
+Changes
+=======
+
+* Add python 3.11 to docs (`#21 <https://github.com/loganbvh/py-tdgl/pull/21>`_)
+* Add Google Colab (`#22 <https://github.com/loganbvh/py-tdgl/pull/22>`_)
+* Add ``get_current_through_paths`` (`#24 <https://github.com/loganbvh/py-tdgl/pull/24>`_)
+
+----
+
 Version 0.3.0
 -------------
 
@@ -69,3 +95,5 @@ Version 0.1.0 (initial release)
 -------------------------------
 
 Release date: 2023-01-04 | `PyPI <https://pypi.org/project/tdgl/0.1.0/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.1.0>`_
+
+----
