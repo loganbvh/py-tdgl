@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from typing import Union
+from typing import Literal, Union
 
 
 class SolverOptionsError(ValueError):
@@ -24,6 +24,10 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
+        sparse_solver: One of "superlu", "umfpack", or "pardiso". "umfpack" requires
+            suitesparse, which can be installed via conda, and scikit-umfpack, which
+            can be installed via pip. "pardiso" requires pypardiso, which can be
+            installed via pip.
         terminal_psi: Fixed value for the order parameter in current terminals.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
@@ -53,6 +57,7 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
+    sparse_solver: Literal["superlu", "umfpack", "pardiso"] = "superlu"
     terminal_psi: Union[float, complex, None] = 0.0
     save_every: int = 100
     progress_interval: int = 0
@@ -70,6 +75,12 @@ class SolverOptions:
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
             raise SolverOptionsError("dt_init must be less than or equal to dt_max.")
+        solver = self.sparse_solver = self.sparse_solver.lower()
+        valid_solvers = {"superlu", "umfpack", "pardiso"}
+        if solver not in valid_solvers:
+            raise ValueError(
+                f"sparse solver must be one of {valid_solvers!r}, got {solver},"
+            )
         if self.terminal_psi is not None and not (0 <= abs(self.terminal_psi) <= 1):
             raise SolverOptionsError(
                 "terminal_psi must be None or have absolute value in [0, 1]"
