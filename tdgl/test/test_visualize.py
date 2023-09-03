@@ -70,13 +70,18 @@ def test_bad_input():
 )
 @pytest.mark.parametrize("silent", [False, True])
 @pytest.mark.parametrize("verbose", [False, True])
-def test_interactive(solution, quantities, verbose, silent):
+@pytest.mark.parametrize("dimensionless", [True, False])
+def test_interactive(solution, quantities, verbose, silent, dimensionless):
     parser = visualize.make_parser()
-    cmd = ["--input", solution.path, "interactive"]
+    cmd = ["--input", solution.path]
     if verbose:
-        cmd.insert(2, "--verbose")
+        cmd.append("--verbose")
     if silent:
-        cmd.insert(2, "--silent")
+        cmd.append("--silent")
+    if dimensionless:
+        cmd.append("--dimensionless")
+    cmd.append("--axis-labels")
+    cmd.append("interactive")
     if quantities is not None:
         cmd.extend(["--quantities"] + quantities.split(" "))
     args = parser.parse_args(cmd)
@@ -112,25 +117,31 @@ def test_animation(solution, quantities, ext, max_cols):
     ],
 )
 @pytest.mark.parametrize("autoscale", [True, False])
-def test_animate_cli(solution, quantities, autoscale):
+@pytest.mark.parametrize("dimensionless", [True, False])
+def test_animate_cli(solution, quantities, autoscale, dimensionless):
     parser = visualize.make_parser()
-    cmd = [
-        "--input",
-        solution.path,
-        "animate",
-        "--output",
-        solution.path.replace(".h5", "-cli.gif"),
-        "--min-frame",
-        "2",
-        "--max-frame",
-        "-1",
-        "--fps",
-        "30",
-        "--dpi",
-        "200",
-    ]
+    cmd = ["--input", solution.path]
+    if dimensionless:
+        cmd.append("--dimensionless")
+    cmd.append("--axis-labels")
+    cmd.extend(
+        [
+            "animate",
+            "--output",
+            solution.path.replace(".h5", "-cli.gif"),
+            "--min-frame",
+            "2",
+            "--max-frame",
+            "-1",
+            "--fps",
+            "30",
+            "--dpi",
+            "200",
+        ]
+    )
     if autoscale:
         cmd.append("--autoscale")
+
     if quantities is not None:
         cmd.extend(["--quantities"] + quantities.split(" "))
     args = parser.parse_args(cmd)

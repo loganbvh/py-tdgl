@@ -20,15 +20,19 @@ def make_parser():
         "-v",
         "--verbose",
         action="store_true",
-        default=False,
         help="Run in verbose mode.",
     )
     parser.add_argument(
         "-s",
         "--silent",
         action="store_true",
-        default=False,
         help="Run in silent mode.",
+    )
+    parser.add_argument(
+        "--dimensionless", action="store_true", help="Use dimensionless x-y units."
+    )
+    parser.add_argument(
+        "--axis-labels", action="store_true", help="Add x-y axis labels."
     )
 
     interactive_parser = subparsers.add_parser(
@@ -122,6 +126,8 @@ def animate_tdgl(args):
         min_frame=args.min_frame,
         max_frame=args.max_frame,
         autoscale=args.autoscale,
+        dimensionless=args.dimensionless,
+        axis_labels=args.axis_labels,
         axes_off=args.axes_off,
         title_off=args.title_off,
     )
@@ -136,9 +142,19 @@ def animate_tdgl(args):
 
 def visualize_tdgl(args):
     if args.quantities is None:
-        InteractivePlot(input_file=args.input, logger=logger).show()
+        InteractivePlot(
+            input_file=args.input,
+            dimensionless=args.dimensionless,
+            axis_labels=args.axis_labels,
+            logger=logger,
+        ).show()
         return
-    kwargs = dict(input_file=args.input, logger=logger)
+    kwargs = dict(
+        input_file=args.input,
+        dimensionless=args.dimensionless,
+        axis_labels=args.axis_labels,
+        logger=logger,
+    )
     if "ALL" not in args.quantities:
         kwargs["quantities"] = args.quantities
     MultiInteractivePlot(**kwargs).show()

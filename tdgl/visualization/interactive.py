@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-from ..finite_volume.mesh import Mesh
+from ..device.device import Device
 from ..solution.data import get_data_range
 from .common import DEFAULT_QUANTITIES, PLOT_DEFAULTS, Quantity, auto_grid
 from .io import get_plot_data, get_state_string
@@ -16,20 +16,28 @@ class InteractivePlot:
     def __init__(
         self,
         input_file: str,
+        dimensionless: bool = False,
+        axis_labels: bool = False,
         logger: logging.Logger = None,
     ):
         self.input_file = input_file
+        self.dimensionless = dimensionless
+        self.axis_labels = axis_labels
         self.frame = 0
         self.quantity = Quantity.ORDER_PARAMETER
         self.logger = logger or logging.getLogger()
 
     def show(self):
         with h5py.File(self.input_file, "r", libver="latest") as h5file:
-            if "mesh" in h5file:
-                mesh = Mesh.from_hdf5(h5file["mesh"])
+            device = Device.from_hdf5(h5file["solution/device"])
+            mesh = device.mesh
+            if self.dimensionless:
+                scale = 1
+                units_str = "\\xi"
             else:
-                mesh = Mesh.from_hdf5(h5file["solution/device/mesh"])
-
+                scale = device.layer.coherence_length
+                units_str = f"{device.ureg(device.length_units).units:~L}"
+            x, y = scale * mesh.sites.T
             # Get the ranges for the frame
             min_frame, max_frame = get_data_range(h5file)
 
@@ -106,7 +114,6 @@ class InteractivePlot:
                 cbar.set_label(PLOT_DEFAULTS[self.quantity].clabel)
                 fig.canvas.draw()
 
-            x, y = mesh.sites.T
             # Temp data to use in plots
             temp_value = np.ones_like(x)
             temp_value[0] = 0
@@ -120,6 +127,9 @@ class InteractivePlot:
             )
             cbar = fig.colorbar(triplot)
             ax.set_aspect("equal")
+            if self.axis_labels:
+                ax.set_xlabel(f"$x$ [${units_str}$]")
+                ax.set_ylabel(f"$y$ [${units_str}$]")
             draw()
             plt.show()
 
@@ -128,12 +138,16 @@ class MultiInteractivePlot:
     def __init__(
         self,
         input_file: str,
+        dimensionless: bool = False,
+        axis_labels: bool = False,
         quantities: Sequence[str] = DEFAULT_QUANTITIES,
         max_cols: int = 4,
         logger: logging.Logger = None,
         figure_kwargs: Union[Dict[str, Any], None] = None,
     ):
         self.input_file = input_file
+        self.dimensionless = dimensionless
+        self.axis_labels = axis_labels
         self.frame = 0
         if quantities is None:
             quantities = Quantity.get_keys()
@@ -151,10 +165,15 @@ class MultiInteractivePlot:
 
     def show(self):
         with h5py.File(self.input_file, "r", libver="latest") as h5file:
-            if "mesh" in h5file:
-                mesh = Mesh.from_hdf5(h5file["mesh"])
+            device = Device.from_hdf5(h5file["solution/device"])
+            mesh = device.mesh
+            if self.dimensionless:
+                scale = 1
+                units_str = "\\xi"
             else:
-                mesh = Mesh.from_hdf5(h5file["solution/device/mesh"])
+                scale = device.layer.coherence_length
+                units_str = f"{device.ureg(device.length_units).units:~L}"
+            x, y = scale * mesh.sites.T
 
             min_frame, max_frame = get_data_range(h5file)
 
@@ -209,7 +228,6 @@ class MultiInteractivePlot:
                     collection.set_clim(vmins[i], vmaxs[i])
                 fig.canvas.draw()
 
-            x, y = mesh.sites.T
             # Temp data to use in plots
             temp_value = np.ones_like(x)
             temp_value[0] = 0
@@ -238,6 +256,9 @@ class MultiInteractivePlot:
                 ax.set_aspect("equal")
                 ax.set_title(quantity.value)
                 collections.append(collection)
+                if self.axis_labels:
+                    ax.set_xlabel(f"$x$ [${units_str}$]")
+                    ax.set_ylabel(f"$y$ [${units_str}$]")
 
             draw()
             plt.show()
