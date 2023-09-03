@@ -328,9 +328,11 @@ def solve(
     use_pardiso = options.sparse_solver == "pardiso"
     if use_pardiso:
         assert mu_laplacian_factorized is None
-        import pypardiso
+        from pypardiso import ps as pardiso_solver
 
-        mu_laplacian = operators.mu_laplacian
+        mu_laplacian = operators.mu_laplacian.tocsr(copy=False)
+        pardiso_solver._check_A(mu_laplacian)
+        pardiso_solver.factorize(mu_laplacian)
     # Initialize the order parameter and electric potential
     psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
     if terminal_psi is not None:
@@ -435,7 +437,7 @@ def solve(
             supercurrent = get_supercurrent(psi, operators.psi_gradient, edges)
             rhs = (divergence @ supercurrent) - (mu_boundary_laplacian @ mu_boundary)
             if use_pardiso:
-                mu = pypardiso.spsolve(mu_laplacian, rhs)
+                mu = pardiso_solver.solve(mu_laplacian, rhs).squeeze()
             else:
                 mu = mu_laplacian_factorized(rhs)
             normal_current = -(mu_gradient @ mu)
