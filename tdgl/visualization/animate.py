@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from tqdm import tqdm
 
-from ..finite_volume.mesh import Mesh
+from ..device.device import Device
 from ..solution.data import get_data_range
 from .common import PLOT_DEFAULTS, Quantity, auto_grid
 from .io import get_plot_data, get_state_string
@@ -29,6 +29,8 @@ def create_animation(
     max_frame: int = -1,
     autoscale: bool = False,
     quiver: bool = False,
+    dimensionless: bool = False,
+    axis_labels: bool = False,
     axes_off: bool = False,
     title_off: bool = False,
     full_title: bool = True,
@@ -94,13 +96,15 @@ def create_animation(
 
     with h5_context as h5file:
         with mpl_context:
-            # Get the mesh
-            if "mesh" in h5file:
-                mesh = Mesh.from_hdf5(h5file["mesh"])
+            device = Device.from_hdf5(h5file["solution/device"])
+            mesh = device.mesh
+            if dimensionless:
+                scale = 1
+                units_str = "\\xi"
             else:
-                mesh = Mesh.from_hdf5(h5file["solution/device/mesh"])
-
-            x, y = mesh.sites.T
+                scale = device.layer.coherence_length
+                units_str = f"{device.ureg(device.length_units).units:~L}"
+            x, y = scale * mesh.sites.T
 
             # Get the ranges for the frame
             _min_frame, _max_frame = get_data_range(h5file)
@@ -146,6 +150,9 @@ def create_animation(
                 ax.set_title(quantity.value)
                 if axes_off:
                     ax.axis("off")
+                if axis_labels:
+                    ax.set_xlabel(f"$x$ [${units_str}$]")
+                    ax.set_ylabel(f"$y$ [${units_str}$]")
                 collections.append(collection)
 
             vmins = [+np.inf for _ in quantities]
