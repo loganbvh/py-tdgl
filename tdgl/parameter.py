@@ -1,3 +1,4 @@
+import hashlib
 import inspect
 import operator
 from typing import Callable, Optional, Union
@@ -80,7 +81,7 @@ class Parameter:
         kwargs: Keyword arguments for func.
     """
 
-    __slots__ = ("func", "kwargs")
+    __slots__ = ("func", "kwargs", "time_dependent", "_cache")
 
     def __init__(self, func: Callable, **kwargs):
         argspec = inspect.getfullargspec(func)
@@ -103,6 +104,7 @@ class Parameter:
             raise ValueError(
                 "All arguments other than x, y, z must be keyword arguments."
             )
+        self.time_dependent = kwargs.pop("time_dependent", False)
         defaults_dict = dict(zip(args[num_args:], defaults))
         kwonlyargs = set(kwargs) - set(argspec.args[num_args:])
         if not kwonlyargs.issubset(set(argspec.kwonlyargs or [])):
@@ -116,20 +118,40 @@ class Parameter:
         self.kwargs = defaults_dict
         self.kwargs.update(kwargs)
 
+        if self.time_dependent and "t" not in argspec.kwonlyargs:
+            raise ValueError(
+                "A time-dependent Parameter must take time t as a keyword argument."
+            )
+
+        self._cache = {}
+
+    def _hash_args(self, x, y, z, t) -> str:
+        return (
+            hex(hash(tuple(self.kwargs.items())))
+            + hashlib.sha1(np.array([x, y, z])).hexdigest()
+            + hex(hash(t))
+        )
+
     def __call__(
         self,
         x: Union[int, float, np.ndarray],
         y: Union[int, float, np.ndarray],
         z: Optional[Union[int, float, np.ndarray]] = None,
+        t: Optional[float] = None,
     ) -> Union[int, float, np.ndarray]:
-        kwargs = self.kwargs.copy()
-        x, y = np.atleast_1d(x, y)
-        if z is not None:
-            kwargs["z"] = np.atleast_1d(z)
-        result = self.func(x, y, **kwargs).squeeze()
-        if result.ndim == 0:
-            result = result.item()
-        return result
+        args_hash = self._hash_args(x, y, z, t)
+        if args_hash not in self._cache:
+            kwargs = self.kwargs.copy()
+            if t is not None:
+                kwargs["t"] = t
+            x, y = np.atleast_1d(x, y)
+            if z is not None:
+                kwargs["z"] = np.atleast_1d(z)
+            result = np.asarray(self.func(x, y, **kwargs)).squeeze()
+            if result.ndim == 0:
+                result = result.item()
+            self._cache[args_hash] = result
+        return self._cache[args_hash]
 
     def _get_argspec(self) -> _FakeArgSpec:
         if self.kwargs:
@@ -258,21 +280,34 @@ class CompositeParameter(Parameter):
         self.left = left
         self.right = right
         self.operator = operator_
+        self.time_dependent = False
+        if isinstance(self.left, Parameter) and self.left.time_dependent:
+            self.time_dependent = True
+        if isinstance(self.right, Parameter) and self.right.time_dependent:
+            self.time_dependent = True
 
     def __call__(
         self,
         x: Union[int, float, np.ndarray],
         y: Union[int, float, np.ndarray],
         z: Optional[Union[int, float, np.ndarray]] = None,
+        t: Optional[float] = None,
     ) -> Union[int, float, np.ndarray]:
+        kw = {} if t is None else {"t": t}
         if isinstance(self.left, (int, float)):
             left_val = self.left
         else:
-            left_val = self.left(x, y, z)
+            if self.left.time_dependent:
+                left_val = self.left(x, y, z, **kw)
+            else:
+                left_val = self.left(x, y, z)
         if isinstance(self.right, (int, float)):
             right_val = self.right
         else:
-            right_val = self.right(x, y, z)
+            if self.right.time_dependent:
+                right_val = self.right(x, y, z, **kw)
+            else:
+                right_val = self.right(x, y, z)
         return self.operator(left_val, right_val)
 
     def _bare_repr(self) -> str:
@@ -324,7 +359,7 @@ class CompositeParameter(Parameter):
 
 
 class Constant(Parameter):
-    """A Parameter whose value doesn't depend on position."""
+    """A Parameter whose value doesn't depend on position or time."""
 
     def __init__(self, value: Union[int, float, complex], dimensions: int = 2):
         if dimensions not in (2, 3):
