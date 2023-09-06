@@ -128,7 +128,9 @@ class Parameter:
     def _hash_args(self, x, y, z, t) -> str:
         return (
             hex(hash(tuple(self.kwargs.items())))
-            + hashlib.sha1(np.array([x, y, z])).hexdigest()
+            + hashlib.sha1(np.ascontiguousarray(x)).hexdigest()
+            + hashlib.sha1(np.ascontiguousarray(y)).hexdigest()
+            + hashlib.sha1(np.ascontiguousarray(z)).hexdigest()
             + hex(hash(t))
         )
 
