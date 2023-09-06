@@ -803,10 +803,14 @@ class Solution:
         rho2 = distance.cdist(positions, points, metric="sqeuclidean")
         layer = device.layer
         vector_potentials = {}
+        A_kwargs = {}
+        if self.applied_vector_potential.time_dependent:
+            A_kwargs["t"] = self.times[self.solve_step]
         applied = self.applied_vector_potential(
             positions[:, 0],
             positions[:, 1],
             zs.squeeze(),
+            **A_kwargs,
         )
         if applied.shape[1] == 2:
             applied = A = np.concatenate(
