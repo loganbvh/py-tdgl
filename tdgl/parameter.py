@@ -295,22 +295,18 @@ class CompositeParameter(Parameter):
         z: Optional[Union[int, float, np.ndarray]] = None,
         t: Optional[float] = None,
     ) -> Union[int, float, np.ndarray]:
-        kw = {} if t is None else {"t": t}
-        if isinstance(self.left, (int, float)):
-            left_val = self.left
-        else:
-            if self.left.time_dependent:
-                left_val = self.left(x, y, z, **kw)
+        kwargs = dict() if t is None else dict(t=t)
+        values = []
+        for operand in (self.left, self.right):
+            if isinstance(operand, Parameter):
+                if operand.time_dependent:
+                    value = operand(x, y, z, **kwargs)
+                else:
+                    value = operand(x, y, z)
             else:
-                left_val = self.left(x, y, z)
-        if isinstance(self.right, (int, float)):
-            right_val = self.right
-        else:
-            if self.right.time_dependent:
-                right_val = self.right(x, y, z, **kw)
-            else:
-                right_val = self.right(x, y, z)
-        return self.operator(left_val, right_val)
+                value = operand
+            values.append(value)
+        return self.operator(*values)
 
     def _bare_repr(self) -> str:
         op_str = self.VALID_OPERATORS[self.operator]

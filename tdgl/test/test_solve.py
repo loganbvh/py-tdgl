@@ -7,8 +7,12 @@ from tdgl.solver.options import SolverOptionsError
 
 @pytest.mark.parametrize("current", [5.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
-@pytest.mark.parametrize("terminal_psi", [0, 1])
-def test_source_drain_current(transport_device, current, field, terminal_psi):
+@pytest.mark.parametrize(
+    "terminal_psi, time_dependent", [(0, False), (1, False), (1, True)]
+)
+def test_source_drain_current(
+    transport_device, current, field, terminal_psi, time_dependent
+):
     device = transport_device
     total_time = 100
 
@@ -34,6 +38,10 @@ def test_source_drain_current(transport_device, current, field, terminal_psi):
             disorder_epsilon=2,
             applied_vector_potential=field,
             terminal_currents=terminal_currents,
+        )
+    if time_dependent:
+        field = tdgl.sources.LinearRamp(tmin=0, tmax=50) * tdgl.sources.ConstantField(
+            field, field_units=options.field_units, length_units=device.length_units
         )
     solution = tdgl.solve(
         device,
