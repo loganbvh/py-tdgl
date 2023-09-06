@@ -460,7 +460,9 @@ def solve(
             )
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = get_supercurrent(psi, operators.psi_gradient, edges)
-            rhs = (divergence @ supercurrent) - (mu_boundary_laplacian @ mu_boundary)
+            rhs = divergence @ (supercurrent - dA_dt) - (
+                mu_boundary_laplacian @ mu_boundary
+            )
             mu = mu_laplacian_lu.solve(rhs)
             normal_current = -((mu_gradient @ mu) + dA_dt)
 
