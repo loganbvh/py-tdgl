@@ -64,7 +64,7 @@ def function_repr(
 
 class Parameter:
     """A callable object that computes a scalar or vector quantity
-    as a function of position coordinates x, y (and optionally z).
+    as a function of position coordinates x, y (and optionally z and time t).
 
     Addition, subtraction, multiplication, and division
     between multiple Parameters and/or real numbers (ints and floats)
@@ -78,12 +78,15 @@ class Parameter:
             Therefore func should have a signature like
             ``func(x, y, z, a=1, b=2, c=True)``, ``func(x, y, *, a, b, c)``,
             ``func(x, y, z, *, a, b, c)``, or ``func(x, y, z, *, a, b=None, c=3)``.
+            For time-dependent Parameters, ``func`` must also take time ``t`` as a
+            keyword-only argument.
+        time_dependent: Specifies that ``func`` is a function of time ``t``.
         kwargs: Keyword arguments for func.
     """
 
     __slots__ = ("func", "kwargs", "time_dependent", "_cache")
 
-    def __init__(self, func: Callable, **kwargs):
+    def __init__(self, func: Callable, time_dependent: bool = False, **kwargs):
         argspec = inspect.getfullargspec(func)
         args = argspec.args
         num_args = 2
@@ -104,7 +107,7 @@ class Parameter:
             raise ValueError(
                 "All arguments other than x, y, z must be keyword arguments."
             )
-        self.time_dependent = kwargs.pop("time_dependent", False)
+        self.time_dependent = time_dependent
         defaults_dict = dict(zip(args[num_args:], defaults))
         kwonlyargs = set(kwargs) - set(argspec.args[num_args:])
         if not kwonlyargs.issubset(set(argspec.kwonlyargs or [])):
@@ -117,13 +120,12 @@ class Parameter:
         self.func = func
         self.kwargs = defaults_dict
         self.kwargs.update(kwargs)
+        self._cache = {}
 
         if self.time_dependent and "t" not in argspec.kwonlyargs:
             raise ValueError(
                 "A time-dependent Parameter must take time t as a keyword argument."
             )
-
-        self._cache = {}
 
     def _hash_args(self, x, y, z, t) -> str:
         return (
@@ -141,8 +143,8 @@ class Parameter:
         z: Optional[Union[int, float, np.ndarray]] = None,
         t: Optional[float] = None,
     ) -> Union[int, float, np.ndarray]:
-        args_hash = self._hash_args(x, y, z, t)
-        if args_hash not in self._cache:
+        cache_key = self._hash_args(x, y, z, t)
+        if cache_key not in self._cache:
             kwargs = self.kwargs.copy()
             if t is not None:
                 kwargs["t"] = t
@@ -152,8 +154,8 @@ class Parameter:
             result = np.asarray(self.func(x, y, **kwargs)).squeeze()
             if result.ndim == 0:
                 result = result.item()
-            self._cache[args_hash] = result
-        return self._cache[args_hash]
+            self._cache[cache_key] = result
+        return self._cache[cache_key]
 
     def _get_argspec(self) -> _FakeArgSpec:
         if self.kwargs:
@@ -161,10 +163,12 @@ class Parameter:
         else:
             kwargs = []
             kwarg_values = []
-        return _FakeArgSpec(
-            args=list(kwargs),
-            defaults=kwarg_values,
-        )
+        kwargs = list(kwargs)
+        kwarg_values = list(kwarg_values)
+        if self.time_dependent:
+            kwargs.insert(0, "time_dependent")
+            kwarg_values.insert(0, True)
+        return _FakeArgSpec(args=kwargs, defaults=kwarg_values)
 
     def __repr__(self) -> str:
         func_repr = function_repr(self.func, argspec=self._get_argspec())

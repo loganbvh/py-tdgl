@@ -40,9 +40,14 @@ def test_source_drain_current(
             terminal_currents=terminal_currents,
         )
     if time_dependent:
-        field = tdgl.sources.LinearRamp(tmin=0, tmax=50) * tdgl.sources.ConstantField(
-            field, field_units=options.field_units, length_units=device.length_units
+        ramp = tdgl.sources.LinearRamp(tmin=0, tmax=50)
+        constant_field = tdgl.sources.ConstantField(
+            field,
+            field_units=options.field_units,
+            length_units=device.length_units,
         )
+        field = ramp * constant_field
+        field = constant_field * ramp
     solution = tdgl.solve(
         device,
         options,
