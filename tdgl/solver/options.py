@@ -1,10 +1,17 @@
 import os
 from dataclasses import dataclass
+from enum import Enum
 from typing import Union
 
 
 class SolverOptionsError(ValueError):
     pass
+
+
+class SparseSolver(Enum):
+    SUPERLU: str = "superlu"
+    UMFPACK: str = "umfpack"
+    PARDISO: str = "pardiso"
 
 
 @dataclass
@@ -24,6 +31,10 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
+        sparse_solver: One of "superlu", "umfpack", or "pardiso". "umfpack" requires
+            suitesparse, which can be installed via conda, and scikit-umfpack, which
+            can be installed via pip. "pardiso" requires an Intel CPU and the
+            pypardiso package, which can be installed via pip or conda.
         terminal_psi: Fixed value for the order parameter in current terminals.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
@@ -53,6 +64,7 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
+    sparse_solver: Union[SparseSolver, str] = SparseSolver.SUPERLU
     terminal_psi: Union[float, complex, None] = 0.0
     save_every: int = 100
     progress_interval: int = 0
@@ -70,6 +82,17 @@ class SolverOptions:
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
             raise SolverOptionsError("dt_init must be less than or equal to dt_max.")
+        solver = self.sparse_solver
+        if isinstance(solver, str):
+            try:
+                solver = SparseSolver[solver.upper()]
+            except KeyError:
+                valid_solvers = list(SparseSolver.__members__.keys())
+                if solver not in valid_solvers:
+                    raise ValueError(
+                        f"sparse solver must be one of {valid_solvers!r}, got {solver}."
+                    )
+            self.sparse_solver = solver
         if self.terminal_psi is not None and not (0 <= abs(self.terminal_psi) <= 1):
             raise SolverOptionsError(
                 "terminal_psi must be None or have absolute value in [0, 1]"

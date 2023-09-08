@@ -20,7 +20,7 @@ from ..finite_volume.util import get_supercurrent
 from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
-from .options import SolverOptions
+from .options import SolverOptions, SparseSolver
 from .runner import DataHandler, Runner
 
 logger = logging.getLogger(__name__)
@@ -327,12 +327,18 @@ def solve(
         fixed_sites=normal_boundary_index,
         fix_psi=(terminal_psi is not None),
     )
-    operators.build_operators()
+    operators.build_operators(sparse_solver=options.sparse_solver)
     operators.set_link_exponents(vector_potential)
     divergence = operators.divergence
     mu_boundary_laplacian = operators.mu_boundary_laplacian
     mu_laplacian_lu = operators.mu_laplacian_lu
     mu_gradient = operators.mu_gradient
+    use_pardiso = options.sparse_solver is SparseSolver.PARDISO
+    if use_pardiso:
+        assert mu_laplacian_lu is None
+        import pypardiso
+
+        mu_laplacian = operators.mu_laplacian
     # Initialize the order parameter and electric potential
     psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
     if terminal_psi is not None:
@@ -463,7 +469,10 @@ def solve(
             rhs = divergence @ (supercurrent - dA_dt) - (
                 mu_boundary_laplacian @ mu_boundary
             )
-            mu = mu_laplacian_lu.solve(rhs)
+            if use_pardiso:
+                mu = pypardiso.spsolve(mu_laplacian, rhs)
+            else:
+                mu = mu_laplacian_lu(rhs)
             normal_current = -((mu_gradient @ mu) + dA_dt)
 
             if not options.include_screening:
