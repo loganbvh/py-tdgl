@@ -15,9 +15,9 @@ except (ModuleNotFoundError, ImportError):
 
 from .. import distance
 from ..device.device import Device, TerminalInfo
-from ..em import ureg
 from ..finite_volume.operators import MeshOperators
 from ..finite_volume.util import get_supercurrent
+from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
 from .options import SolverOptions
@@ -238,9 +238,11 @@ def solve(
     field_units = options.field_units
     output_file = options.output_file
 
+    ureg = device.ureg
     mesh = device.mesh
     sites = device.points
     edges = mesh.edge_mesh.edges
+    edge_directions = mesh.edge_mesh.directions
     length_units = ureg(device.length_units)
     xi = device.coherence_length.magnitude
     probe_points = device.probe_point_indices
@@ -249,31 +251,37 @@ def solve(
     K0 = device.K0
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
-    x = mesh.edge_mesh.x * xi
-    y = mesh.edge_mesh.y * xi
+    x, y = xi * mesh.edge_mesh.centers.T
     Bc2 = device.Bc2
     z = device.layer.z0 * xi * np.ones_like(x)
     J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
     assert "dimensionless" in str(J_scale.units), str(J_scale.units)
     J_scale = J_scale.magnitude
+    time_dependent_vector_potential = (
+        isinstance(applied_vector_potential, Parameter)
+        and applied_vector_potential.time_dependent
+    )
     if not callable(applied_vector_potential):
         applied_vector_potential = ConstantField(
             applied_vector_potential,
             field_units=field_units,
             length_units=device.length_units,
         )
+    applied_vector_potential_ = applied_vector_potential
     # Evaluate the vector potential
-    vector_potential = applied_vector_potential(x, y, z)
+    vector_potential_scale = (
+        (ureg(field_units) * length_units / (Bc2 * xi * length_units))
+        .to_base_units()
+        .magnitude
+    )
+    A_kwargs = dict(t=0) if time_dependent_vector_potential else dict()
+    vector_potential = applied_vector_potential_(x, y, z, **A_kwargs)
     vector_potential = np.asarray(vector_potential)[:, :2]
-    shape = vector_potential.shape
-    if shape != x.shape + (2,):
-        raise ValueError(f"Unexpected shape for vector_potential: {shape}.")
-    vector_potential = (
-        (vector_potential * ureg(field_units) * length_units)
-        / (Bc2 * xi * length_units)
-    ).to_base_units()
-    assert "dimensionless" in str(vector_potential.units)
-    vector_potential = vector_potential.magnitude
+    if vector_potential.shape != x.shape + (2,):
+        raise ValueError(
+            f"Unexpected shape for vector_potential: {vector_potential.shape}."
+        )
+    vector_potential *= vector_potential_scale
 
     dt_max = options.dt_max if options.adaptive else options.dt_init
 
@@ -370,13 +378,17 @@ def solve(
     def update(
         state,
         running_state,
+        dt,
+        *,
         psi,
         mu,
         supercurrent,
         normal_current,
-        A_induced,
-        dt,
+        induced_vector_potential,
+        applied_vector_potential=None,
     ):
+        A_induced = induced_vector_potential
+        A_applied = applied_vector_potential
         nonlocal tentative_dt
         step = state["step"]
         time = state["time"]
@@ -389,6 +401,21 @@ def solve(
                 currents.get(name, 0) for name in terminal_names if name != term.name
             )
             mu_boundary[term.boundary_edge_indices] = J_scale * current_density
+
+        dA_dt = 0.0
+        if time_dependent_vector_potential:
+            vector_potential = applied_vector_potential_(x, y, z, t=time)[:, :2]
+            vector_potential *= vector_potential_scale
+            dA_dt = np.einsum(
+                "ij, ij -> i",
+                (vector_potential - A_applied) / dt,
+                edge_directions,
+            )
+            if not options.include_screening:
+                if np.any(np.abs(dA_dt) > 0):
+                    operators.set_link_exponents(vector_potential)
+        else:
+            assert A_applied is None
 
         screening_error = np.inf
         A_induced_vals = []
@@ -408,6 +435,12 @@ def solve(
                 # Update the link variables in the covariant Laplacian and gradient
                 # for psi based on the induced vector potential from the previous iteration.
                 operators.set_link_exponents(vector_potential + A_induced)
+                if time_dependent_vector_potential:
+                    dA_dt = np.einsum(
+                        "ij, ij -> i",
+                        (vector_potential + A_induced - A_applied) / dt,
+                        edge_directions,
+                    )
 
             # Adjust the time step and calculate the new the order parameter
             if screening_iteration == 0:
@@ -427,9 +460,11 @@ def solve(
             )
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = get_supercurrent(psi, operators.psi_gradient, edges)
-            lhs = (divergence @ supercurrent) - (mu_boundary_laplacian @ mu_boundary)
-            mu = mu_laplacian_lu.solve(lhs)
-            normal_current = -(mu_gradient @ mu)
+            rhs = divergence @ (supercurrent - dA_dt) - (
+                mu_boundary_laplacian @ mu_boundary
+            )
+            mu = mu_laplacian_lu.solve(rhs)
+            normal_current = -((mu_gradient @ mu) + dA_dt)
 
             if not options.include_screening:
                 break
@@ -473,14 +508,17 @@ def solve(
                 new_dt = options.dt_init / max(1e-10, np.mean(d_psi_sq_vals[-window:]))
                 tentative_dt = np.clip(0.5 * (new_dt + dt), 0, dt_max)
 
-        return (
+        results = (
+            dt,
             psi,
             mu,
             supercurrent,
             normal_current,
             A_induced,
-            dt,
         )
+        if time_dependent_vector_potential:
+            results = results + (vector_potential,)
+        return results
 
     # Set the initial conditions.
     if seed_solution is None:
@@ -505,6 +543,13 @@ def solve(
             "normal_current": seed_data.normal_current,
             "induced_vector_potential": seed_data.induced_vector_potential,
         }
+    if time_dependent_vector_potential:
+        parameters["applied_vector_potential"] = vector_potential
+        fixed_values = (epsilon,)
+        fixed_names = ("epsilon",)
+    else:
+        fixed_values = (vector_potential, epsilon)
+        fixed_names = ("applied_vector_potential", "epsilon")
     running_names_and_sizes = {"dt": 1}
     if probe_points is not None:
         running_names_and_sizes["mu"] = len(probe_points)
@@ -520,8 +565,8 @@ def solve(
             data_handler=data_handler,
             initial_values=list(parameters.values()),
             names=list(parameters),
-            fixed_values=(vector_potential, epsilon),
-            fixed_names=("applied_vector_potential", "epsilon"),
+            fixed_values=fixed_values,
+            fixed_names=fixed_names,
             running_names_and_sizes=running_names_and_sizes,
             logger=logger,
         ).run()
@@ -533,7 +578,7 @@ def solve(
             device=device,
             path=data_handler.output_path,
             options=options,
-            applied_vector_potential=applied_vector_potential,
+            applied_vector_potential=applied_vector_potential_,
             terminal_currents=terminal_currents,
             disorder_epsilon=disorder_epsilon,
             total_seconds=(end_time - start_time).total_seconds(),

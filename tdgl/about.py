@@ -54,8 +54,11 @@ def _blas_info() -> str:
 def version_dict() -> Dict[str, str]:
     """Returns a dictionary containing the versions of important dependencies."""
     cpu_count = [joblib.cpu_count(only_physical_cores=b) for b in (True, False)]
+    version = tdgl.__version__
+    if tdgl.__git_revision__ is not None:
+        version = version + f"; git revision {tdgl.__git_revision__}"
     return {
-        "tdgl": tdgl.__version__,
+        "tdgl": version,
         "Numpy": numpy.__version__,
         "SciPy": scipy.__version__,
         "matplotlib": matplotlib.__version__,

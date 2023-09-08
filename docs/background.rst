@@ -66,8 +66,8 @@ The electric scalar potential :math:`\mu(\mathbf{r}, t)` evolves according to th
     :label: poisson
 
     \begin{split}
-    \nabla^2\mu &= \nabla\cdot\mathrm{Im}[\psi^*(\nabla-i\mathbf{A})\psi]\\
-    &=\nabla\cdot\mathbf{J}_s,
+    \nabla^2\mu &= \nabla\cdot\mathrm{Im}[\psi^*(\nabla-i\mathbf{A})\psi] - \nabla\cdot\frac{\partial\mathbf{A}}{\partial t}\\
+    &=\nabla\cdot\mathbf{J}_s - \nabla\cdot\frac{\partial\mathbf{A}}{\partial t},
     \end{split}
 
 where :math:`\mathbf{J}_s=\mathrm{Im}[\psi^*(\nabla-i\mathbf{A})\psi]` is the supercurrent density. Again, :math:`(\nabla-i\mathbf{A})\psi`
@@ -218,7 +218,7 @@ The discretized form of the covariant gradient of :math:`\psi` at time :math:`t^
 
     \left.\left(\nabla-i\mathbf{A}\right)\psi\right|_{\mathbf{r}_{ij}}^{t^{n}}=\frac{U^{n}_{ij}\psi_j^{n}-\psi_i^{n}}{e_{ij}},
 
-where :math:`U^{n}_{ij}=\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij})` is the spatial link variable.
+where :math:`U^{n}_{ij}=\exp(-i\mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\mathbf{e}_{ij}) = \exp(-iA_{ij}e_{ij})^{n}` is the spatial link variable.
 :eq:`grad-psi` is similar to the `gauge-invariant phase difference <https://link.springer.com/article/10.1007/s10948-020-05784-9>`_
 in Josephson junction physics.
 
@@ -259,9 +259,14 @@ The discretized form of the equations of motion for :math:`\psi(\mathbf{r}, t)` 
     :label: poisson-num
 
     \begin{split}
-    \sum_{j\in\mathcal{N}(i)}\frac{\mu_j^{n}-\mu_i^{n}}{e_{ij}}s_{ij}&=\sum_{j\in\mathcal{N}(i)}J_{ij}^{n}|s_{ij}|\\
+    \sum_{j\in\mathcal{N}(i)}\frac{\mu_j^{n}-\mu_i^{n}}{e_{ij}}s_{ij}&
+        =\sum_{j\in\mathcal{N}(i)}J_{ij}^{n}|s_{ij}| - \sum_{j\in\mathcal{N}(i)}\frac{A_{ij}^{n} - A_{ij}^{n-1}}{\Delta t^{n}}|s_{ij}|\\
     &=\sum_{j\in\mathcal{N}(i)}\mathrm{Im}\left\{\left(\psi_i^{n}\right)^*\,\frac{U^{n}_{ij}\psi_j^{n}-\psi_i^{n}}{e_{ij}}\right\}|s_{ij}|
+    - \sum_{j\in\mathcal{N}(i)}\frac{A_{ij}^{n} - A_{ij}^{n-1}}{\Delta t^{n}}|s_{ij}|,
     \end{split}
+
+where :math:`A_{ij}^{n} = \mathbf{A}(\mathbf{r}_{ij}, t^{n})\cdot\hat{\mathbf{e}}_{ij}` and :math:`\frac{A_{ij}^{n} - A_{ij}^{n-1}}{\Delta t^{n}}`
+approximates the time derivative of the vector potential, :math:`\left.\partial\mathbf{A}/\partial t\right|_{\mathbf{r}_{ij}}^{t_n}`.
 
 If we isloate the terms in :eq:`tdgl-num` involving the order parameter at time :math:`t^{n+1}`, we can rewrite :eq:`tdgl-num` in the form
 
@@ -518,7 +523,7 @@ given the state of the system at time :math:`t^n`, with no screening.
     - Calculate :math:`\psi_i^{n+1}` and :math:`\Delta t^n` via `Adaptive Euler update <#adaptive-euler-update>`_
     - Calculate the supercurrent density :math:`J_{s,ij}^{n+1}` (:eq:`poisson-num`)
     - Solve for :math:`\mu_i^{n+1}` via sparse LU factorization (:eq:`poisson-num`)
-    - Evaluate normal current density :math:`J_{n,ij}^{n+1}` via :math:`\mathbf{J}_n=-\nabla\mu`
+    - Evaluate normal current density :math:`J_{n,ij}^{n+1}` via :math:`\mathbf{J}_n=-\nabla\mu - \frac{\partial\mathbf{A}}{\partial t}`
     - if *adaptive*:
 
         - Select new tentative time step :math:`\Delta t_\star` given :math:`\Delta t^n` (:eq:`dt-tentative`)
@@ -550,7 +555,7 @@ Solve step, with screening
         - Calculate :math:`\psi_i^{n+1}` and :math:`\Delta t^n` via `Adaptive Euler update <#adaptive-euler-update>`_
         - Calculate the supercurrent density :math:`J_{s,ij}^{n+1}` (:eq:`poisson-num`)
         - Solve for :math:`\mu_i^{n+1}` via sparse LU factorization (:eq:`poisson-num`)
-        - Evaluate normal current density :math:`J_{n,ij}^{n+1}` via :math:`\mathbf{J}_n=-\nabla\mu`
+        - Evaluate normal current density :math:`J_{n,ij}^{n+1}` via :math:`\mathbf{J}_n=-\nabla\mu  - \frac{\partial\mathbf{A}}{\partial t}`
         - Evaluate :math:`\mathbf{K}_i^{n+1}=d(\mathbf{J}_{s,i}^{n+1}+\mathbf{J}_{n,i}^{n+1})` at the mesh sites :math:`i`
         - Update induced vector potential :math:`\mathbf{A}^{n+1,s}_\mathrm{induced}` (:eq:`polyak`)
         - if :math:`s > 1`:

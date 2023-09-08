@@ -329,10 +329,10 @@ class Runner:
                     function_result = self.function(
                         self.state,
                         self.running_state,
-                        *self.values,
                         self.dt,
+                        **dict(zip(self.names, self.values)),
                     )
-                    *self.values, new_dt = function_result
+                    new_dt, *self.values = function_result
                     # tqdm will spit out a warning if you try to update past "total"
                     if self.time + self.dt < end_time:
                         pbar.update(self.dt)

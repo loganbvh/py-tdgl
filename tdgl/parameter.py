@@ -1,3 +1,4 @@
+import hashlib
 import inspect
 import operator
 from typing import Callable, Optional, Union
@@ -63,7 +64,7 @@ def function_repr(
 
 class Parameter:
     """A callable object that computes a scalar or vector quantity
-    as a function of position coordinates x, y (and optionally z).
+    as a function of position coordinates x, y (and optionally z and time t).
 
     Addition, subtraction, multiplication, and division
     between multiple Parameters and/or real numbers (ints and floats)
@@ -77,12 +78,15 @@ class Parameter:
             Therefore func should have a signature like
             ``func(x, y, z, a=1, b=2, c=True)``, ``func(x, y, *, a, b, c)``,
             ``func(x, y, z, *, a, b, c)``, or ``func(x, y, z, *, a, b=None, c=3)``.
+            For time-dependent Parameters, ``func`` must also take time ``t`` as a
+            keyword-only argument.
+        time_dependent: Specifies that ``func`` is a function of time ``t``.
         kwargs: Keyword arguments for func.
     """
 
-    __slots__ = ("func", "kwargs")
+    __slots__ = ("func", "kwargs", "time_dependent", "_cache")
 
-    def __init__(self, func: Callable, **kwargs):
+    def __init__(self, func: Callable, time_dependent: bool = False, **kwargs):
         argspec = inspect.getfullargspec(func)
         args = argspec.args
         num_args = 2
@@ -103,6 +107,7 @@ class Parameter:
             raise ValueError(
                 "All arguments other than x, y, z must be keyword arguments."
             )
+        self.time_dependent = time_dependent
         defaults_dict = dict(zip(args[num_args:], defaults))
         kwonlyargs = set(kwargs) - set(argspec.args[num_args:])
         if not kwonlyargs.issubset(set(argspec.kwonlyargs or [])):
@@ -115,21 +120,42 @@ class Parameter:
         self.func = func
         self.kwargs = defaults_dict
         self.kwargs.update(kwargs)
+        self._cache = {}
+
+        if self.time_dependent and "t" not in argspec.kwonlyargs:
+            raise ValueError(
+                "A time-dependent Parameter must take time t as a keyword argument."
+            )
+
+    def _hash_args(self, x, y, z, t) -> str:
+        return (
+            hex(hash(tuple(self.kwargs.items())))
+            + hashlib.sha1(np.ascontiguousarray(x)).hexdigest()
+            + hashlib.sha1(np.ascontiguousarray(y)).hexdigest()
+            + hashlib.sha1(np.ascontiguousarray(z)).hexdigest()
+            + hex(hash(t))
+        )
 
     def __call__(
         self,
         x: Union[int, float, np.ndarray],
         y: Union[int, float, np.ndarray],
         z: Optional[Union[int, float, np.ndarray]] = None,
+        t: Optional[float] = None,
     ) -> Union[int, float, np.ndarray]:
-        kwargs = self.kwargs.copy()
-        x, y = np.atleast_1d(x, y)
-        if z is not None:
-            kwargs["z"] = np.atleast_1d(z)
-        result = self.func(x, y, **kwargs).squeeze()
-        if result.ndim == 0:
-            result = result.item()
-        return result
+        cache_key = self._hash_args(x, y, z, t)
+        if cache_key not in self._cache:
+            kwargs = self.kwargs.copy()
+            if t is not None:
+                kwargs["t"] = t
+            x, y = np.atleast_1d(x, y)
+            if z is not None:
+                kwargs["z"] = np.atleast_1d(z)
+            result = np.asarray(self.func(x, y, **kwargs)).squeeze()
+            if result.ndim == 0:
+                result = result.item()
+            self._cache[cache_key] = result
+        return self._cache[cache_key]
 
     def _get_argspec(self) -> _FakeArgSpec:
         if self.kwargs:
@@ -137,10 +163,12 @@ class Parameter:
         else:
             kwargs = []
             kwarg_values = []
-        return _FakeArgSpec(
-            args=list(kwargs),
-            defaults=kwarg_values,
-        )
+        kwargs = list(kwargs)
+        kwarg_values = list(kwarg_values)
+        if self.time_dependent:
+            kwargs.insert(0, "time_dependent")
+            kwarg_values.insert(0, True)
+        return _FakeArgSpec(args=kwargs, defaults=kwarg_values)
 
     def __repr__(self) -> str:
         func_repr = function_repr(self.func, argspec=self._get_argspec())
@@ -258,22 +286,31 @@ class CompositeParameter(Parameter):
         self.left = left
         self.right = right
         self.operator = operator_
+        self.time_dependent = False
+        if isinstance(self.left, Parameter) and self.left.time_dependent:
+            self.time_dependent = True
+        if isinstance(self.right, Parameter) and self.right.time_dependent:
+            self.time_dependent = True
 
     def __call__(
         self,
         x: Union[int, float, np.ndarray],
         y: Union[int, float, np.ndarray],
         z: Optional[Union[int, float, np.ndarray]] = None,
+        t: Optional[float] = None,
     ) -> Union[int, float, np.ndarray]:
-        if isinstance(self.left, (int, float)):
-            left_val = self.left
-        else:
-            left_val = self.left(x, y, z)
-        if isinstance(self.right, (int, float)):
-            right_val = self.right
-        else:
-            right_val = self.right(x, y, z)
-        return self.operator(left_val, right_val)
+        kwargs = dict() if t is None else dict(t=t)
+        values = []
+        for operand in (self.left, self.right):
+            if isinstance(operand, Parameter):
+                if operand.time_dependent:
+                    value = operand(x, y, z, **kwargs)
+                else:
+                    value = operand(x, y, z)
+            else:
+                value = operand
+            values.append(value)
+        return self.operator(*values)
 
     def _bare_repr(self) -> str:
         op_str = self.VALID_OPERATORS[self.operator]
@@ -324,7 +361,7 @@ class CompositeParameter(Parameter):
 
 
 class Constant(Parameter):
-    """A Parameter whose value doesn't depend on position."""
+    """A Parameter whose value doesn't depend on position or time."""
 
     def __init__(self, value: Union[int, float, complex], dimensions: int = 2):
         if dimensions not in (2, 3):

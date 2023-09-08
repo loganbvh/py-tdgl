@@ -263,6 +263,7 @@ class MeshOperators:
             )
             return
         # Just update the link variables
+        edges = mesh.edge_mesh.edges
         directions = mesh.edge_mesh.directions
         if self.link_exponents is None:
             link_variables = np.ones(len(directions))
@@ -275,12 +276,11 @@ class MeshOperators:
             # from scratch.
             warnings.filterwarnings("ignore", category=sp.SparseEfficiencyWarning)
             # Update gradient for psi
-            values = self.gradient_weights * link_variables
             rows, cols = self.gradient_link_rows, self.gradient_link_cols
-            self.psi_gradient[rows, cols] = values
+            self.psi_gradient[rows, cols] = self.gradient_weights * link_variables
             # Update Laplacian for psi
-            areas0 = mesh.areas[mesh.edge_mesh.edges[:, 0]]
-            areas1 = mesh.areas[mesh.edge_mesh.edges[:, 1]]
+            areas0 = mesh.areas[edges[:, 0]]
+            areas1 = mesh.areas[edges[:, 1]]
             # Only update rows that are not fixed by boundary conditions
             if self.fix_psi:
                 free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
@@ -297,5 +297,4 @@ class MeshOperators:
             )
             if self.fix_psi:
                 values = values[free_rows]
-
             self.psi_laplacian[rows, cols] = values
