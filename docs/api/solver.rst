@@ -26,6 +26,8 @@ in the dictionary to ensure current conservation.
 .. autoclass:: tdgl.SolverOptions
     :members:
 
+.. autoenum:: tdgl.solver.options.SparseSolver
+
 .. autoclass:: tdgl.Parameter
 
 

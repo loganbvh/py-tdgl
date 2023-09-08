@@ -9,6 +9,8 @@ class SolverOptionsError(ValueError):
 
 
 class SparseSolver(Enum):
+    """Supported sparse linear solvers."""
+
     SUPERLU: str = "superlu"
     UMFPACK: str = "umfpack"
     PARDISO: str = "pardiso"
