@@ -63,7 +63,7 @@ Optional dependencies
 
 The other solvers, ``UMFPACK`` and ``PARDISO``, may outperform ``SuperLU`` on certain problems and certain CPU hardware.
 In particular, ``PARDISO`` is optimized for Intel CPUs and, unlike ``SuperLU`` and ``UMFPACK``, is multithreaded.
-This means that ``PARDISO`` may perform best when solving models with very large meshes on an Intel CPU.
+This means that ``PARDISO`` may perform best when solving models with very large meshes on Intel CPUs.
 
 Your mileage may vary, so we encourage you to try the different solvers if you are looking to optimize the run time of your ``tdgl`` simulations.
 The sparse solver can be specified by setting the ``sparse_solver`` attribute of :class:`tdgl.SolverOptions` to one of ``{"superlu", "umfpack", "pardiso"}``.
