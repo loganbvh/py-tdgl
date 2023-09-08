@@ -568,7 +568,7 @@ def solve(
 
     with DataHandler(output_file=output_file, logger=logger) as data_handler:
         data_handler.save_mesh(mesh)
-        Runner(
+        result = Runner(
             function=update,
             options=options,
             data_handler=data_handler,
@@ -583,14 +583,16 @@ def solve(
         logger.info(f"Simulation ended at {end_time}")
         logger.info(f"Simulation took {end_time - start_time}")
 
-        solution = Solution(
-            device=device,
-            path=data_handler.output_path,
-            options=options,
-            applied_vector_potential=applied_vector_potential_,
-            terminal_currents=terminal_currents,
-            disorder_epsilon=disorder_epsilon,
-            total_seconds=(end_time - start_time).total_seconds(),
-        )
-        solution.to_hdf5()
-    return solution
+        if result:
+            solution = Solution(
+                device=device,
+                path=data_handler.output_path,
+                options=options,
+                applied_vector_potential=applied_vector_potential_,
+                terminal_currents=terminal_currents,
+                disorder_epsilon=disorder_epsilon,
+                total_seconds=(end_time - start_time).total_seconds(),
+            )
+            solution.to_hdf5()
+            return solution
+        return None

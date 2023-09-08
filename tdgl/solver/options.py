@@ -42,6 +42,7 @@ class SolverOptions:
             If the file name already exists, a unique name will be generated.
             If ``output_file`` is ``None``, the solver results will not be saved
             to disk.
+        pause_on_interrupt: Pause the simulation in the event of a KeyboardInterrupt.
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
         include_screening: Whether to include screening in the simulation.
@@ -66,6 +67,7 @@ class SolverOptions:
     adaptive_time_step_multiplier: float = 0.25
     sparse_solver: Union[SparseSolver, str] = SparseSolver.SUPERLU
     terminal_psi: Union[float, complex, None] = 0.0
+    pause_on_interrupt: bool = True
     save_every: int = 100
     progress_interval: int = 0
     field_units: str = "mT"
