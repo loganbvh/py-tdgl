@@ -218,6 +218,7 @@ def solve(
         raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
     if use_cupy:
         epsilon = cupy.asarray(epsilon)
+        mu_boundary = cupy.asarray(mu_boundary)
 
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
@@ -338,9 +339,6 @@ def solve(
             )
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = operators.get_supercurrent(psi)
-            import pdb
-
-            pdb.set_trace()
             rhs = divergence @ (supercurrent - dA_dt) - (
                 mu_boundary_laplacian @ mu_boundary
             )
