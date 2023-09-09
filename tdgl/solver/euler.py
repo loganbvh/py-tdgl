@@ -61,9 +61,9 @@ def solve_for_psi_squared(
             w2 = np_.absolute(w) ** 2
             discriminant = two_c_1**2 - 4 * np_.absolute(z) ** 2 * w2
         except Exception:
-            logger.debug("Unable to solve for |psi|^2.", exc_info=True)
+            logger.warning("Unable to solve for |psi|^2.", exc_info=True)
             return None
-    if np_.any(discriminant < 0):
+    if bool(np_.any(discriminant < 0)):
         return None
     new_sq_psi = (2 * w2) / (two_c_1 + np_.sqrt(discriminant))
     psi = w - z * new_sq_psi
