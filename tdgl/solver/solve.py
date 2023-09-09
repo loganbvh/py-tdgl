@@ -338,6 +338,9 @@ def solve(
             )
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = operators.get_supercurrent(psi)
+            import pdb
+
+            pdb.set_trace()
             rhs = divergence @ (supercurrent - dA_dt) - (
                 mu_boundary_laplacian @ mu_boundary
             )
