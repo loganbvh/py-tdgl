@@ -284,6 +284,7 @@ def solve(
             )
             # Only update mu_boundary if the terminal current has changed
             if current_density != terminal_current_densities[term.name]:
+                terminal_current_densities[term.name] = current_density
                 mu_boundary[term.boundary_edge_indices] = J_scale * current_density
 
         dA_dt = 0.0
