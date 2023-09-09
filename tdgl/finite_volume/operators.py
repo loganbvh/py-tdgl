@@ -233,10 +233,10 @@ class MeshOperators:
         self.mu_gradient = build_gradient(mesh, weights=self.gradient_weights)
         self.divergence = build_divergence(mesh)
         if self.sparse_solver is SparseSolver.CUPY:
-            import cupyx.scipy.sparse as cusp  # type: ignore
+            import cupyx.scipy  # type: ignore
 
-            mu_laplacian = cusp.csc_matrix(self.mu_laplacian)
-            self.mu_laplacian_lu = cusp.linalg.factorized(mu_laplacian)
+            mu_laplacian = cupyx.scipy.sparse.csc_matrix(self.mu_laplacian)
+            self.mu_laplacian_lu = cupyx.scipy.sparse.linalg.factorized(mu_laplacian)
         elif self.sparse_solver is SparseSolver.PARDISO:
             self.mu_laplacian_lu = None
         else:
