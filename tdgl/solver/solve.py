@@ -453,6 +453,10 @@ def solve(
 
     with DataHandler(output_file=output_file, logger=logger) as data_handler:
         data_handler.save_mesh(mesh)
+        logger.info(
+            f"Simulation started at {start_time}"
+            f" using solver {options.sparse_solver.value!r}."
+        )
         result = Runner(
             function=update,
             options=options,
