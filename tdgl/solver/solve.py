@@ -216,6 +216,8 @@ def solve(
         epsilon = disorder_epsilon * np.ones(len(sites), dtype=float)
     if np.any(epsilon < -1) or np.any(epsilon > 1):
         raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
+    if use_cupy:
+        epsilon = cupy.asarray(epsilon)
 
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude

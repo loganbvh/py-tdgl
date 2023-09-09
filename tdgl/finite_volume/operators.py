@@ -264,7 +264,6 @@ class MeshOperators:
                 a link variable.
         """
         mesh = self.mesh
-        use_cupy = not isinstance(link_exponents, np.ndarray)
         self.link_exponents = np.asarray(link_exponents)
         if self.psi_gradient is None:
             # Build the matrices from scratch
@@ -285,7 +284,7 @@ class MeshOperators:
                 free_rows=free_rows,
                 weights=self.laplacian_weights,
             )
-            if use_cupy:
+            if self.sparse_solver is SparseSolver.CUPY:
                 self.psi_gradient = csr_matrix(self.psi_gradient)
                 self.psi_laplacian = csc_matrix(self.psi_laplacian)
             return
