@@ -269,6 +269,8 @@ def solve(
             assert isinstance(psi, cupy.ndarray)
 
             np_ = cupy
+        if use_cupy:
+            cupy.cuda.stream.get_current_stream().synchronize()
         A_induced = induced_vector_potential
         A_applied = applied_vector_potential
         nonlocal tentative_dt
@@ -287,6 +289,7 @@ def solve(
                 terminal_current_densities[term.name] = current_density
                 mu_boundary[term.boundary_edge_indices] = J_scale * current_density
 
+        # Evaluate the time-dependent vector potential and its time-derivative
         dA_dt = 0.0
         if time_dependent_vector_potential:
             vector_potential = (
@@ -347,18 +350,28 @@ def solve(
                 operators.psi_laplacian,
                 options,
             )
+            if use_cupy:
+                cupy.cuda.stream.get_current_stream().synchronize()
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = operators.get_supercurrent(psi)
-            rhs = divergence @ (supercurrent - dA_dt) - (
-                mu_boundary_laplacian @ mu_boundary
-            )
+            if time_dependent_vector_potential:
+                rhs = divergence @ (supercurrent - dA_dt) - (
+                    mu_boundary_laplacian @ mu_boundary
+                )
+            else:
+                rhs = (divergence @ supercurrent) - (
+                    mu_boundary_laplacian @ mu_boundary
+                )
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             elif use_cupy:
                 mu = mu_laplacian_lu(cupy.asarray(rhs))
+                cupy.cuda.stream.get_current_stream().synchronize()
             else:
                 mu = mu_laplacian_lu(rhs)
-            normal_current = -((mu_gradient @ mu) + dA_dt)
+            normal_current = -(mu_gradient @ mu)
+            if time_dependent_vector_potential:
+                normal_current -= dA_dt
 
             if not options.include_screening:
                 break
