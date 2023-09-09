@@ -25,6 +25,13 @@ def test_source_drain_current(
         save_every=100,
         terminal_psi=terminal_psi,
     )
+
+    options.sparse_solver = "unknown"
+    with pytest.raises(ValueError):
+        options.validate()
+    options.sparse_solver = "superlu"
+    options.validate()
+
     if callable(current):
 
         def terminal_currents(t):
