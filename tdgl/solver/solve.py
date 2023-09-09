@@ -1,15 +1,13 @@
 import itertools
 import logging
 from datetime import datetime
-from typing import Callable, Dict, Sequence, Tuple, Union
+from typing import Callable, Dict, Optional, Sequence, Union
 
-import numba
 import numpy as np
-import scipy.sparse as sp
 
 try:
-    import jax
-    import jax.numpy as jnp
+    import jax  # type: ignore
+    import jax.numpy as jnp  # type: ignore
 except (ModuleNotFoundError, ImportError):
     jax = None
 
@@ -20,47 +18,12 @@ from ..finite_volume.util import get_supercurrent
 from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
+from .euler import adaptive_euler_step
 from .options import SolverOptions, SparseSolver
 from .runner import DataHandler, Runner
+from .screening import get_A_induced_numba
 
-logger = logging.getLogger(__name__)
-
-
-@numba.njit(fastmath=True, parallel=True)
-def get_A_induced_numba(
-    J_site: np.ndarray,
-    areas: np.ndarray,
-    sites: np.ndarray,
-    edge_centers: np.ndarray,
-) -> np.ndarray:
-    """Calculates the induced vector potential on the mesh edges.
-
-    Args:
-        J_site: The current density on the sites, shape ``(n, )``
-        areas: The mesh site areas, shape ``(n, )``
-        sites: The mesh site coordinates, shape ``(n, 2)``
-        edge_centers: The coordinates of the edge centers, shape ``(m, 2)``
-
-    Returns:
-        The induced vector potential on the mesh edges.
-    """
-    assert J_site.ndim == 2
-    assert J_site.shape[1] == 2
-    assert sites.shape == J_site.shape
-    assert edge_centers.ndim == 2
-    assert edge_centers.shape[1] == 2
-    out = np.empty((edge_centers.shape[0], sites.shape[1]), dtype=J_site.dtype)
-    for i in numba.prange(edge_centers.shape[0]):
-        for k in range(J_site.shape[1]):
-            tmp = 0.0
-            for j in range(J_site.shape[0]):
-                dr = np.sqrt(
-                    (edge_centers[i, 0] - sites[j, 0]) ** 2
-                    + (edge_centers[i, 1] - sites[j, 1]) ** 2
-                )
-                tmp += J_site[j, k] * areas[j] / dr
-            out[i, k] = tmp
-    return out
+logger = logging.getLogger("solver")
 
 
 def validate_terminal_currents(
@@ -91,121 +54,14 @@ def validate_terminal_currents(
         check_total_current(terminal_currents)
 
 
-def solve_for_psi_squared(
-    *,
-    psi: np.ndarray,
-    abs_sq_psi: np.ndarray,
-    mu: np.ndarray,
-    epsilon: np.ndarray,
-    gamma: float,
-    u: float,
-    dt: float,
-    psi_laplacian: sp.spmatrix,
-) -> Union[Tuple[np.ndarray, np.ndarray], None]:
-    """Solve for :math:`\\psi_i^{n+1}` and :math:`|\\psi_i^{n+1}|^2` given
-    :math:`\\psi_i^n` and :math:`\\mu_i^n`.
-
-    Args:
-        psi: The current value of the order parameter, :math:`\\psi_^n`
-        abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
-        mu: The current value of the electric potential, :math:`\\mu^n`
-        epsilon: The disorder parameter, :math:`\\epsilon`
-        gamma: The inelastic scattering parameter, :math:`\\gamma`.
-        u: The ratio of relaxation times for the order parameter, :math:`u`
-        dt: The time step
-        psi_laplacian: The covariant Laplacian for the order parameter
-
-    Returns:
-        ``None`` if the calculation failed to converge, otherwise the new order
-        parameter :math:`\\psi^{n+1}` and superfluid density :math:`|\\psi^{n+1}|^2`.
-    """
-    U = np.exp(-1j * mu * dt)
-    z = U * gamma**2 / 2 * psi
-    with np.errstate(all="raise"):
-        try:
-            w = z * abs_sq_psi + U * (
-                psi
-                + (dt / u)
-                * np.sqrt(1 + gamma**2 * abs_sq_psi)
-                * ((epsilon - abs_sq_psi) * psi + psi_laplacian @ psi)
-            )
-            c = w.real * z.real + w.imag * z.imag
-            two_c_1 = 2 * c + 1
-            w2 = np.abs(w) ** 2
-            discriminant = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
-        except Exception:
-            logger.debug("Unable to solve for |psi|^2.", exc_info=True)
-            return None
-    if np.any(discriminant < 0):
-        return None
-    new_sq_psi = (2 * w2) / (two_c_1 + np.sqrt(discriminant))
-    psi = w - z * new_sq_psi
-    return psi, new_sq_psi
-
-
-def adaptive_euler_step(
-    step: int,
-    psi: np.ndarray,
-    abs_sq_psi: np.ndarray,
-    mu: np.ndarray,
-    epsilon: np.ndarray,
-    gamma: float,
-    u: float,
-    dt: float,
-    psi_laplacian: MeshOperators,
-    options: SolverOptions,
-) -> Tuple[np.ndarray, np.ndarray, float]:
-    """Update the order parameter and time step in an adaptive Euler step.
-
-    Args:
-        step: The solve step index, :math:`n`
-        psi: The current value of the order parameter, :math:`\\psi_^n`
-        abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
-        mu: The current value of the electric potential, :math:`\\mu^n`
-        epsilon: The disorder parameter, :math:`\\epsilon`
-        gamma: The inelastic scattering parameter, :math:`\\gamma`.
-        u: The ratio of relaxation times for the order parameter, :math:`u`
-        dt: The tentative time step, which will be updated
-        psi_laplacian: The covariant Laplacian for the order parameter
-        options: The solver options for the simulation
-
-    Returns:
-        :math:`\\psi^{n+1}`, :math:`|\\psi^{n+1}|^2`, and :math:`\\Delta t^{n}`.
-    """
-    kwargs = dict(
-        psi=psi,
-        abs_sq_psi=abs_sq_psi,
-        mu=mu,
-        epsilon=epsilon,
-        gamma=gamma,
-        u=u,
-        dt=dt,
-        psi_laplacian=psi_laplacian,
-    )
-    result = solve_for_psi_squared(**kwargs)
-    for retries in itertools.count():
-        if result is not None:
-            break  # First evaluation of |psi|^2 was successful.
-        if (not options.adaptive) or retries > options.max_solve_retries:
-            raise RuntimeError(
-                f"Solver failed to converge in {options.max_solve_retries}"
-                f" retries at step {step} with dt = {dt:.2e}."
-                f" Try using a smaller dt_init."
-            )
-        kwargs["dt"] = dt = dt * options.adaptive_time_step_multiplier
-        result = solve_for_psi_squared(**kwargs)
-    psi, new_sq_psi = result
-    return psi, new_sq_psi, dt
-
-
 def solve(
     device: Device,
     options: SolverOptions,
     applied_vector_potential: Union[Callable, float] = 0,
     terminal_currents: Union[Callable, Dict[str, float], None] = None,
     disorder_epsilon: Union[float, Callable] = 1,
-    seed_solution: Union[Solution, None] = None,
-):
+    seed_solution: Optional[Solution] = None,
+) -> Union[Solution, None]:
     """Solve a TDGL model.
 
     Args:
@@ -213,9 +69,10 @@ def solve(
         options: An instance :class:`tdgl.SolverOptions` specifying the solver
             parameters.
         applied_vector_potential: A function or :class:`tdgl.Parameter` that computes
-            the applied vector potential as a function of position ``(x, y, z)``. If a float
-            ``B`` is given, the applied vector potential will be that of a uniform magnetic
-            field with strength ``B`` ``field_units``.
+            the applied vector potential as a function of position ``(x, y, z)``,
+            or of position and time ``(x, y, z, *, t)``. If a float ``B`` is given,
+            the applied vector potential will be that of a uniform magnetic field with
+            strength ``B`` ``field_units``.
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units`` and ``time`` is the dimensionless time.
@@ -229,7 +86,8 @@ def solve(
             for the simulation.
 
     Returns:
-        A :class:`tdgl.Solution` instance.
+        A :class:`tdgl.Solution` instance. Returns ``None`` if the simulation was
+        cancelled during the thermalization stage.
     """
 
     start_time = datetime.now()
@@ -237,6 +95,7 @@ def solve(
     current_units = options.current_units
     field_units = options.field_units
     output_file = options.output_file
+    dt_max = options.dt_max if options.adaptive else options.dt_init
 
     ureg = device.ureg
     mesh = device.mesh
@@ -249,6 +108,7 @@ def solve(
     u = device.layer.u
     gamma = device.layer.gamma
     K0 = device.K0
+
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
     x, y = xi * mesh.edge_mesh.centers.T
@@ -282,8 +142,6 @@ def solve(
             f"Unexpected shape for vector_potential: {vector_potential.shape}."
         )
     vector_potential *= vector_potential_scale
-
-    dt_max = options.dt_max if options.adaptive else options.dt_init
 
     # Find the current terminal sites.
     terminal_info = device.terminal_info()
@@ -336,9 +194,9 @@ def solve(
     use_pardiso = options.sparse_solver is SparseSolver.PARDISO
     if use_pardiso:
         assert mu_laplacian_lu is None
-        import pypardiso
-
         mu_laplacian = operators.mu_laplacian
+        import pypardiso  # type: ignore
+
     # Initialize the order parameter and electric potential
     psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
     if terminal_psi is not None:
