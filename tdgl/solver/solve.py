@@ -1,3 +1,5 @@
+# flake8: noqa
+
 import itertools
 import logging
 from datetime import datetime
@@ -58,6 +60,7 @@ def validate_terminal_currents(
         check_total_current(terminal_currents)
 
 
+@profile  # type: ignore
 def solve(
     device: Device,
     options: SolverOptions,
@@ -250,6 +253,7 @@ def solve(
 
     terminal_current_densities = {name: 0 for name in terminal_names}
 
+    @profile  # type: ignore
     def update(
         state,
         running_state,
@@ -269,8 +273,6 @@ def solve(
             assert isinstance(psi, cupy.ndarray)
 
             np_ = cupy
-        if use_cupy:
-            cupy.cuda.stream.get_current_stream().synchronize()
         A_induced = induced_vector_potential
         A_applied = applied_vector_potential
         nonlocal tentative_dt
@@ -350,8 +352,6 @@ def solve(
                 operators.psi_laplacian,
                 options,
             )
-            if use_cupy:
-                cupy.cuda.stream.get_current_stream().synchronize()
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = operators.get_supercurrent(psi)
             if time_dependent_vector_potential:
@@ -366,7 +366,6 @@ def solve(
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             elif use_cupy:
                 mu = mu_laplacian_lu(cupy.asarray(rhs))
-                cupy.cuda.stream.get_current_stream().synchronize()
             else:
                 mu = mu_laplacian_lu(rhs)
             normal_current = -(mu_gradient @ mu)
