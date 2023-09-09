@@ -4,6 +4,13 @@ from typing import Callable, Tuple, Union
 import numpy as np
 import scipy.sparse as sp
 
+try:
+    import cupy  # type: ignore
+    from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
+    from cupyx.scipy.sparse.linalg import factorized  # type: ignore
+except ModuleNotFoundError:
+    cupy = None
+
 from ..solver.options import SparseSolver
 from .mesh import Mesh
 
@@ -202,6 +209,8 @@ class MeshOperators:
     ):
         self.mesh = mesh
         edge_mesh = mesh.edge_mesh
+        self.edges = edge_mesh.edges
+        self.edge_directions = edge_mesh.directions
         self.sparse_solver = sparse_solver
         self.fixed_sites = fixed_sites
         self.fix_psi = fix_psi
@@ -233,11 +242,12 @@ class MeshOperators:
         self.mu_gradient = build_gradient(mesh, weights=self.gradient_weights)
         self.divergence = build_divergence(mesh)
         if self.sparse_solver is SparseSolver.CUPY:
-            import cupyx  # type: ignore
-            from cupyx.scipy.sparse.linalg import factorized  # type: ignore
-
-            mu_laplacian = cupyx.scipy.sparse.csc_matrix(self.mu_laplacian)
-            self.mu_laplacian_lu = factorized(mu_laplacian)
+            assert cupy is not None
+            self.mu_laplacian = csc_matrix(self.mu_laplacian)
+            self.mu_boundary_laplacian = csr_matrix(self.mu_boundary_laplacian)
+            self.mu_gradient = csr_matrix(self.mu_gradient)
+            self.divergence = csr_matrix(self.divergence)
+            self.mu_laplacian_lu = factorized(self.mu_laplacian)
         elif self.sparse_solver is SparseSolver.PARDISO:
             self.mu_laplacian_lu = None
         else:
@@ -254,9 +264,8 @@ class MeshOperators:
                 a link variable.
         """
         mesh = self.mesh
-        if link_exponents is not None:
-            link_exponents = np.asarray(link_exponents)
-        self.link_exponents = link_exponents
+        use_cupy = not isinstance(link_exponents, np.ndarray)
+        self.link_exponents = np.asarray(link_exponents)
         if self.psi_gradient is None:
             # Build the matrices from scratch
             self.psi_gradient = build_gradient(
@@ -276,10 +285,13 @@ class MeshOperators:
                 free_rows=free_rows,
                 weights=self.laplacian_weights,
             )
+            if use_cupy:
+                self.psi_gradient = csr_matrix(self.psi_gradient)
+                self.psi_laplacian = csc_matrix(self.psi_laplacian)
             return
         # Just update the link variables
-        edges = mesh.edge_mesh.edges
-        directions = mesh.edge_mesh.directions
+        edges = self.edges
+        directions = self.edge_directions
         if self.link_exponents is None:
             link_variables = np.ones(len(directions))
         else:
@@ -323,6 +335,5 @@ class MeshOperators:
         Returns:
             The supercurrent at each edge.
         """
-        edges = self.mesh.edge_mesh.edges
         gradient = self.psi_gradient
-        return (psi.conjugate()[edges[:, 0]] * (gradient @ psi)).imag
+        return (psi.conjugate()[self.edges[:, 0]] * (gradient @ psi)).imag

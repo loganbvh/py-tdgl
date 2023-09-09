@@ -256,12 +256,19 @@ def solve(
         induced_vector_potential,
         applied_vector_potential=None,
     ):
+        if isinstance(psi, np.ndarray):
+            np_ = np
+        else:
+            assert cupy is not None
+            assert isinstance(psi, cupy.ndarray)
+
+            np_ = cupy
         A_induced = induced_vector_potential
         A_applied = applied_vector_potential
         nonlocal tentative_dt
         step = state["step"]
         time = state["time"]
-        old_sq_psi = np.abs(psi) ** 2
+        old_sq_psi = np_.absolute(psi) ** 2
         # Compute the current density for this step
         # and update the current boundary conditions.
         currents = current_func(time)
@@ -275,13 +282,13 @@ def solve(
         if time_dependent_vector_potential:
             vector_potential = applied_vector_potential_(x, y, z, t=time)[:, :2]
             vector_potential *= vector_potential_scale
-            dA_dt = np.einsum(
+            dA_dt = np_.einsum(
                 "ij, ij -> i",
                 (vector_potential - A_applied) / dt,
                 edge_directions,
             )
             if not options.include_screening:
-                if np.any(np.abs(dA_dt) > 0):
+                if np_.any(np_.absolute(dA_dt) > 0):
                     operators.set_link_exponents(vector_potential)
         else:
             assert A_applied is None
@@ -305,7 +312,7 @@ def solve(
                 # for psi based on the induced vector potential from the previous iteration.
                 operators.set_link_exponents(vector_potential + A_induced)
                 if time_dependent_vector_potential:
-                    dA_dt = np.einsum(
+                    dA_dt = np_.einsum(
                         "ij, ij -> i",
                         (vector_potential + A_induced - A_applied) / dt,
                         edge_directions,
@@ -335,7 +342,7 @@ def solve(
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             elif use_cupy:
-                mu = cupy.asnumpy(mu_laplacian_lu(cupy.asarray(rhs)))
+                mu = mu_laplacian_lu(cupy.asarray(rhs)).get()
             else:
                 mu = mu_laplacian_lu(rhs)
             normal_current = -((mu_gradient @ mu) + dA_dt)
@@ -368,15 +375,20 @@ def solve(
         running_state.append("dt", dt)
         if probe_points is not None:
             # Update the voltage and phase difference
-            running_state.append("mu", mu[probe_points])
-            running_state.append("theta", np.angle(psi[probe_points]))
+            voltage = mu[probe_points]
+            phase = np.angle(psi[probe_points])
+            if np_ is cupy:
+                voltage = cupy.asnumpy(voltage)
+                phase = cupy.asnumpy(phase)
+            running_state.append("mu", voltage)
+            running_state.append("theta", phase)
         if options.include_screening:
             running_state.append("screening_iterations", screening_iteration)
 
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
             # and use it to select a new time step.
-            d_psi_sq_vals.append(np.abs(abs_sq_psi - old_sq_psi).max())
+            d_psi_sq_vals.append(float(np_.absolute(abs_sq_psi - old_sq_psi).max()))
             window = options.adaptive_window
             if step > window:
                 new_dt = options.dt_init / max(1e-10, np.mean(d_psi_sq_vals[-window:]))
@@ -424,6 +436,11 @@ def solve(
     else:
         fixed_values = (vector_potential, epsilon)
         fixed_names = ("applied_vector_potential", "epsilon")
+    if use_cupy:
+        assert cupy is not None
+        for key, val in parameters.items():
+            parameters[key] = cupy.asarray(val)
+        fixed_values = tuple(cupy.asarray(val) for val in fixed_values)
     running_names_and_sizes = {"dt": 1}
     if probe_points is not None:
         running_names_and_sizes["mu"] = len(probe_points)

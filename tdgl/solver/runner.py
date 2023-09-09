@@ -17,6 +17,12 @@ from ..finite_volume.mesh import Mesh
 from .options import SolverOptions
 
 
+def _get(item):
+    if not isinstance(item, np.ndarray):
+        item = item.get()
+    return item
+
+
 class DataHandler:
     """A context manager that is responsible for reading from and writing to disk.
 
@@ -123,7 +129,7 @@ class DataHandler:
     def save_fixed_values(self, fixed_data: Dict[str, np.ndarray]) -> None:
         """Save the fixed values, i.e., those that aren't updated at each solve step."""
         for key, value in fixed_data.items():
-            self.output_file[key] = value
+            self.output_file[key] = _get(value)
 
     def save_time_step(
         self,
@@ -135,14 +141,15 @@ class DataHandler:
         group = self.time_step_group.create_group(f"{self.save_number}")
         group.attrs["timestamp"] = datetime.now().isoformat()
         self.save_number += 1
+
         for key, value in state.items():
             group.attrs[key] = value
         for key, value in data.items():
-            group[key] = value
+            group[key] = _get(value)
         if running_state is not None:
             running_grp = group.create_group("running_state")
             for key, value in running_state.items():
-                running_grp[key] = np.squeeze(value)
+                running_grp[key] = np.squeeze(_get(value))
 
 
 class RunningState:
