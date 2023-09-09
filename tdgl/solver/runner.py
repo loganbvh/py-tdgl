@@ -14,7 +14,7 @@ import numpy as np
 from tqdm import TqdmWarning, tqdm
 
 from ..finite_volume.mesh import Mesh
-from .options import SolverOptions
+from .options import SolverOptions, SparseSolver
 
 
 def _get(item):
@@ -162,12 +162,15 @@ class RunningState:
             before writing to disk.
     """
 
-    def __init__(self, names_and_sizes: Dict[str, int], buffer_size: int):
+    def __init__(
+        self, names_and_sizes: Dict[str, int], buffer_size: int, array_module=np
+    ):
         self.step = 0
+        self.array_module = array_module
         self.buffer_size = buffer_size
         self.names_and_sizes = names_and_sizes
         self.values = {
-            name: np.zeros((size, buffer_size))
+            name: array_module.zeros((size, buffer_size))
             for name, size in self.names_and_sizes.items()
         }
 
@@ -175,7 +178,7 @@ class RunningState:
         """Clear the buffer."""
         self.step = 0
         for name, size in self.names_and_sizes.items():
-            self.values[name] = np.zeros((size, self.buffer_size))
+            self.values[name] = self.array_module.zeros((size, self.buffer_size))
 
     def append(self, name: str, value: Sequence[float]) -> None:
         """Append data to the buffer.
@@ -230,8 +233,16 @@ class Runner:
         self.running_names_and_sizes = (
             running_names_and_sizes if running_names_and_sizes is not None else {}
         )
+        if options.sparse_solver is SparseSolver.CUPY:
+            import cupy  # type: ignore
+
+            array_module = cupy
+        else:
+            array_module = np
         self.running_state = RunningState(
-            self.running_names_and_sizes, self.options.save_every
+            self.running_names_and_sizes,
+            self.options.save_every,
+            array_module=array_module,
         )
         self.state = state if state is not None else {}
         self.logger = logger if logger is not None else logging.getLogger()

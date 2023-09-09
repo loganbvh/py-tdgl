@@ -208,6 +208,7 @@ class MeshOperators:
         fix_psi: bool = True,
     ):
         self.mesh = mesh
+        self.areas = mesh.areas
         edge_mesh = mesh.edge_mesh
         self.edges = edge_mesh.edges
         self.edge_directions = edge_mesh.directions
@@ -248,6 +249,10 @@ class MeshOperators:
             self.mu_gradient = csr_matrix(self.mu_gradient)
             self.divergence = csr_matrix(self.divergence)
             self.mu_laplacian_lu = factorized(self.mu_laplacian)
+            self.laplacian_weights = cupy.asarray(self.laplacian_weights)
+            self.gradient_weights = cupy.asarray(self.gradient_weights)
+            self.areas = cupy.array(self.areas)
+            self.edge_directions = cupy.array(self.edge_directions)
         elif self.sparse_solver is SparseSolver.PARDISO:
             self.mu_laplacian_lu = None
         else:
@@ -264,7 +269,11 @@ class MeshOperators:
                 a link variable.
         """
         mesh = self.mesh
-        self.link_exponents = np.asarray(link_exponents)
+        if self.sparse_solver is SparseSolver.CUPY:
+            np_ = cupy
+        else:
+            np_ = np
+        self.link_exponents = np_.asarray(link_exponents)
         if self.psi_gradient is None:
             # Build the matrices from scratch
             self.psi_gradient = build_gradient(
@@ -292,10 +301,10 @@ class MeshOperators:
         edges = self.edges
         directions = self.edge_directions
         if self.link_exponents is None:
-            link_variables = np.ones(len(directions))
+            link_variables = np_.ones(len(directions))
         else:
-            link_variables = np.exp(
-                -1j * np.einsum("ij, ij -> i", self.link_exponents, directions)
+            link_variables = np_.exp(
+                -1j * np_.einsum("ij, ij -> i", self.link_exponents, directions)
             )
         with warnings.catch_warnings():
             # This is slightly faster than re-creating the sparse matrices
@@ -305,8 +314,8 @@ class MeshOperators:
             rows, cols = self.gradient_link_rows, self.gradient_link_cols
             self.psi_gradient[rows, cols] = self.gradient_weights * link_variables
             # Update Laplacian for psi
-            areas0 = mesh.areas[edges[:, 0]]
-            areas1 = mesh.areas[edges[:, 1]]
+            areas0 = self.areas[edges[:, 0]]
+            areas1 = self.areas[edges[:, 1]]
             # Only update rows that are not fixed by boundary conditions
             if self.fix_psi:
                 free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
@@ -315,7 +324,7 @@ class MeshOperators:
             else:
                 rows = self.laplacian_link_rows
                 cols = self.laplacian_link_cols
-            values = np.concatenate(
+            values = np_.concatenate(
                 [
                     self.laplacian_weights * link_variables / areas0,
                     self.laplacian_weights * link_variables.conjugate() / areas1,

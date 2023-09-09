@@ -285,6 +285,8 @@ def solve(
         if time_dependent_vector_potential:
             vector_potential = applied_vector_potential_(x, y, z, t=time)[:, :2]
             vector_potential *= vector_potential_scale
+            if use_cupy:
+                vector_potential = cupy.asarray(vector_potential)
             dA_dt = np_.einsum(
                 "ij, ij -> i",
                 (vector_potential - A_applied) / dt,
@@ -378,13 +380,8 @@ def solve(
         running_state.append("dt", dt)
         if probe_points is not None:
             # Update the voltage and phase difference
-            voltage = mu[probe_points]
-            phase = np.angle(psi[probe_points])
-            if np_ is cupy:
-                voltage = cupy.asnumpy(voltage)
-                phase = cupy.asnumpy(phase)
-            running_state.append("mu", voltage)
-            running_state.append("theta", phase)
+            running_state.append("mu", mu[probe_points])
+            running_state.append("theta", np_.angle(psi[probe_points]))
         if options.include_screening:
             running_state.append("screening_iterations", screening_iteration)
 
