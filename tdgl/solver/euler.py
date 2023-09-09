@@ -13,7 +13,6 @@ from .options import SolverOptions
 logger = logging.getLogger("solver")
 
 
-@profile  # type: ignore
 def solve_for_psi_squared(
     *,
     psi: np.ndarray,
@@ -73,7 +72,6 @@ def solve_for_psi_squared(
     return psi, new_sq_psi
 
 
-@profile  # type:ignore
 def adaptive_euler_step(
     step: int,
     psi: np.ndarray,

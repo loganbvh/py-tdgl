@@ -60,7 +60,6 @@ def validate_terminal_currents(
         check_total_current(terminal_currents)
 
 
-@profile  # type: ignore
 def solve(
     device: Device,
     options: SolverOptions,
@@ -253,7 +252,6 @@ def solve(
 
     terminal_current_densities = {name: 0 for name in terminal_names}
 
-    @profile  # type: ignore
     def update(
         state,
         running_state,
