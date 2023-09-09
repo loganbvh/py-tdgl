@@ -249,8 +249,6 @@ class MeshOperators:
             self.mu_gradient = csr_matrix(self.mu_gradient)
             self.divergence = csr_matrix(self.divergence)
             self.mu_laplacian_lu = factorized(self.mu_laplacian)
-            self.laplacian_weights = cupy.asarray(self.laplacian_weights)
-            self.gradient_weights = cupy.asarray(self.gradient_weights)
             self.areas = cupy.array(self.areas)
             self.edge_directions = cupy.array(self.edge_directions)
         elif self.sparse_solver is SparseSolver.PARDISO:
@@ -296,6 +294,8 @@ class MeshOperators:
             if self.sparse_solver is SparseSolver.CUPY:
                 self.psi_gradient = csr_matrix(self.psi_gradient)
                 self.psi_laplacian = csc_matrix(self.psi_laplacian)
+                self.gradient_weights = cupy.asarray(self.gradient_weights)
+                self.laplacian_weights = cupy.asarray(self.laplacian_weights)
             return
         # Just update the link variables
         edges = self.edges
