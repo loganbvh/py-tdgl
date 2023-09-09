@@ -219,6 +219,7 @@ def solve(
     if use_cupy:
         epsilon = cupy.asarray(epsilon)
         mu_boundary = cupy.asarray(mu_boundary)
+        edge_directions = cupy.asarray(edge_directions)
 
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
@@ -246,6 +247,8 @@ def solve(
     # Parameters for the self-consistent screening calculation.
     step_size = options.screening_step_size
     drag = options.screening_step_drag
+
+    terminal_current_densities = {name: 0 for name in terminal_names}
 
     def update(
         state,
@@ -279,12 +282,16 @@ def solve(
             current_density = (-1 / term.length) * sum(
                 currents.get(name, 0) for name in terminal_names if name != term.name
             )
-            mu_boundary[term.boundary_edge_indices] = J_scale * current_density
+            # Only update mu_boundary if the terminal current has changed
+            if current_density != terminal_current_densities[term.name]:
+                mu_boundary[term.boundary_edge_indices] = J_scale * current_density
 
         dA_dt = 0.0
         if time_dependent_vector_potential:
-            vector_potential = applied_vector_potential_(x, y, z, t=time)[:, :2]
-            vector_potential *= vector_potential_scale
+            vector_potential = (
+                vector_potential_scale
+                * applied_vector_potential_(x, y, z, t=time)[:, :2]
+            )
             if use_cupy:
                 vector_potential = cupy.asarray(vector_potential)
             dA_dt = np_.einsum(
