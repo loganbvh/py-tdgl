@@ -335,7 +335,7 @@ def solve(
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             elif use_cupy:
-                mu = mu_laplacian_lu(cupy.asarray(rhs)).asnumpy()
+                mu = cupy.asnumpy(mu_laplacian_lu(cupy.asarray(rhs)))
             else:
                 mu = mu_laplacian_lu(rhs)
             normal_current = -((mu_gradient @ mu) + dA_dt)
