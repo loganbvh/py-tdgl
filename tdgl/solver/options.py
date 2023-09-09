@@ -1,10 +1,19 @@
 import os
 from dataclasses import dataclass
+from enum import Enum
 from typing import Union
 
 
 class SolverOptionsError(ValueError):
     pass
+
+
+class SparseSolver(Enum):
+    """Supported sparse linear solvers."""
+
+    SUPERLU: str = "superlu"
+    UMFPACK: str = "umfpack"
+    PARDISO: str = "pardiso"
 
 
 @dataclass
@@ -24,6 +33,10 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
+        sparse_solver: One of "superlu", "umfpack", or "pardiso". "umfpack" requires
+            suitesparse, which can be installed via conda, and scikit-umfpack, which
+            can be installed via pip. "pardiso" requires an Intel CPU and the
+            pypardiso package, which can be installed via pip or conda.
         terminal_psi: Fixed value for the order parameter in current terminals.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
@@ -31,6 +44,7 @@ class SolverOptions:
             If the file name already exists, a unique name will be generated.
             If ``output_file`` is ``None``, the solver results will not be saved
             to disk.
+        pause_on_interrupt: Pause the simulation in the event of a KeyboardInterrupt.
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
         include_screening: Whether to include screening in the simulation.
@@ -53,7 +67,9 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
+    sparse_solver: Union[SparseSolver, str] = SparseSolver.SUPERLU
     terminal_psi: Union[float, complex, None] = 0.0
+    pause_on_interrupt: bool = True
     save_every: int = 100
     progress_interval: int = 0
     field_units: str = "mT"
@@ -70,6 +86,17 @@ class SolverOptions:
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
             raise SolverOptionsError("dt_init must be less than or equal to dt_max.")
+        solver = self.sparse_solver
+        if isinstance(solver, str):
+            try:
+                solver = SparseSolver[solver.upper()]
+            except KeyError:
+                valid_solvers = list(SparseSolver.__members__.keys())
+                if solver not in valid_solvers:
+                    raise ValueError(
+                        f"sparse solver must be one of {valid_solvers!r}, got {solver}."
+                    )
+            self.sparse_solver = solver
         if self.terminal_psi is not None and not (0 <= abs(self.terminal_psi) <= 1):
             raise SolverOptionsError(
                 "terminal_psi must be None or have absolute value in [0, 1]"

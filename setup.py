@@ -115,6 +115,13 @@ EXTRAS_REQUIRE = {
     "jax": [
         "jax[cpu]",
     ],
+    "umfpack": [
+        "swig",
+        "scikit-umfpack",
+    ],
+    "pardiso": [
+        "pypardiso",
+    ],
 }
 
 CLASSIFIERS = [

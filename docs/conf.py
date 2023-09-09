@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "pyTDGL"
-copyright = "2022, Logan Bishop-Van Horn"
+copyright = "2022-2023, Logan Bishop-Van Horn"
 author = "Logan Bishop-Van Horn"
 
 # -- General configuration ---------------------------------------------------

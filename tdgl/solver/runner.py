@@ -230,8 +230,12 @@ class Runner:
         self.logger = logger if logger is not None else logging.getLogger()
         self.data_handler = data_handler
 
-    def run(self) -> None:
-        """Run the simulation loop."""
+    def run(self) -> bool:
+        """Run the simulation loop.
+
+        Returns:
+            A boolean indicating whether any data was generated.
+        """
         self.time = 0
         self.state["step"] = 0
         self.state["time"] = self.time
@@ -239,26 +243,34 @@ class Runner:
         self.data_handler.save_fixed_values(
             dict(zip(self.fixed_names, self.fixed_values))
         )
+        success = True
         # Thermalize if enabled
         if self.options.skip_time:
-            self._run_stage(
-                "Thermalizing",
-                start_time=self.time,
-                end_time=self.options.skip_time,
-                save=False,
-            )
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=TqdmWarning)
+                success = self._run_stage(
+                    "Thermalizing",
+                    start_time=self.time,
+                    end_time=self.options.skip_time,
+                    save=False,
+                )
             self.running_state.clear()
+        if not success:
+            return False
         self.time = 0
         self.state["step"] = 0
         self.state["time"] = self.time
         self.state["dt"] = self.options.dt_init
         # Run the simulation
-        self._run_stage(
-            "Simulating",
-            start_time=self.time,
-            end_time=self.options.solve_time,
-            save=True,
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=TqdmWarning)
+            self._run_stage(
+                "Simulating",
+                start_time=self.time,
+                end_time=self.options.solve_time,
+                save=True,
+            )
+        return True
 
     def _run_stage(
         self,
@@ -266,7 +278,7 @@ class Runner:
         start_time: float,
         end_time: float,
         save: bool = True,
-    ) -> None:
+    ) -> bool:
         """Run a stage of the simulation.
 
         Args:
@@ -274,6 +286,10 @@ class Runner:
             start_time: Start time.
             end_time: End time.
             save: If the data should be saved.
+
+        Returns:
+            A boolean indicating whether the stage terminated normally. If False is returned,
+            future stages are cancelled.
         """
         prog_disabled = (
             self.options.progress_interval is not None
@@ -295,18 +311,18 @@ class Runner:
                 running_state = self.running_state.values
             self.data_handler.save_time_step(self.state, data, running_state)
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=TqdmWarning)
-            with tqdm(
-                initial=initial,
-                total=total,
-                desc=name,
-                disable=prog_disabled,
-                unit=unit,
-                bar_format=bar_format,
-                dynamic_ncols=True,
-            ) as pbar:
-                for i in it:
+        cancelled = False
+        with tqdm(
+            initial=initial,
+            total=total,
+            desc=name,
+            disable=prog_disabled,
+            unit=unit,
+            bar_format=bar_format,
+            dynamic_ncols=True,
+        ) as pbar:
+            for i in it:
+                try:
                     self.state["step"] = i
                     self.state["time"] = self.time
                     self.state["dt"] = self.dt
@@ -343,5 +359,24 @@ class Runner:
                     self.dt = new_dt
                     self.running_state.step += 1
                     self.time += self.dt
+                except KeyboardInterrupt:
+                    msg = f"{{}} simulation at step {i} of stage {name!r}"
+                    if self.options.pause_on_interrupt:
+                        response = input(
+                            f"Simulation paused at stage {name!r} (step {i})."
+                            " Continue simulation? [yN]"
+                        )
+                        resume = response.lower().startswith("y")
+                        if resume:
+                            self.logger.info(msg.format("Resuming"))
+                        else:
+                            self.logger.warning(msg.format("Cancelling"))
+                            cancelled = True
+                            break
+                    else:
+                        self.logger.warning(msg.format("Cancelling"))
+                        cancelled = True
+                        break
             if save:
                 save_step(i)
+            return not cancelled

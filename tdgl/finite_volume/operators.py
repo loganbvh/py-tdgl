@@ -1,9 +1,10 @@
 import warnings
-from typing import Tuple, Union
+from typing import Callable, Tuple, Union
 
 import numpy as np
 import scipy.sparse as sp
 
+from ..solver.options import SparseSolver
 from .mesh import Mesh
 
 
@@ -205,7 +206,7 @@ class MeshOperators:
         self.divergence: Union[sp.spmatrix, None] = None
         self.mu_laplacian: Union[sp.spmatrix, None] = None
         self.mu_boundary_laplacian: Union[sp.spmatrix, None] = None
-        self.mu_laplacian_lu: Union[sp.linalg.SuperLU, None] = None
+        self.mu_laplacian_lu: Union[Callable, None] = None
         self.psi_gradient: Union[sp.spmatrix, None] = None
         self.psi_laplacian: Union[sp.spmatrix, None] = None
         self.link_exponents: Union[np.ndarray, None] = None
@@ -221,11 +222,15 @@ class MeshOperators:
             [edge_mesh.edges[:, 1], edge_mesh.edges[:, 0]]
         )
 
-    def build_operators(self) -> None:
+    def build_operators(self, sparse_solver: SparseSolver) -> None:
         """Construct the vector potential-independent operators."""
         mesh = self.mesh
         self.mu_laplacian, _ = build_laplacian(mesh, weights=self.laplacian_weights)
-        self.mu_laplacian_lu = sp.linalg.splu(self.mu_laplacian)
+        if sparse_solver is SparseSolver.PARDISO:
+            self.mu_laplacian_lu = None
+        else:
+            sp.linalg.use_solver(useUmfpack=(sparse_solver is SparseSolver.UMFPACK))
+            self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
         self.mu_boundary_laplacian = build_neumann_boundary_laplacian(mesh)
         self.mu_gradient = build_gradient(mesh, weights=self.gradient_weights)
         self.divergence = build_divergence(mesh)

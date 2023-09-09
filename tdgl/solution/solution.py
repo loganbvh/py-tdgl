@@ -875,6 +875,8 @@ class Solution:
             group = f.create_group("solution")
             options_grp = group.create_group("options")
             for k, v in dataclasses.asdict(self.options).items():
+                if k == "sparse_solver":
+                    v = v.value
                 if v is not None:
                     options_grp.attrs[k] = v
             group.attrs["time_created"] = self.time_created.isoformat()
@@ -947,6 +949,7 @@ class Solution:
             for k, v in grp["options"].attrs.items():
                 options_kwargs[k] = v
             options = SolverOptions(**options_kwargs)
+            options.validate()
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
             vector_potential = deserialize_func("applied_vector_potential", grp)
             terminal_currents = deserialize_func("terminal_currents", grp)
