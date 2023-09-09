@@ -48,6 +48,9 @@ def solve_for_psi_squared(
         np_ = cupy
     U = np_.exp(-1j * mu * dt)
     z = U * gamma**2 / 2 * psi
+    import pdb
+
+    pdb.set_trace()
     with errstate(all="raise"):
         try:
             w = z * abs_sq_psi + U * (
