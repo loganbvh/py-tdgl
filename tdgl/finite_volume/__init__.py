@@ -8,6 +8,5 @@ from .util import (
     get_dual_edge_lengths,
     get_edge_lengths,
     get_edges,
-    get_supercurrent,
     get_voronoi_polygon_indices,
 )

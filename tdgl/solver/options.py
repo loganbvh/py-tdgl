@@ -14,6 +14,7 @@ class SparseSolver(Enum):
     SUPERLU: str = "superlu"
     UMFPACK: str = "umfpack"
     PARDISO: str = "pardiso"
+    CUPY: str = "cupy"
 
 
 @dataclass
@@ -33,10 +34,12 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
-        sparse_solver: One of "superlu", "umfpack", or "pardiso". "umfpack" requires
-            suitesparse, which can be installed via conda, and scikit-umfpack, which
-            can be installed via pip. "pardiso" requires an Intel CPU and the
-            pypardiso package, which can be installed via pip or conda.
+        sparse_solver: One of "superlu", "umfpack", "pardiso", or "cupy".
+            "umfpack" requires suitesparse, which can be installed via conda,
+            and scikit-umfpack, which can be installed via pip. "pardiso"
+            requires an Intel CPU and the pypardiso package, which can be
+            installed via pip or conda. "cupy" requires and  NVIDIA GPU
+            and the CuPy Python package.
         terminal_psi: Fixed value for the order parameter in current terminals.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
@@ -57,6 +60,7 @@ class SolverOptions:
         screening_step_drag: Drag parameter :math:`\\beta` for Polyak's method.
         screening_use_numba: Use numba for the screening calculation.
         screening_use_jax: Use jax for the screenig calculation.
+        gpu: Solve the model on an NVIDIA GPU.
     """
 
     solve_time: float
@@ -82,10 +86,47 @@ class SolverOptions:
     screening_step_drag: float = 0.5
     screening_use_numba: bool = True
     screening_use_jax: bool = False
+    gpu: bool = False
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
             raise SolverOptionsError("dt_init must be less than or equal to dt_max.")
+
+        if self.terminal_psi is not None and not (0 <= abs(self.terminal_psi) <= 1):
+            raise SolverOptionsError(
+                "terminal_psi must be None or have absolute value in [0, 1]"
+                f" (got {self.terminal_psi})."
+            )
+
+        if not (0 < self.adaptive_time_step_multiplier < 1):
+            raise SolverOptionsError(
+                "adaptive_time_step_multiplier must be in (0, 1)"
+                f" (got {self.adaptive_time_step_multiplier})."
+            )
+
+        if not (0 < self.screening_step_drag <= 1):
+            raise SolverOptionsError(
+                "screening_step_drag must be in (0, 1)"
+                f" (got {self.screening_step_drag})."
+            )
+
+        if self.screening_step_size <= 0:
+            raise SolverOptionsError(
+                "screening_step_size must be in > 0"
+                f" (got {self.screening_step_size})."
+            )
+
+        if self.screening_tolerance <= 0:
+            raise SolverOptionsError(
+                "screening_tolerance must be in > 0"
+                f" (got {self.screening_tolerance})."
+            )
+
+        if self.screening_use_jax and self.screening_use_numba:
+            raise SolverOptionsError(
+                "screening_use_jax and screening_use_numba cannot both be true."
+            )
+
         solver = self.sparse_solver
         if isinstance(solver, str):
             try:
@@ -97,32 +138,28 @@ class SolverOptions:
                         f"sparse solver must be one of {valid_solvers!r}, got {solver}."
                     )
             self.sparse_solver = solver
-        if self.terminal_psi is not None and not (0 <= abs(self.terminal_psi) <= 1):
-            raise SolverOptionsError(
-                "terminal_psi must be None or have absolute value in [0, 1]"
-                f" (got {self.terminal_psi})."
-            )
-        if not (0 < self.adaptive_time_step_multiplier < 1):
-            raise SolverOptionsError(
-                "adaptive_time_step_multiplier must be in (0, 1)"
-                f" (got {self.adaptive_time_step_multiplier})."
-            )
-        if not (0 < self.screening_step_drag <= 1):
-            raise SolverOptionsError(
-                "screening_step_drag must be in (0, 1)"
-                f" (got {self.screening_step_drag})."
-            )
-        if self.screening_step_size <= 0:
-            raise SolverOptionsError(
-                "screening_step_size must be in > 0"
-                f" (got {self.screening_step_size})."
-            )
-        if self.screening_tolerance <= 0:
-            raise SolverOptionsError(
-                "screening_tolerance must be in > 0"
-                f" (got {self.screening_tolerance})."
-            )
-        if self.screening_use_jax and self.screening_use_numba:
-            raise SolverOptionsError(
-                "screening_use_jax and screening_use_numba cannot both be true."
-            )
+
+        if self.sparse_solver is SparseSolver.UMFPACK:
+            try:
+                from scikits import umfpack  # type: ignore # noqa: F401
+            except ModuleNotFoundError:
+                raise SolverOptionsError(
+                    "SparseSolver.UMFPACK requires suitesparse and the"
+                    " scikit-umfpack Python package."
+                )
+        if self.sparse_solver is SparseSolver.PARDISO:
+            try:
+                import pypardiso  # type: ignore # noqa: F401
+            except ModuleNotFoundError:
+                raise SolverOptionsError(
+                    "SparseSolver.CUPY requires an Intel CPU"
+                    " and the pypardiso Python package."
+                )
+        if self.sparse_solver is SparseSolver.CUPY:
+            try:
+                import cupy  # type: ignore # noqa: F401
+            except ModuleNotFoundError:
+                raise SolverOptionsError(
+                    "SparseSolver.CUPY requires an NVIDIA GPU"
+                    " and the CuPy Python package."
+                )

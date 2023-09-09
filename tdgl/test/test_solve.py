@@ -1,6 +1,11 @@
 import numpy as np
 import pytest
 
+try:
+    import cupy  # type: ignore
+except ModuleNotFoundError:
+    cupy = None
+
 import tdgl
 from tdgl.solver.options import SolverOptionsError
 
@@ -8,11 +13,23 @@ from tdgl.solver.options import SolverOptionsError
 @pytest.mark.parametrize("current", [5.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
 @pytest.mark.parametrize(
-    "terminal_psi, time_dependent", [(0, False), (1, False), (1, True)]
+    "terminal_psi, time_dependent, gpu",
+    [(0, False, True), (1, False, False), (1, True, True)],
 )
 def test_source_drain_current(
-    transport_device, current, field, terminal_psi, time_dependent
+    transport_device,
+    current,
+    field,
+    terminal_psi,
+    time_dependent,
+    gpu,
 ):
+    if gpu:
+        if cupy is None:
+            return
+        sparse_solver = "cupy"
+    else:
+        sparse_solver = "superlu"
     device = transport_device
     total_time = 100
     skip_time = 10
@@ -29,7 +46,7 @@ def test_source_drain_current(
     options.sparse_solver = "unknown"
     with pytest.raises(ValueError):
         options.validate()
-    options.sparse_solver = "superlu"
+    options.sparse_solver = sparse_solver
     options.validate()
 
     if callable(current):

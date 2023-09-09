@@ -188,6 +188,7 @@ class MeshOperators:
     Args:
         mesh: The :class:`tdgl.finite_volume.Mesh` instance for which to construct
             operators.
+        sparse_solver: The sparse solver for which to build mesh operators.
         fixed_sites: The indices of any sites for which the value of :math:`\\psi`
             and :math:`\\mu` are fixed as boundary conditions.
     """
@@ -195,11 +196,13 @@ class MeshOperators:
     def __init__(
         self,
         mesh: Mesh,
+        sparse_solver: SparseSolver,
         fixed_sites: Union[np.ndarray, None] = None,
         fix_psi: bool = True,
     ):
         self.mesh = mesh
         edge_mesh = mesh.edge_mesh
+        self.sparse_solver = sparse_solver
         self.fixed_sites = fixed_sites
         self.fix_psi = fix_psi
         self.laplacian_free_rows: Union[np.ndarray, None] = None
@@ -222,18 +225,24 @@ class MeshOperators:
             [edge_mesh.edges[:, 1], edge_mesh.edges[:, 0]]
         )
 
-    def build_operators(self, sparse_solver: SparseSolver) -> None:
+    def build_operators(self) -> None:
         """Construct the vector potential-independent operators."""
         mesh = self.mesh
         self.mu_laplacian, _ = build_laplacian(mesh, weights=self.laplacian_weights)
-        if sparse_solver is SparseSolver.PARDISO:
-            self.mu_laplacian_lu = None
-        else:
-            sp.linalg.use_solver(useUmfpack=(sparse_solver is SparseSolver.UMFPACK))
-            self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
         self.mu_boundary_laplacian = build_neumann_boundary_laplacian(mesh)
         self.mu_gradient = build_gradient(mesh, weights=self.gradient_weights)
         self.divergence = build_divergence(mesh)
+        if self.sparse_solver is SparseSolver.CUPY:
+            import cupyx.scipy.sparse as cusp  # type: ignore
+
+            mu_laplacian = cusp.csc_matrix(self.mu_laplacian)
+            self.mu_laplacian_lu = cusp.linalg.factorized(mu_laplacian)
+        elif self.sparse_solver is SparseSolver.PARDISO:
+            self.mu_laplacian_lu = None
+        else:
+            use_umfpack = self.sparse_solver is SparseSolver.UMFPACK
+            sp.linalg.use_solver(useUmfpack=use_umfpack)
+            self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
 
     def set_link_exponents(self, link_exponents: np.ndarray) -> None:
         """Set the link variables and construct the covarient gradient
@@ -303,3 +312,16 @@ class MeshOperators:
             if self.fix_psi:
                 values = values[free_rows]
             self.psi_laplacian[rows, cols] = values
+
+    def get_supercurrent(self, psi: np.ndarray):
+        """Compute the supercurrent on the edges.
+
+        Args:
+            psi: The value of the complex order parameter.
+
+        Returns:
+            The supercurrent at each edge.
+        """
+        edges = self.mesh.edge_mesh.edges
+        gradient = self.psi_gradient
+        return (psi.conjugate()[edges[:, 0]] * (gradient @ psi)).imag

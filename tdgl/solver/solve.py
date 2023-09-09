@@ -8,13 +8,17 @@ import numpy as np
 try:
     import jax  # type: ignore
     import jax.numpy as jnp  # type: ignore
-except (ModuleNotFoundError, ImportError):
+except ModuleNotFoundError:
     jax = None
+
+try:
+    import cupy  # type: ignore
+except ModuleNotFoundError:
+    cupy = None
 
 from .. import distance
 from ..device.device import Device, TerminalInfo
 from ..finite_volume.operators import MeshOperators
-from ..finite_volume.util import get_supercurrent
 from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
@@ -182,15 +186,17 @@ def solve(
     terminal_psi = options.terminal_psi
     operators = MeshOperators(
         mesh,
+        options.sparse_solver,
         fixed_sites=normal_boundary_index,
         fix_psi=(terminal_psi is not None),
     )
-    operators.build_operators(sparse_solver=options.sparse_solver)
+    operators.build_operators()
     operators.set_link_exponents(vector_potential)
     divergence = operators.divergence
     mu_boundary_laplacian = operators.mu_boundary_laplacian
     mu_laplacian_lu = operators.mu_laplacian_lu
     mu_gradient = operators.mu_gradient
+    use_cupy = options.sparse_solver is SparseSolver.CUPY
     use_pardiso = options.sparse_solver is SparseSolver.PARDISO
     if use_pardiso:
         assert mu_laplacian_lu is None
@@ -238,7 +244,6 @@ def solve(
     step_size = options.screening_step_size
     drag = options.screening_step_drag
 
-    # This is the function called at each step of the solver.
     def update(
         state,
         running_state,
@@ -323,12 +328,14 @@ def solve(
                 options,
             )
             # Compute the supercurrent, scalar potential, and normal current
-            supercurrent = get_supercurrent(psi, operators.psi_gradient, edges)
+            supercurrent = operators.get_supercurrent(psi)
             rhs = divergence @ (supercurrent - dA_dt) - (
                 mu_boundary_laplacian @ mu_boundary
             )
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
+            elif use_cupy:
+                mu = mu_laplacian_lu(cupy.asarray(rhs)).asnumpy()
             else:
                 mu = mu_laplacian_lu(rhs)
             normal_current = -((mu_gradient @ mu) + dA_dt)

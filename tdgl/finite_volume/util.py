@@ -351,19 +351,3 @@ def get_oriented_boundary(
         indices = np.array([points_list.index(xy) for xy in polygon.exterior.coords])
         polygon_indices.append(indices[:-1])
     return polygon_indices
-
-
-def get_supercurrent(
-    psi: np.ndarray, gradient: sp.csr_array, edges: np.ndarray
-) -> np.ndarray:
-    """Compute the supercurrent on the edges.
-
-    Args:
-        psi: The value of the complex order parameter.
-        gradient: The covariant derivative matrix.
-        edges: The indices for the edges.
-
-    Returns:
-        The supercurrent at each edge.
-    """
-    return (psi.conjugate()[edges[:, 0]] * (gradient @ psi)).imag
