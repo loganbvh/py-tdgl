@@ -6,7 +6,7 @@ import scipy.sparse as sp
 
 try:
     import cupy  # type: ignore
-    from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
+    from cupyx.scipy.sparse import csc_matrix  # type: ignore
     from cupyx.scipy.sparse.linalg import factorized  # type: ignore
 except ModuleNotFoundError:
     cupy = None
@@ -244,13 +244,7 @@ class MeshOperators:
         self.divergence = build_divergence(mesh)
         if self.sparse_solver is SparseSolver.CUPY:
             assert cupy is not None
-            self.mu_laplacian = csc_matrix(self.mu_laplacian)
-            self.mu_boundary_laplacian = csr_matrix(self.mu_boundary_laplacian)
-            self.mu_gradient = csr_matrix(self.mu_gradient)
-            self.divergence = csr_matrix(self.divergence)
-            self.mu_laplacian_lu = factorized(self.mu_laplacian)
-            self.areas = cupy.array(self.areas)
-            self.edge_directions = cupy.array(self.edge_directions)
+            self.mu_laplacian_lu = factorized(csc_matrix(self.mu_laplacian))
         elif self.sparse_solver is SparseSolver.PARDISO:
             self.mu_laplacian_lu = None
         else:
@@ -267,11 +261,7 @@ class MeshOperators:
                 a link variable.
         """
         mesh = self.mesh
-        if self.sparse_solver is SparseSolver.CUPY:
-            np_ = cupy
-        else:
-            np_ = np
-        self.link_exponents = np_.asarray(link_exponents)
+        self.link_exponents = np.asarray(link_exponents)
         if self.psi_gradient is None:
             # Build the matrices from scratch
             self.psi_gradient = build_gradient(
@@ -291,20 +281,15 @@ class MeshOperators:
                 free_rows=free_rows,
                 weights=self.laplacian_weights,
             )
-            if self.sparse_solver is SparseSolver.CUPY:
-                self.psi_gradient = csr_matrix(self.psi_gradient)
-                self.psi_laplacian = csc_matrix(self.psi_laplacian)
-                self.gradient_weights = cupy.asarray(self.gradient_weights)
-                self.laplacian_weights = cupy.asarray(self.laplacian_weights)
             return
         # Just update the link variables
         edges = self.edges
         directions = self.edge_directions
         if self.link_exponents is None:
-            link_variables = np_.ones(len(directions))
+            link_variables = np.ones(len(directions))
         else:
-            link_variables = np_.exp(
-                -1j * np_.einsum("ij, ij -> i", self.link_exponents, directions)
+            link_variables = np.exp(
+                -1j * np.einsum("ij, ij -> i", self.link_exponents, directions)
             )
         with warnings.catch_warnings():
             # This is slightly faster than re-creating the sparse matrices
@@ -324,7 +309,7 @@ class MeshOperators:
             else:
                 rows = self.laplacian_link_rows
                 cols = self.laplacian_link_cols
-            values = np_.concatenate(
+            values = np.concatenate(
                 [
                     self.laplacian_weights * link_variables / areas0,
                     self.laplacian_weights * link_variables.conjugate() / areas1,

@@ -39,33 +39,26 @@ def solve_for_psi_squared(
         ``None`` if the calculation failed to converge, otherwise the new order
         parameter :math:`\\psi^{n+1}` and superfluid density :math:`|\\psi^{n+1}|^2`.
     """
-    if isinstance(psi, np.ndarray):
-        np_ = np
-    else:
-        import cupy  # type: ignore
-
-        assert isinstance(psi, cupy.ndarray)
-        np_ = cupy
-    U = np_.exp(-1j * mu * dt)
+    U = np.exp(-1j * mu * dt)
     z = U * gamma**2 / 2 * psi
     with errstate(all="raise"):
         try:
             w = z * abs_sq_psi + U * (
                 psi
                 + (dt / u)
-                * np_.sqrt(1 + gamma**2 * abs_sq_psi)
+                * np.sqrt(1 + gamma**2 * abs_sq_psi)
                 * ((epsilon - abs_sq_psi) * psi + psi_laplacian @ psi)
             )
             c = w.real * z.real + w.imag * z.imag
             two_c_1 = 2 * c + 1
-            w2 = np_.absolute(w) ** 2
-            discriminant = two_c_1**2 - 4 * np_.absolute(z) ** 2 * w2
+            w2 = np.abs(w) ** 2
+            discriminant = two_c_1**2 - 4 * np.abs(z) ** 2 * w2
         except Exception:
             logger.warning("Unable to solve for |psi|^2.", exc_info=True)
             return None
-    if bool(np_.any(discriminant < 0)):
+    if bool(np.any(discriminant < 0)):
         return None
-    new_sq_psi = (2 * w2) / (two_c_1 + np_.sqrt(discriminant))
+    new_sq_psi = (2 * w2) / (two_c_1 + np.sqrt(discriminant))
     psi = w - z * new_sq_psi
     return psi, new_sq_psi
 
