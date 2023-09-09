@@ -378,7 +378,7 @@ class Runner:
                     self.running_state.step += 1
                     self.time += self.dt
                 except KeyboardInterrupt:
-                    msg = f"{{}} simulation at step {i} of stage {name!r}"
+                    msg = f"{{}} simulation at step {i} of stage {name!r}."
                     if self.options.pause_on_interrupt:
                         response = input(
                             f"Simulation paused at stage {name!r} (step {i})."
