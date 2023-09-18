@@ -366,7 +366,9 @@ def solve(
                 supercurrent + normal_current, use_cupy=use_cupy
             )
             if use_cupy:
-                get_A_induced_cupy[128, 1024](
+                threads_per_block = 1024
+                num_blocks = int(len(edges) / threads_per_block)
+                get_A_induced_cupy[num_blocks, threads_per_block](
                     J_site, areas, sites, edge_centers, new_A_induced
                 )
             else:
