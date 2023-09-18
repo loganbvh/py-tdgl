@@ -13,7 +13,6 @@ try:
 except ModuleNotFoundError:
     cupy = None
 
-from .. import distance
 from ..device.device import Device, TerminalInfo
 from ..finite_volume.operators import MeshOperators
 from ..parameter import Parameter
@@ -102,6 +101,7 @@ def solve(
     mesh = device.mesh
     sites = device.points
     edges = mesh.edge_mesh.edges
+    num_edges = len(edges)
     edge_directions = mesh.edge_mesh.directions
     length_units = ureg(device.length_units)
     xi = device.coherence_length.magnitude
@@ -228,7 +228,7 @@ def solve(
             areas = cupy.asarray(areas)
             edge_centers = cupy.asarray(edge_centers)
             sites = cupy.asarray(sites)
-            new_A_induced = cupy.empty((len(edges), 2), dtype=float)
+            new_A_induced = cupy.empty((num_edges, 2), dtype=float)
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
@@ -258,7 +258,6 @@ def solve(
         else:
             assert cupy is not None
             assert isinstance(psi, cupy.ndarray)
-
             xp = cupy
         A_induced = induced_vector_potential
         A_applied = applied_vector_potential
@@ -368,7 +367,7 @@ def solve(
             )
             if use_cupy:
                 threads_per_block = 512
-                num_blocks = math.ceil(len(edges) / threads_per_block)
+                num_blocks = math.ceil(num_edges / threads_per_block)
                 get_A_induced_cupy[num_blocks, (threads_per_block, 2)](
                     J_site, areas, sites, edge_centers, new_A_induced
                 )
@@ -418,7 +417,6 @@ def solve(
 
     # Set the initial conditions.
     if seed_solution is None:
-        num_edges = len(edges)
         parameters = {
             "psi": psi_init,
             "mu": mu_init,

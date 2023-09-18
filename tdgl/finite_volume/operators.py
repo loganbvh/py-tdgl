@@ -16,9 +16,12 @@ from ..solver.options import SparseSolver
 from .mesh import Mesh
 
 
-def get_offsets(
+def _get_spmatrix_offsets(
     spmatrix: sp.spmatrix, i: np.ndarray, j: np.ndarray, n_samples: int
 ) -> np.ndarray:
+    """Calculates the sparse matrix offsets for a set of rows ``i`` and columns ``j``."""
+    # See _set_many() at
+    # https://github.com/scipy/scipy/blob/3f9a8c80e281e746225092621935b88c1ce68040/scipy/sparse/_compressed.py#L901
     spmatrix = spmatrix.asformat("csr", copy=False)
     i, j, M, N = spmatrix._prepare_indices(i, j)
     offsets = np.empty(n_samples, dtype=spmatrix.indices.dtype)
@@ -30,8 +33,7 @@ def get_offsets(
         csr_sample_offsets(
             M, N, spmatrix.indptr, spmatrix.indices, n_samples, i, j, offsets
         )
-
-    assert -1 not in offsets
+    assert -1 not in offsets, "This function cannot change the sparsity of the matrix"
     return offsets
 
 
@@ -312,7 +314,7 @@ class MeshOperators:
                 weights=self.laplacian_weights,
             )
             n_samples = len(self.link_exponents)
-            self.psi_gradient_offsets = get_offsets(
+            self.psi_gradient_offsets = _get_spmatrix_offsets(
                 self.psi_gradient,
                 self.gradient_link_rows,
                 self.gradient_link_cols,
@@ -326,7 +328,7 @@ class MeshOperators:
             else:
                 rows = self.laplacian_link_rows
                 cols = self.laplacian_link_cols
-            self.psi_laplacian_offsets = get_offsets(
+            self.psi_laplacian_offsets = _get_spmatrix_offsets(
                 self.psi_laplacian, rows, cols, len(self.laplacian_link_rows)
             )
             if self.sparse_solver is SparseSolver.CUPY:
@@ -347,32 +349,23 @@ class MeshOperators:
                 -1j * xp.einsum("ij, ij -> i", self.link_exponents, directions)
             )
         with warnings.catch_warnings():
-            # This is slightly faster than re-creating the sparse matrices
-            # from scratch.
+            # This is faster than re-creating the sparse matrices from scratch.
             warnings.filterwarnings("ignore", category=sp.SparseEfficiencyWarning)
+            # To speed things up, we directly update the underlying data rather than
+            # using __setitem__ (square brackets). This is a bit of a hack.
             # Update gradient for psi
-            # rows, cols = self.gradient_link_rows, self.gradient_link_cols
-            # self.psi_gradient[rows, cols] = self.gradient_weights * link_variables
-            self.psi_gradient.data[self.psi_gradient_offsets] = (
-                self.gradient_weights * link_variables
-            )
+            values = self.gradient_weights * link_variables
+            self.psi_gradient.data[self.psi_gradient_offsets] = values
             # Update Laplacian for psi
             areas0 = self.areas[edges[:, 0]]
             areas1 = self.areas[edges[:, 1]]
-            # # Only update rows that are not fixed by boundary conditions
-            # if self.fix_psi:
-            #     free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
-            #     rows = self.laplacian_link_rows[free_rows]
-            #     cols = self.laplacian_link_cols[free_rows]
-            # else:
-            #     rows = self.laplacian_link_rows
-            #     cols = self.laplacian_link_cols
             values = xp.concatenate(
                 [
                     self.laplacian_weights * link_variables / areas0,
                     self.laplacian_weights * link_variables.conjugate() / areas1,
                 ]
             )
+            # Only update rows that are not fixed by boundary conditions
             if self.fix_psi:
                 free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
                 values = values[free_rows]
