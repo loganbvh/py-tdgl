@@ -59,9 +59,9 @@ if cupy is not None:
         A_induced,
     ):
         i = cupyx.jit.grid(1)
-        for k in cupy.jit.range(2):
+        for k in cupyx.jit.range(2):
             tmp = 0.0
-            for j in cupy.jit.range(sites.shape[0]):
+            for j in cupyx.jit.range(sites.shape[0]):
                 dx = edge_centers[i, 0] - sites[j, 0]
                 dy = edge_centers[i, 1] - sites[j, 1]
                 dr = cupy.sqrt(dx * dx + dy * dy)
