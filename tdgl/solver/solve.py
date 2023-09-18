@@ -8,12 +8,6 @@ from typing import Callable, Dict, Optional, Sequence, Union
 import numpy as np
 
 try:
-    import jax  # type: ignore
-    import jax.numpy as jnp  # type: ignore
-except ModuleNotFoundError:
-    jax = None
-
-try:
     import cupy  # type: ignore
 except ModuleNotFoundError:
     cupy = None
@@ -27,7 +21,7 @@ from ..sources.constant import ConstantField
 from .euler import adaptive_euler_step
 from .options import SolverOptions, SparseSolver
 from .runner import DataHandler, Runner
-from .screening import get_A_induced_numba
+from .screening import get_A_induced_cupy, get_A_induced_numba
 
 logger = logging.getLogger("solver")
 
@@ -227,20 +221,11 @@ def solve(
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         areas = A_scale * mesh.areas
         edge_centers = mesh.edge_mesh.centers
-        if not options.screening_use_numba:
-            # Pre-compute the kernel for the screening integral.
-            inv_rho = A_scale / distance.cdist(
-                edge_centers.astype(np.float32), sites.astype(np.float32)
-            )
-            areas = areas[:, np.newaxis].astype(np.float32)
-
-            if options.screening_use_jax:
-                if jax is None:
-                    logger.warning(
-                        "Ignoring options.screening_use_jax because jax is not available."
-                    )
-                else:
-                    inv_rho = jax.device_put(inv_rho)
+        if use_cupy:
+            areas = cupy.asarray(areas)
+            edge_centers = cupy.asarray(edge_centers)
+            sites = cupy.asarray(sites)
+            new_A_induced = cupy.empty((num_edges, 2), dtype=float)
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
@@ -265,18 +250,18 @@ def solve(
         applied_vector_potential=None,
     ):
         if isinstance(psi, np.ndarray):
-            np_ = np
+            xp = np
         else:
             assert cupy is not None
             assert isinstance(psi, cupy.ndarray)
 
-            np_ = cupy
+            xp = cupy
         A_induced = induced_vector_potential
         A_applied = applied_vector_potential
         nonlocal tentative_dt
         step = state["step"]
         time = state["time"]
-        old_sq_psi = np_.absolute(psi) ** 2
+        old_sq_psi = xp.absolute(psi) ** 2
         # Compute the current density for this step
         # and update the current boundary conditions.
         currents = current_func(time)
@@ -298,13 +283,13 @@ def solve(
             )
             if use_cupy:
                 vector_potential = cupy.asarray(vector_potential)
-            dA_dt = np_.einsum(
+            dA_dt = xp.einsum(
                 "ij, ij -> i",
                 (vector_potential - A_applied) / dt,
                 edge_directions,
             )
             if not options.include_screening:
-                if np_.any(np_.absolute(dA_dt) > 0):
+                if xp.any(xp.absolute(dA_dt) > 0):
                     operators.set_link_exponents(vector_potential)
         else:
             assert A_applied is None
@@ -328,7 +313,7 @@ def solve(
                 # for psi based on the induced vector potential from the previous iteration.
                 operators.set_link_exponents(vector_potential + A_induced)
                 if time_dependent_vector_potential:
-                    dA_dt = np_.einsum(
+                    dA_dt = xp.einsum(
                         "ij, ij -> i",
                         (vector_potential + A_induced - A_applied) / dt,
                         edge_directions,
@@ -374,24 +359,24 @@ def solve(
                 break
 
             # Evaluate the induced vector potential.
-            # This matrix multiplication takes the vast majority of the time
-            # during a solve with screening.
-            J_site = mesh.get_quantity_on_site(supercurrent + normal_current)
-            if options.screening_use_numba:
-                new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
-            elif options.screening_use_jax and jax is not None:
-                new_A_induced = np.asarray(jnp.matmul(inv_rho, J_site * areas))
+            # This takes the vast majority of the time during a solve with screening.
+            J_site = mesh.get_quantity_on_site(
+                supercurrent + normal_current, use_cupy=use_cupy
+            )
+            if use_cupy:
+                get_A_induced_cupy(J_site, areas, sites, edge_centers, new_A_induced)
             else:
-                new_A_induced = np.matmul(inv_rho, J_site * areas)
+                new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
             v.append((1 - drag) * v[-1] + step_size * dA)
             A_induced = A_induced + v[-1]
             A_induced_vals.append(A_induced)
             if len(A_induced_vals) > 1:
-                screening_error = np.max(
-                    np.linalg.norm(dA, axis=1) / np.linalg.norm(A_induced, axis=1)
+                screening_error = xp.max(
+                    xp.linalg.norm(dA, axis=1) / xp.linalg.norm(A_induced, axis=1)
                 )
+                screening_error = float(screening_error)
                 del v[:-2]
                 del A_induced_vals[:-2]
 
@@ -399,14 +384,14 @@ def solve(
         if probe_points is not None:
             # Update the voltage and phase difference
             running_state.append("mu", mu[probe_points])
-            running_state.append("theta", np_.angle(psi[probe_points]))
+            running_state.append("theta", xp.angle(psi[probe_points]))
         if options.include_screening:
             running_state.append("screening_iterations", screening_iteration)
 
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
             # and use it to select a new time step.
-            d_psi_sq_vals.append(float(np_.absolute(abs_sq_psi - old_sq_psi).max()))
+            d_psi_sq_vals.append(float(xp.absolute(abs_sq_psi - old_sq_psi).max()))
             window = options.adaptive_window
             if step > window:
                 new_dt = options.dt_init / max(1e-10, np.mean(d_psi_sq_vals[-window:]))

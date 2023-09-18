@@ -1,6 +1,13 @@
 import numba
 import numpy as np
 
+try:
+    import cupy  # type: ignore
+    import cupyx  # type: ignore
+except ModuleNotFoundError:
+    cupy = None
+    cupyx = None
+
 
 @numba.njit(fastmath=True, parallel=True)
 def get_A_induced_numba(
@@ -37,3 +44,26 @@ def get_A_induced_numba(
                 tmp += J_site[j, k] * areas[j] / dr
             out[i, k] = tmp
     return out
+
+
+get_A_induced_cupy = None
+
+if cupy is not None:
+
+    @cupyx.jit.rawkernel()
+    def get_A_induced_cupy(
+        edge_centers,
+        sites,
+        J_site,
+        site_areas,
+        A_induced,
+    ):
+        i = cupyx.jit.grid(1)
+        for k in cupy.jit.range(2):
+            tmp = 0.0
+            for j in cupy.jit.range(sites.shape[0]):
+                dx = edge_centers[i, 0] - sites[j, 0]
+                dy = edge_centers[i, 1] - sites[j, 1]
+                dr = cupy.sqrt(dx * dx + dy * dy)
+                tmp += J_site[j, k] * site_areas[j] / dr
+            A_induced[i, k] = tmp

@@ -59,7 +59,6 @@ class SolverOptions:
         screening_step_size: Step size :math:`\\alpha` for Polyak's method.
         screening_step_drag: Drag parameter :math:`\\beta` for Polyak's method.
         screening_use_numba: Use numba for the screening calculation.
-        screening_use_jax: Use jax for the screenig calculation.
         gpu: Solve the model on an NVIDIA GPU.
     """
 
@@ -85,7 +84,6 @@ class SolverOptions:
     screening_step_size: float = 1.0
     screening_step_drag: float = 0.5
     screening_use_numba: bool = True
-    screening_use_jax: bool = False
     gpu: bool = False
 
     def validate(self) -> None:
@@ -120,11 +118,6 @@ class SolverOptions:
             raise SolverOptionsError(
                 "screening_tolerance must be in > 0"
                 f" (got {self.screening_tolerance})."
-            )
-
-        if self.screening_use_jax and self.screening_use_numba:
-            raise SolverOptionsError(
-                "screening_use_jax and screening_use_numba cannot both be true."
             )
 
         solver = self.sparse_solver

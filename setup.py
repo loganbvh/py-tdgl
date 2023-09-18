@@ -112,9 +112,6 @@ EXTRAS_REQUIRE = {
         "sphinx-argparse",
         "sphinxcontrib-bibtex",
     ],
-    "jax": [
-        "jax[cpu]",
-    ],
     "umfpack": [
         "swig",
         "scikit-umfpack",

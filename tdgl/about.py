@@ -13,11 +13,11 @@ import scipy
 from IPython.display import HTML
 
 try:
-    import jax
+    import cupy  # type: ignore
 
-    jax_version = jax.__version__
-except (ModuleNotFoundError, ImportError):
-    jax_version = None
+    cupy_version = cupy.__version__
+except ModuleNotFoundError:
+    cupy_version = None
 
 import tdgl
 
@@ -62,7 +62,7 @@ def version_dict() -> Dict[str, str]:
         "Numpy": numpy.__version__,
         "SciPy": scipy.__version__,
         "matplotlib": matplotlib.__version__,
-        "jax": str(jax_version),
+        "cupy": str(cupy_version),
         "numba": numba.__version__,
         "IPython": IPython.__version__,
         "Python": sys.version,

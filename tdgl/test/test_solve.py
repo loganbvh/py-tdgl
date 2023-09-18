@@ -97,10 +97,7 @@ def test_source_drain_current(
 
 
 @pytest.mark.skip
-@pytest.mark.parametrize(
-    "use_numba, use_jax", [(False, True), (True, False), (False, False)]
-)
-def test_screening(box_device, use_numba, use_jax):
+def test_screening(box_device):
     device = box_device
     total_time = 5
 
@@ -118,17 +115,11 @@ def test_screening(box_device, use_numba, use_jax):
         tdgl.SolverOptions(
             solve_time=total_time, adaptive_time_step_multiplier=2
         ).validate()
-    with pytest.raises(SolverOptionsError):
-        tdgl.SolverOptions(
-            solve_time=total_time, screening_use_jax=True, screening_use_numba=True
-        ).validate()
 
     options = tdgl.SolverOptions(
         solve_time=total_time,
         field_units="uT",
         current_units="uA",
-        screening_use_jax=use_jax,
-        screening_use_numba=use_numba,
     )
     field = tdgl.sources.ConstantField(50)
 

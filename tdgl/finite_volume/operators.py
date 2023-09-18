@@ -268,10 +268,10 @@ class MeshOperators:
         """
         mesh = self.mesh
         if self.sparse_solver is SparseSolver.CUPY:
-            np_ = cupy
+            xp = cupy
         else:
-            np_ = np
-        self.link_exponents = np_.asarray(link_exponents)
+            xp = np
+        self.link_exponents = xp.asarray(link_exponents)
         if self.psi_gradient is None:
             # Build the matrices from scratch
             self.psi_gradient = build_gradient(
@@ -301,10 +301,10 @@ class MeshOperators:
         edges = self.edges
         directions = self.edge_directions
         if self.link_exponents is None:
-            link_variables = np_.ones(len(directions))
+            link_variables = xp.ones(len(directions))
         else:
-            link_variables = np_.exp(
-                -1j * np_.einsum("ij, ij -> i", self.link_exponents, directions)
+            link_variables = xp.exp(
+                -1j * xp.einsum("ij, ij -> i", self.link_exponents, directions)
             )
         with warnings.catch_warnings():
             # This is slightly faster than re-creating the sparse matrices
@@ -324,7 +324,7 @@ class MeshOperators:
             else:
                 rows = self.laplacian_link_rows
                 cols = self.laplacian_link_cols
-            values = np_.concatenate(
+            values = xp.concatenate(
                 [
                     self.laplacian_weights * link_variables / areas0,
                     self.laplacian_weights * link_variables.conjugate() / areas1,
