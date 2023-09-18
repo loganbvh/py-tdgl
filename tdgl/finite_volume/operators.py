@@ -327,7 +327,7 @@ class MeshOperators:
                 rows = self.laplacian_link_rows
                 cols = self.laplacian_link_cols
             self.psi_laplacian_offsets = get_offsets(
-                self.psi_laplacian, rows, cols, n_samples
+                self.psi_laplacian, rows, cols, len(self.laplacian_link_rows)
             )
             if self.sparse_solver is SparseSolver.CUPY:
                 self.psi_gradient = csr_matrix(self.psi_gradient)
