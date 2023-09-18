@@ -2,6 +2,7 @@
 
 import itertools
 import logging
+import math
 from datetime import datetime
 from typing import Callable, Dict, Optional, Sequence, Union
 
@@ -367,7 +368,7 @@ def solve(
             )
             if use_cupy:
                 threads_per_block = 1024
-                num_blocks = int(len(edges) / threads_per_block)
+                num_blocks = math.ceil(len(edges) / threads_per_block)
                 get_A_induced_cupy[num_blocks, threads_per_block](
                     J_site, areas, sites, edge_centers, new_A_induced
                 )
@@ -383,6 +384,7 @@ def solve(
                     xp.linalg.norm(dA, axis=1) / xp.linalg.norm(A_induced, axis=1)
                 )
                 screening_error = float(screening_error)
+                print(screening_error)
                 del v[:-2]
                 del A_induced_vals[:-2]
 
