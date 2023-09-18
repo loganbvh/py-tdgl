@@ -313,9 +313,6 @@ def solve(
             if options.include_screening:
                 # Update the link variables in the covariant Laplacian and gradient
                 # for psi based on the induced vector potential from the previous iteration.
-                import pdb
-
-                pdb.set_trace()
                 operators.set_link_exponents(vector_potential + A_induced)
                 if time_dependent_vector_potential:
                     dA_dt = xp.einsum(

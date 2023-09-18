@@ -204,9 +204,11 @@ class Mesh:
             The quantity vector or scalar at each site.
         """
         normalized_directions = self.edge_mesh.normalized_directions
+        edges = self.edge_mesh.edges
         if use_cupy:
             xp = cupy
             normalized_directions = xp.asarray(normalized_directions)
+            edges = xp.asarray(edges)
         else:
             xp = np
         if vector:
@@ -215,9 +217,7 @@ class Mesh:
         else:
             flux_x = flux_y = quantity_on_edge
         # Sum x and y components for every edge connecting to the vertex
-        vertices = xp.concatenate(
-            [self.edge_mesh.edges[:, 0], self.edge_mesh.edges[:, 1]]
-        )
+        vertices = xp.concatenate([edges[:, 0], edges[:, 1]])
         x_values = xp.concatenate([flux_x, flux_x])
         y_values = xp.concatenate([flux_y, flux_y])
         counts = xp.bincount(vertices)
