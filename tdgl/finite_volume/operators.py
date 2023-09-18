@@ -372,8 +372,9 @@ class MeshOperators:
                     self.laplacian_weights * link_variables.conjugate() / areas1,
                 ]
             )
-            # if self.fix_psi:
-            #     values = values[free_rows]
+            if self.fix_psi:
+                free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
+                values = values[free_rows]
             # self.psi_laplacian[rows, cols] = values
             self.psi_laplacian.data[self.psi_laplacian_offsets] = values
 
