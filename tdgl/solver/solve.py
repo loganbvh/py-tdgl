@@ -221,7 +221,7 @@ def solve(
 
     new_A_induced = None
     if options.include_screening:
-        A_scale = (ureg("mu_0") / (4 * 4 * np.pi) * K0 / Bc2).to_base_units().magnitude
+        A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         areas = A_scale * mesh.areas
         edge_centers = mesh.edge_mesh.centers
         if use_cupy:
