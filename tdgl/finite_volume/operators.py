@@ -311,8 +311,8 @@ class MeshOperators:
                 weights=self.laplacian_weights,
             )
             n_samples = len(self.link_exponents)
-            self.psi_laplacian_offsets = get_offsets(
-                self.psi_laplacian,
+            self.psi_gradient_offsets = get_offsets(
+                self.psi_gradient,
                 self.gradient_link_rows,
                 self.gradient_link_cols,
                 n_samples,
