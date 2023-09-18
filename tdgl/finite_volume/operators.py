@@ -31,7 +31,7 @@ def get_offsets(
         )
 
     assert -1 not in offsets
-    return offsets.squeeze()
+    return offsets
 
 
 def build_divergence(mesh: Mesh) -> sp.csr_array:
@@ -352,10 +352,9 @@ class MeshOperators:
             # Update gradient for psi
             # rows, cols = self.gradient_link_rows, self.gradient_link_cols
             # self.psi_gradient[rows, cols] = self.gradient_weights * link_variables
-            import pdb
-
-            pdb.set_trace()
-            self.psi_gradient.data[self.psi_gradient_offsets] = self.link_exponents
+            self.psi_gradient.data[self.psi_gradient_offsets] = (
+                self.gradient_weights * link_variables
+            )
             # Update Laplacian for psi
             areas0 = self.areas[edges[:, 0]]
             areas1 = self.areas[edges[:, 1]]
