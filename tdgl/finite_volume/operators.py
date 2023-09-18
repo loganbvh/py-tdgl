@@ -19,6 +19,7 @@ from .mesh import Mesh
 def get_offsets(
     spmatrix: sp.spmatrix, i: np.ndarray, j: np.ndarray, n_samples: int
 ) -> np.ndarray:
+    spmatrix = spmatrix.asformat("csr", copy=False)
     i, j, M, N = spmatrix._prepare_indices(i, j)
     offsets = np.empty(n_samples, dtype=spmatrix.indices.dtype)
     ret = csr_sample_offsets(
