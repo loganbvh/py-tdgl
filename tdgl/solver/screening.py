@@ -67,3 +67,20 @@ if cupy is not None:
                 dr = cupy.sqrt(dx * dx + dy * dy)
                 tmp += J_site[j, k] * site_areas[j] / dr
             A_induced[i, k] = tmp
+
+    @cupyx.jit.rawkernel()
+    def get_A_induced_component_cupy(
+        J_site,
+        site_areas,
+        sites,
+        edge_centers,
+        A_induced_component,
+    ):
+        i = cupyx.jit.grid(1)
+        tmp = 0.0
+        for j in cupyx.jit.range(sites.shape[0]):
+            dx = edge_centers[i, 0] - sites[j, 0]
+            dy = edge_centers[i, 1] - sites[j, 1]
+            dr = cupy.sqrt(dx * dx + dy * dy)
+            tmp += J_site[j] * site_areas[j] / dr
+        A_induced_component[i] = tmp

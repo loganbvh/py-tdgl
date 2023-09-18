@@ -22,7 +22,11 @@ from ..sources.constant import ConstantField
 from .euler import adaptive_euler_step
 from .options import SolverOptions, SparseSolver
 from .runner import DataHandler, Runner
-from .screening import get_A_induced_cupy, get_A_induced_numba
+from .screening import (
+    get_A_induced_component_cupy,
+    get_A_induced_cupy,
+    get_A_induced_numba,
+)
 
 logger = logging.getLogger("solver")
 
@@ -219,7 +223,7 @@ def solve(
         edge_directions = cupy.asarray(edge_directions)
         vector_potential = cupy.asarray(vector_potential)
 
-    new_A_induced = None
+    new_A_induced_x = new_A_induced_y = None
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         areas = A_scale * mesh.areas
@@ -228,7 +232,10 @@ def solve(
             areas = cupy.asarray(areas)
             edge_centers = cupy.asarray(edge_centers)
             sites = cupy.asarray(sites)
-            new_A_induced = cupy.empty((len(edges), 2), dtype=float)
+            num_edges = len(edges)
+            new_A_induced_x = cupy.empty(num_edges, dtype=float)
+            new_A_induced_y = cupy.empty(num_edges, dtype=float)
+            new_A_induced = cupy.empty((num_edges, 2), dtype=float)
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
@@ -369,9 +376,17 @@ def solve(
             if use_cupy:
                 threads_per_block = 1024
                 num_blocks = math.ceil(len(edges) / threads_per_block)
-                get_A_induced_cupy[num_blocks, threads_per_block](
-                    J_site, areas, sites, edge_centers, new_A_induced
+                # get_A_induced_cupy[num_blocks, threads_per_block](
+                #     J_site, areas, sites, edge_centers, new_A_induced
+                # )
+                get_A_induced_component_cupy[num_blocks, threads_per_block](
+                    J_site[:, 0], areas, sites, edge_centers, new_A_induced_x
                 )
+                get_A_induced_component_cupy[num_blocks, threads_per_block](
+                    J_site[:, 1], areas, sites, edge_centers, new_A_induced_y
+                )
+                new_A_induced[:, 0] = new_A_induced_x
+                new_A_induced[:, 1] = new_A_induced_y
             else:
                 new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
             # Update induced vector potential using Polyak's method
