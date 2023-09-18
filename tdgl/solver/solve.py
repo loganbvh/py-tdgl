@@ -257,8 +257,9 @@ def solve(
 
             xp = cupy
         A_induced = induced_vector_potential
-        A_applied = vector_potential = applied_vector_potential
+        A_applied = applied_vector_potential
         nonlocal tentative_dt
+        nonlocal vector_potential
         step = state["step"]
         time = state["time"]
         old_sq_psi = xp.absolute(psi) ** 2
@@ -419,7 +420,7 @@ def solve(
             "mu": mu_init,
             "supercurrent": np.zeros(num_edges),
             "normal_current": np.zeros(num_edges),
-            "induced_vector_potential": np.zeros((num_edges, 2)),
+            "induced_vector_potential": np.zeros(num_edges),
         }
     else:
         if seed_solution.device != device:
