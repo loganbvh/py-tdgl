@@ -369,6 +369,7 @@ def solve(
                 get_A_induced_cupy[128, 1024](
                     J_site, areas, sites, edge_centers, new_A_induced
                 )
+                cupy.cuda.Stream.null.synchronize()
             else:
                 new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
             # Update induced vector potential using Polyak's method
