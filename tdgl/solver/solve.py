@@ -225,7 +225,7 @@ def solve(
             areas = cupy.asarray(areas)
             edge_centers = cupy.asarray(edge_centers)
             sites = cupy.asarray(sites)
-            new_A_induced = cupy.empty((num_edges, 2), dtype=float)
+            new_A_induced = cupy.empty((len(edges), 2), dtype=float)
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
