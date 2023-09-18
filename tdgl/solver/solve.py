@@ -257,7 +257,7 @@ def solve(
 
             xp = cupy
         A_induced = induced_vector_potential
-        A_applied = applied_vector_potential
+        A_applied = vector_potential = applied_vector_potential
         nonlocal tentative_dt
         step = state["step"]
         time = state["time"]
