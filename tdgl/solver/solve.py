@@ -364,7 +364,9 @@ def solve(
                 supercurrent + normal_current, use_cupy=use_cupy
             )
             if use_cupy:
-                get_A_induced_cupy(J_site, areas, sites, edge_centers, new_A_induced)
+                get_A_induced_cupy[128, 1024](
+                    J_site, areas, sites, edge_centers, new_A_induced
+                )
             else:
                 new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
             # Update induced vector potential using Polyak's method
