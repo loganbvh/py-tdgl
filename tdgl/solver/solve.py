@@ -218,6 +218,7 @@ def solve(
         edge_directions = cupy.asarray(edge_directions)
         vector_potential = cupy.asarray(vector_potential)
 
+    new_A_induced = None
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         areas = A_scale * mesh.areas
@@ -250,6 +251,7 @@ def solve(
         induced_vector_potential,
         applied_vector_potential=None,
     ):
+        nonlocal tentative_dt, vector_potential, new_A_induced
         if isinstance(psi, np.ndarray):
             xp = np
         else:
@@ -259,8 +261,6 @@ def solve(
             xp = cupy
         A_induced = induced_vector_potential
         A_applied = applied_vector_potential
-        nonlocal tentative_dt
-        nonlocal vector_potential
         step = state["step"]
         time = state["time"]
         old_sq_psi = xp.absolute(psi) ** 2
