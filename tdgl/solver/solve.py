@@ -313,6 +313,9 @@ def solve(
             if options.include_screening:
                 # Update the link variables in the covariant Laplacian and gradient
                 # for psi based on the induced vector potential from the previous iteration.
+                import pdb
+
+                pdb.set_trace()
                 operators.set_link_exponents(vector_potential + A_induced)
                 if time_dependent_vector_potential:
                     dA_dt = xp.einsum(
@@ -421,7 +424,7 @@ def solve(
             "mu": mu_init,
             "supercurrent": np.zeros(num_edges),
             "normal_current": np.zeros(num_edges),
-            "induced_vector_potential": np.zeros(num_edges),
+            "induced_vector_potential": np.zeros((num_edges, 2)),
         }
     else:
         if seed_solution.device != device:
