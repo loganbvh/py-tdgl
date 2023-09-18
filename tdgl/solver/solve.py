@@ -216,6 +216,7 @@ def solve(
         epsilon = cupy.asarray(epsilon)
         mu_boundary = cupy.asarray(mu_boundary)
         edge_directions = cupy.asarray(edge_directions)
+        vector_potential = cupy.asarray(vector_potential)
 
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
