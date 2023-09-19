@@ -99,6 +99,19 @@ Installing PARDISO
   # or conda install -c conda-forge pypardiso
   # or pip install tdgl[pardiso]
 
+
+GPU acceleration
+----------------
+
+For users with an NVIDIA or AMD GPU, ``tdgl`` can be accelerated using the `CuPy <https://cupy.dev/>`_ library.
+First install the appropriate version of ``cupy`` for your GPU hardware and driver version
+(see installation instructions `here <https://docs.cupy.dev/en/stable/install.html>`_).
+Then set the ``sparse_solver`` attribute of :class:`tdgl.SolverOptions` to ``"cupy"``.
+Due to overheads related to transferring data between the CPU and GPU, it is expected that ``cupy`` will provide
+a speedup only for models with large meshes and/or models that include screening.
+Please open a `GitHub issue <https://github.com/loganbvh/py-tdgl/issues>`_ if you have any problems using ``tdgl`` with ``cupy``.
+Note that ``cupy`` support for AMD GPUs is `currently experimental <https://docs.cupy.dev/en/stable/install.html#using-cupy-on-amd-gpu-experimental>`_.
+
 Verify the installation
 -----------------------
 

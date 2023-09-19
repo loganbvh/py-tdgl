@@ -34,12 +34,12 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
-        sparse_solver: One of "superlu", "umfpack", "pardiso", or "cupy".
-            "umfpack" requires suitesparse, which can be installed via conda,
-            and scikit-umfpack, which can be installed via pip. "pardiso"
+        sparse_solver: One of ``"superlu"``, ``"umfpack"``, ``"pardiso"``, or ``"cupy"``.
+            ``"umfpack"`` requires suitesparse, which can be installed via conda,
+            and scikit-umfpack, which can be installed via pip. ``"pardiso"``
             requires an Intel CPU and the pypardiso package, which can be
-            installed via pip or conda. "cupy" requires and  NVIDIA GPU
-            and the CuPy Python package.
+            installed via pip or conda. ``"cupy"`` requires a GPU and the
+            CuPy Python package, which can be installed via pip.
         terminal_psi: Fixed value for the order parameter in current terminals.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
@@ -47,7 +47,7 @@ class SolverOptions:
             If the file name already exists, a unique name will be generated.
             If ``output_file`` is ``None``, the solver results will not be saved
             to disk.
-        pause_on_interrupt: Pause the simulation in the event of a KeyboardInterrupt.
+        pause_on_interrupt: Pause the simulation in the event of a ``KeyboardInterrupt``.
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
         include_screening: Whether to include screening in the simulation.
