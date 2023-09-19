@@ -59,13 +59,14 @@ if cupy is not None:
         A_induced,
     ):
         i, k = cupyx.jit.grid(2)
-        tmp = 0.0
-        for j in cupyx.jit.range(sites.shape[0]):
-            dx = edge_centers[i, 0] - sites[j, 0]
-            dy = edge_centers[i, 1] - sites[j, 1]
-            dr = cupy.sqrt(dx * dx + dy * dy)
-            tmp += J_site[j, k] * site_areas[j] / dr
-        A_induced[i, k] = tmp
+        if i < edge_centers.shape[0] and k < J_site.shape[1]:
+            tmp = 0.0
+            for j in cupyx.jit.range(sites.shape[0]):
+                dx = edge_centers[i, 0] - sites[j, 0]
+                dy = edge_centers[i, 1] - sites[j, 1]
+                dr = cupy.sqrt(dx * dx + dy * dy)
+                tmp += J_site[j, k] * site_areas[j] / dr
+            A_induced[i, k] = tmp
 
     @cupyx.jit.rawkernel()
     def get_A_induced_component_cupy(
