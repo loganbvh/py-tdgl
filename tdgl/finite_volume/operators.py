@@ -3,7 +3,6 @@ from typing import Callable, Tuple, Union
 
 import numpy as np
 import scipy.sparse as sp
-from scipy.sparse._sparsetools import csr_sample_offsets
 
 try:
     import cupy  # type: ignore
@@ -14,27 +13,6 @@ except ModuleNotFoundError:
 
 from ..solver.options import SparseSolver
 from .mesh import Mesh
-
-
-def _get_spmatrix_offsets(
-    spmatrix: sp.spmatrix, i: np.ndarray, j: np.ndarray, n_samples: int
-) -> np.ndarray:
-    """Calculates the sparse matrix offsets for a set of rows ``i`` and columns ``j``."""
-    # See _set_many() at
-    # https://github.com/scipy/scipy/blob/3f9a8c80e281e746225092621935b88c1ce68040/scipy/sparse/_compressed.py#L901
-    spmatrix = spmatrix.asformat("csr", copy=False)
-    i, j, M, N = spmatrix._prepare_indices(i, j)
-    offsets = np.empty(n_samples, dtype=spmatrix.indices.dtype)
-    ret = csr_sample_offsets(
-        M, N, spmatrix.indptr, spmatrix.indices, n_samples, i, j, offsets
-    )
-    if ret == 1:
-        spmatrix.sum_duplicates()
-        csr_sample_offsets(
-            M, N, spmatrix.indptr, spmatrix.indices, n_samples, i, j, offsets
-        )
-    assert -1 not in offsets, "This function cannot change the sparsity of the matrix"
-    return offsets
 
 
 def build_divergence(mesh: Mesh) -> sp.csr_array:
@@ -313,31 +291,11 @@ class MeshOperators:
                 free_rows=free_rows,
                 weights=self.laplacian_weights,
             )
-            n_samples = len(self.link_exponents)
-            self.psi_gradient_offsets = _get_spmatrix_offsets(
-                self.psi_gradient,
-                self.gradient_link_rows,
-                self.gradient_link_cols,
-                n_samples,
-            )
-            # Only update rows that are not fixed by boundary conditions
-            if self.fix_psi:
-                free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
-                rows = self.laplacian_link_rows[free_rows]
-                cols = self.laplacian_link_cols[free_rows]
-            else:
-                rows = self.laplacian_link_rows
-                cols = self.laplacian_link_cols
-            self.psi_laplacian_offsets = _get_spmatrix_offsets(
-                self.psi_laplacian, rows, cols, len(self.laplacian_link_rows)
-            )
             if self.sparse_solver is SparseSolver.CUPY:
                 self.psi_gradient = csr_matrix(self.psi_gradient)
                 self.psi_laplacian = csc_matrix(self.psi_laplacian)
                 self.gradient_weights = cupy.asarray(self.gradient_weights)
                 self.laplacian_weights = cupy.asarray(self.laplacian_weights)
-                self.psi_gradient_offsets = cupy.asarray(self.psi_gradient_offsets)
-                self.psi_laplacian_offsets = cupy.asarray(self.psi_laplacian_offsets)
             return
         # Just update the link variables
         edges = self.edges
@@ -351,26 +309,30 @@ class MeshOperators:
         with warnings.catch_warnings():
             # This is faster than re-creating the sparse matrices from scratch.
             warnings.filterwarnings("ignore", category=sp.SparseEfficiencyWarning)
-            # To speed things up, we directly update the underlying data rather than
-            # using __setitem__ (square brackets). This is a bit of a hack.
             # Update gradient for psi
             values = self.gradient_weights * link_variables
-            self.psi_gradient.data[self.psi_gradient_offsets] = values
+            rows = self.gradient_link_rows
+            cols = self.gradient_link_cols
+            self.psi_gradient[rows, cols] = values
             # Update Laplacian for psi
-            areas0 = self.areas[edges[:, 0]]
-            areas1 = self.areas[edges[:, 1]]
+            areas = self.areas
+            weights = self.laplacian_weights
             values = xp.concatenate(
                 [
-                    self.laplacian_weights * link_variables / areas0,
-                    self.laplacian_weights * link_variables.conjugate() / areas1,
+                    weights * link_variables / areas[edges[:, 0]],
+                    weights * link_variables.conjugate() / areas[edges[:, 1]],
                 ]
             )
             # Only update rows that are not fixed by boundary conditions
             if self.fix_psi:
                 free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
+                rows = self.laplacian_link_rows[free_rows]
+                cols = self.laplacian_link_cols[free_rows]
                 values = values[free_rows]
-            # self.psi_laplacian[rows, cols] = values
-            self.psi_laplacian.data[self.psi_laplacian_offsets] = values
+            else:
+                rows = self.laplacian_link_rows
+                cols = self.laplacian_link_cols
+            self.psi_laplacian[rows, cols] = values
 
     def get_supercurrent(self, psi: np.ndarray):
         """Compute the supercurrent on the edges.

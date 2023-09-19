@@ -361,15 +361,16 @@ def solve(
                 break
 
             # Evaluate the induced vector potential.
-            # This takes the vast majority of the time during a solve with screening.
             J_site = mesh.get_quantity_on_site(
                 supercurrent + normal_current, use_cupy=use_cupy
             )
             if use_cupy:
                 threads_per_block = 512
                 num_blocks = math.ceil(num_edges / threads_per_block)
-                get_A_induced_cupy[num_blocks, (threads_per_block, 2)](
-                    J_site, areas, sites, edge_centers, new_A_induced
+                get_A_induced_cupy(
+                    (num_blocks,),
+                    (threads_per_block, 2),
+                    (J_site, areas, sites, edge_centers, new_A_induced),
                 )
             else:
                 new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
