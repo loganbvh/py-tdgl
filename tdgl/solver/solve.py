@@ -365,25 +365,22 @@ def solve(
             J_site = mesh.get_quantity_on_site(
                 supercurrent + normal_current, use_cupy=use_cupy
             )
-            # if use_cupy:
-            #     threads_per_block = 512
-            #     num_blocks = math.ceil(num_edges / threads_per_block)
-            #     get_A_induced_cupy(
-            #         (num_blocks,),
-            #         (threads_per_block, 2),
-            #         (J_site, areas, sites, edge_centers, new_A_induced),
-            #     )
-            # else:
-            #     new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
-            rhs = -(laplacian_A_applied + (1 / kappa**2 * J_site))
-            if use_pardiso:
-                new_A_induced = pypardiso.spsolve(A_laplacian, rhs)
+            if use_cupy:
+                threads_per_block = 512
+                num_blocks = math.ceil(num_edges / threads_per_block)
+                get_A_induced_cupy(
+                    (num_blocks,),
+                    (threads_per_block, 2),
+                    (J_site, areas, sites, edge_centers, new_A_induced),
+                )
             else:
-                new_A_induced = A_laplacian_lu(rhs)
-            import pdb
-
-            pdb.set_trace()
-            new_A_induced = new_A_induced[edges].mean(axis=1)
+                new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
+            # rhs = -(laplacian_A_applied + (1 / kappa**2 * J_site))
+            # if use_pardiso:
+            #     new_A_induced = pypardiso.spsolve(A_laplacian, rhs)
+            # else:
+            #     new_A_induced = A_laplacian_lu(rhs)
+            # new_A_induced = new_A_induced[edges].mean(axis=1)
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
             v.append((1 - drag) * v[-1] + step_size * dA)
