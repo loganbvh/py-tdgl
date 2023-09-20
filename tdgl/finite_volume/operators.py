@@ -218,8 +218,10 @@ class MeshOperators:
         self.laplacian_free_rows: Union[np.ndarray, None] = None
         self.divergence: Union[sp.spmatrix, None] = None
         self.mu_laplacian: Union[sp.spmatrix, None] = None
+        self.A_laplacian: Union[sp.spmatrix, None] = None
         self.mu_boundary_laplacian: Union[sp.spmatrix, None] = None
         self.mu_laplacian_lu: Union[Callable, None] = None
+        self.A_laplacian_lu: Union[Callable, None] = None
         self.psi_gradient: Union[sp.spmatrix, None] = None
         self.psi_laplacian: Union[sp.spmatrix, None] = None
         self.link_exponents: Union[np.ndarray, None] = None
@@ -257,6 +259,8 @@ class MeshOperators:
             use_umfpack = self.sparse_solver is SparseSolver.UMFPACK
             sp.linalg.use_solver(useUmfpack=use_umfpack)
             self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
+        self.A_laplacian = self.mu_laplacian
+        self.A_laplacian_lu = self.mu_laplacian_lu
 
     def set_link_exponents(self, link_exponents: np.ndarray) -> None:
         """Set the link variables and construct the covarient gradient
