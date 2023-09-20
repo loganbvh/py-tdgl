@@ -60,7 +60,7 @@ def _spmatrix_set_many(spmatrix, i, j, x):
         offsets, (i, j, M, N) = _get_spmatrix_offsets_cupy(spmatrix, i, j)
 
     mask = offsets > -1
-    spmatrix.data[mask] = x[mask]
+    spmatrix.data[offsets[mask]] = x[mask]
     if not mask.all():
         # only insertions remain
         mask = ~mask
