@@ -3,6 +3,7 @@ from typing import Callable, Tuple, Union
 
 import numpy as np
 import scipy.sparse as sp
+from scipy.sparse._sparsetools import csr_sample_offsets
 
 try:
     import cupy  # type: ignore
@@ -13,6 +14,61 @@ except ModuleNotFoundError:
 
 from ..solver.options import SparseSolver
 from .mesh import Mesh
+
+
+def _get_spmatrix_offsets(
+    spmatrix: sp.spmatrix, i: np.ndarray, j: np.ndarray, n_samples: int
+) -> np.ndarray:
+    """Calculates the sparse matrix offsets for a set of rows ``i`` and columns ``j``."""
+    # See _set_many() at
+    # https://github.com/scipy/scipy/blob/3f9a8c80e281e746225092621935b88c1ce68040/scipy/sparse/_compressed.py#L901
+    spmatrix = spmatrix.asformat("csr", copy=False)
+    i, j, M, N = spmatrix._prepare_indices(i, j)
+    offsets = np.empty(n_samples, dtype=spmatrix.indices.dtype)
+    ret = csr_sample_offsets(
+        M, N, spmatrix.indptr, spmatrix.indices, n_samples, i, j, offsets
+    )
+    if ret == 1:
+        spmatrix.sum_duplicates()
+        csr_sample_offsets(
+            M, N, spmatrix.indptr, spmatrix.indices, n_samples, i, j, offsets
+        )
+    return offsets, (i, j, M, N)
+
+
+def _get_spmatrix_offsets_cupy(spmatrix, i, j):
+    """Calculates the sparse matrix offsets for a set of rows ``i`` and columns ``j``."""
+    # See _set_many() at
+    # https://github.com/cupy/cupy/blob/5c32e40af32f6f9627e09d47ecfeb7e9281ccab2/cupyx/scipy/sparse/_compressed.py#L525
+    i, j, M, N = spmatrix._prepare_indices(i, j)
+    new_sp = csr_matrix(
+        (
+            cupy.arange(spmatrix.nnz, dtype=cupy.float32),
+            spmatrix.indices,
+            spmatrix.indptr,
+        ),
+        shape=(M, N),
+    )
+    offsets = new_sp._get_arrayXarray(i, j, not_found_val=-1).astype(cupy.int32).ravel()
+    return offsets, (i, j, M, N)
+
+
+def _spmatrix_set_many(spmatrix, i, j, x):
+    if sp.issparse(spmatrix):
+        offsets, (i, j, M, N) = _get_spmatrix_offsets(spmatrix, i, j, len(x))
+    else:
+        offsets, (i, j, M, N) = _get_spmatrix_offsets_cupy(spmatrix, i, j)
+
+    mask = offsets > -1
+    spmatrix.data[mask] = x[mask]
+    if not mask.all():
+        # only insertions remain
+        mask = ~mask
+        i = i[mask]
+        i[i < 0] += M
+        j = j[mask]
+        j[j < 0] += N
+        spmatrix._insert_many(i, j, x[mask])
 
 
 def build_divergence(mesh: Mesh) -> sp.csr_array:
@@ -317,7 +373,8 @@ class MeshOperators:
             values = self.gradient_weights * link_variables
             rows = self.gradient_link_rows
             cols = self.gradient_link_cols
-            self.psi_gradient[rows, cols] = values
+            _spmatrix_set_many(self.psi_gradient, rows, cols, values)
+            # self.psi_gradient[rows, cols] = values
             # Update Laplacian for psi
             areas = self.areas
             weights = self.laplacian_weights
@@ -336,7 +393,8 @@ class MeshOperators:
             else:
                 rows = self.laplacian_link_rows
                 cols = self.laplacian_link_cols
-            self.psi_laplacian[rows, cols] = values
+            _spmatrix_set_many(self.psi_laplacian, rows, cols, values)
+            # self.psi_laplacian[rows, cols] = values
 
     def get_supercurrent(self, psi: np.ndarray):
         """Compute the supercurrent on the edges.
