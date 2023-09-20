@@ -356,9 +356,7 @@ def solve(
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             else:
                 mu = mu_laplacian_lu(rhs)
-            normal_current = -(mu_gradient @ mu)
-            if time_dependent_vector_potential:
-                normal_current -= dA_dt
+            normal_current = -(mu_gradient @ mu) - dA_dt
 
             if not options.include_screening:
                 break
