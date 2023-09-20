@@ -353,7 +353,7 @@ class MeshOperators:
             )
             if self.sparse_solver is SparseSolver.CUPY:
                 self.psi_gradient = csr_matrix(self.psi_gradient)
-                self.psi_laplacian = csc_matrix(self.psi_laplacian)
+                self.psi_laplacian = csr_matrix(self.psi_laplacian)
                 self.gradient_weights = cupy.asarray(self.gradient_weights)
                 self.laplacian_weights = cupy.asarray(self.laplacian_weights)
             return
