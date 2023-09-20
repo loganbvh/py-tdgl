@@ -381,7 +381,7 @@ def solve(
             if use_pardiso:
                 new_A_induced = pypardiso.spsolve(A_laplacian, rhs)
             else:
-                new_A_induced = A_laplacian_lu(new_A_induced)
+                new_A_induced = A_laplacian_lu(rhs)
             new_A_induced = new_A_induced[edges].mean(axis=1)
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
