@@ -381,6 +381,9 @@ def solve(
             # else:
             #     new_A_induced = A_laplacian_lu(rhs)
             # new_A_induced = new_A_induced[edges].mean(axis=1)
+            import pdb
+
+            pdb.set_trace()
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
             v.append((1 - drag) * v[-1] + step_size * dA)
