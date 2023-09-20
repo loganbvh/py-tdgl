@@ -393,6 +393,7 @@ def solve(
                     xp.linalg.norm(dA, axis=1) / xp.linalg.norm(A_induced, axis=1)
                 )
                 screening_error = float(screening_error)
+                print(screening_error)
                 del v[:-2]
                 del A_induced_vals[:-2]
 
