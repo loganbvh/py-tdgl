@@ -22,7 +22,6 @@ def _get_spmatrix_offsets(
     """Calculates the sparse matrix offsets for a set of rows ``i`` and columns ``j``."""
     # See _set_many() at
     # https://github.com/scipy/scipy/blob/3f9a8c80e281e746225092621935b88c1ce68040/scipy/sparse/_compressed.py#L901
-    spmatrix = spmatrix.asformat("csr", copy=False)
     i, j, M, N = spmatrix._prepare_indices(i, j)
     offsets = np.empty(n_samples, dtype=spmatrix.indices.dtype)
     ret = csr_sample_offsets(
@@ -54,6 +53,7 @@ def _get_spmatrix_offsets_cupy(spmatrix, i, j):
 
 
 def _spmatrix_set_many(spmatrix, i, j, x):
+    spmatrix = spmatrix.asformat("csr", copy=False)
     if sp.issparse(spmatrix):
         offsets, (i, j, M, N) = _get_spmatrix_offsets(spmatrix, i, j, len(x))
     else:
