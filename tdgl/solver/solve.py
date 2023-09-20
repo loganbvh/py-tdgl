@@ -227,14 +227,17 @@ def solve(
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         areas = A_scale * mesh.areas
         edge_centers = mesh.edge_mesh.centers
-        A_dot_dr = np.einsum("ij, ij -> i", vector_potential, edge_directions)
-        laplacian_A_applied = A_laplacian @ mesh.get_quantity_on_site(A_dot_dr)
+        xp = cupy if use_cupy else np
+        A_dot_dr = xp.einsum("ij, ij -> i", vector_potential, edge_directions)
         if use_cupy:
             areas = cupy.asarray(areas)
             edge_centers = cupy.asarray(edge_centers)
             sites = cupy.asarray(sites)
             new_A_induced = cupy.empty((num_edges, 2), dtype=float)
             laplacian_A_applied = cupy.asarray(laplacian_A_applied)
+        laplacian_A_applied = A_laplacian @ mesh.get_quantity_on_site(
+            A_dot_dr, use_cupy=use_cupy
+        )
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
