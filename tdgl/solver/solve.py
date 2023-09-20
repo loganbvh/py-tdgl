@@ -1,5 +1,3 @@
-# flake8: noqa
-
 import itertools
 import logging
 import math
@@ -109,7 +107,6 @@ def solve(
     u = device.layer.u
     gamma = device.layer.gamma
     K0 = device.K0
-    kappa = device.kappa
 
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
@@ -191,10 +188,8 @@ def solve(
     operators.build_operators()
     operators.set_link_exponents(vector_potential)
     divergence = operators.divergence
-    A_laplacian = operators.A_laplacian
     mu_boundary_laplacian = operators.mu_boundary_laplacian
     mu_laplacian_lu = operators.mu_laplacian_lu
-    A_laplacian_lu = operators.A_laplacian_lu
     mu_gradient = operators.mu_gradient
     use_cupy = options.sparse_solver is SparseSolver.CUPY
     use_pardiso = options.sparse_solver is SparseSolver.PARDISO
@@ -222,21 +217,16 @@ def solve(
         edge_directions = cupy.asarray(edge_directions)
         vector_potential = cupy.asarray(vector_potential)
 
-    new_A_induced = laplacian_A_applied = None
+    new_A_induced = None
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         areas = A_scale * mesh.areas
         edge_centers = mesh.edge_mesh.centers
-        xp = cupy if use_cupy else np
-        A_dot_dr = xp.einsum("ij, ij -> i", vector_potential, edge_directions)
         if use_cupy:
             areas = cupy.asarray(areas)
             edge_centers = cupy.asarray(edge_centers)
             sites = cupy.asarray(sites)
             new_A_induced = cupy.empty((num_edges, 2), dtype=float)
-        laplacian_A_applied = A_laplacian @ mesh.get_quantity_on_site(
-            A_dot_dr, use_cupy=use_cupy
-        )
 
     # Running list of the max abs change in |psi|^2 between subsequent solve steps.
     # This list is used to calculate the adaptive time step.
@@ -260,7 +250,7 @@ def solve(
         induced_vector_potential,
         applied_vector_potential=None,
     ):
-        nonlocal tentative_dt, vector_potential, new_A_induced, laplacian_A_applied
+        nonlocal tentative_dt, vector_potential, new_A_induced
         if isinstance(psi, np.ndarray):
             xp = np
         else:
@@ -293,10 +283,6 @@ def solve(
             )
             if use_cupy:
                 vector_potential = cupy.asarray(vector_potential)
-            A_dot_dr = xp.einsum("ij, ij -> i", vector_potential, edge_directions)
-            laplacian_A_applied = A_laplacian @ mesh.get_quantity_on_site(
-                A_dot_dr, use_cupy=use_cupy
-            )
             dA_dt = xp.einsum(
                 "ij, ij -> i",
                 (vector_potential - A_applied) / dt,
@@ -375,15 +361,6 @@ def solve(
                 )
             else:
                 new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
-            # rhs = -(laplacian_A_applied + (1 / kappa**2 * J_site))
-            # if use_pardiso:
-            #     new_A_induced = pypardiso.spsolve(A_laplacian, rhs)
-            # else:
-            #     new_A_induced = A_laplacian_lu(rhs)
-            # new_A_induced = new_A_induced[edges].mean(axis=1)
-            import pdb
-
-            pdb.set_trace()
             # Update induced vector potential using Polyak's method
             dA = new_A_induced - A_induced
             v.append((1 - drag) * v[-1] + step_size * dA)
