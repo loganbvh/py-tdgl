@@ -222,7 +222,7 @@ def solve(
         edge_directions = cupy.asarray(edge_directions)
         vector_potential = cupy.asarray(vector_potential)
 
-    new_A_induced = None
+    new_A_induced = laplacian_A_applied = None
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
         areas = A_scale * mesh.areas
@@ -234,7 +234,6 @@ def solve(
             edge_centers = cupy.asarray(edge_centers)
             sites = cupy.asarray(sites)
             new_A_induced = cupy.empty((num_edges, 2), dtype=float)
-            laplacian_A_applied = cupy.asarray(laplacian_A_applied)
         laplacian_A_applied = A_laplacian @ mesh.get_quantity_on_site(
             A_dot_dr, use_cupy=use_cupy
         )
@@ -261,7 +260,7 @@ def solve(
         induced_vector_potential,
         applied_vector_potential=None,
     ):
-        nonlocal tentative_dt, vector_potential, new_A_induced
+        nonlocal tentative_dt, vector_potential, new_A_induced, laplacian_A_applied
         if isinstance(psi, np.ndarray):
             xp = np
         else:
