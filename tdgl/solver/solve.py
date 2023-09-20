@@ -377,7 +377,7 @@ def solve(
             #     )
             # else:
             #     new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
-            rhs = -(A_laplacian @ laplacian_A_applied) - (1 / kappa**2 * J_site)
+            rhs = -(laplacian_A_applied + (1 / kappa**2 * J_site))
             if use_pardiso:
                 new_A_induced = pypardiso.spsolve(A_laplacian, rhs)
             else:
