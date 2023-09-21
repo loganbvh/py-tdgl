@@ -241,7 +241,25 @@ class Parameter:
         if self.func.__code__ != other.func.__code__:
             return False
 
-        return self.kwargs == other.kwargs
+        if set(self.kwargs) != set(other.kwargs):
+            return False
+
+        def array_safe_equals(a, b) -> bool:
+            """Check if a and b are equal, even if they are numpy arrays."""
+            if a is b:
+                return True
+            if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+                return a.shape == b.shape and np.allclose(a, b)
+            try:
+                return a == b
+            except TypeError:
+                return NotImplemented
+
+        for key in self.kwargs:
+            if not array_safe_equals(self.kwargs[key], other.kwargs[key]):
+                return False
+
+        return True
 
 
 class CompositeParameter(Parameter):
