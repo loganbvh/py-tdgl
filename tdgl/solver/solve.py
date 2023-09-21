@@ -100,13 +100,14 @@ def solve(
     sites = device.points
     edges = mesh.edge_mesh.edges
     num_edges = len(edges)
-    edge_directions = mesh.edge_mesh.directions
+    normalized_directions = mesh.edge_mesh.normalized_directions
     length_units = ureg(device.length_units)
     xi = device.coherence_length.magnitude
-    probe_points = device.probe_point_indices
     u = device.layer.u
     gamma = device.layer.gamma
     K0 = device.K0
+    A0 = device.A0
+    probe_points = device.probe_point_indices
 
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
@@ -215,14 +216,13 @@ def solve(
     if use_cupy:
         epsilon = cupy.asarray(epsilon)
         mu_boundary = cupy.asarray(mu_boundary)
-        edge_directions = cupy.asarray(edge_directions)
+        normalized_directions = cupy.asarray(normalized_directions)
         vector_potential = cupy.asarray(vector_potential)
 
     new_A_induced = None
     if options.include_screening:
-        A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
-        A_scale /= 4
-        areas = A_scale * mesh.areas
+        A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / A0).to(1 / length_units)
+        areas = A_scale.magnitude * mesh.areas * xi**2
         if use_cupy:
             areas = cupy.asarray(areas)
             edge_centers = cupy.asarray(edge_centers)
@@ -287,7 +287,7 @@ def solve(
             dA_dt = xp.einsum(
                 "ij, ij -> i",
                 (vector_potential - A_applied) / dt,
-                edge_directions,
+                normalized_directions,
             )
             if not options.include_screening:
                 if xp.any(xp.absolute(dA_dt) > 0):
@@ -317,7 +317,7 @@ def solve(
                     dA_dt = xp.einsum(
                         "ij, ij -> i",
                         (vector_potential + A_induced - A_applied) / dt,
-                        edge_directions,
+                        normalized_directions,
                     )
 
             # Adjust the time step and calculate the new the order parameter
@@ -338,7 +338,9 @@ def solve(
             )
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = operators.get_supercurrent(psi)
-            rhs = (divergence @ supercurrent) - (mu_boundary_laplacian @ mu_boundary)
+            rhs = (divergence @ (supercurrent - dA_dt)) - (
+                mu_boundary_laplacian @ mu_boundary
+            )
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             else:

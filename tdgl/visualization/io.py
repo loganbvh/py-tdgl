@@ -75,10 +75,7 @@ def get_plot_data(
         j_nm_site = mesh.get_quantity_on_site(normal_current)
         j_site = j_sc_site + j_nm_site
         gradient = build_gradient(mesh)
-        normalized_directions = (
-            mesh.edge_mesh.directions
-            / np.linalg.norm(mesh.edge_mesh.directions, axis=1)[:, np.newaxis]
-        )
+        normalized_directions = mesh.edge_mesh.normalized_directions
         grad_jx = gradient @ j_site[:, 0]
         grad_jy = gradient @ j_site[:, 1]
         djy_dx = grad_jy * normalized_directions[:, 0]
