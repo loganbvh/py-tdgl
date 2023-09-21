@@ -1,5 +1,3 @@
-# flake8: noqa
-
 import itertools
 import logging
 import math
@@ -102,19 +100,21 @@ def solve(
     sites = device.points
     edges = mesh.edge_mesh.edges
     num_edges = len(edges)
-    edge_directions = mesh.edge_mesh.directions
+    normalized_directions = mesh.edge_mesh.normalized_directions
     length_units = ureg(device.length_units)
     xi = device.coherence_length.magnitude
-    probe_points = device.probe_point_indices
     u = device.layer.u
     gamma = device.layer.gamma
     K0 = device.K0
+    A0 = device.A0
+    probe_points = device.probe_point_indices
 
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
-    x, y = xi * mesh.edge_mesh.centers.T
+    edge_centers = xi * mesh.edge_mesh.centers
+    edge_xs, edge_ys = edge_centers.T
     Bc2 = device.Bc2
-    z = device.layer.z0 * xi * np.ones_like(x)
+    z0 = device.layer.z0 * np.ones_like(edge_xs)
     J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
     assert "dimensionless" in str(J_scale.units), str(J_scale.units)
     J_scale = J_scale.magnitude
@@ -136,9 +136,9 @@ def solve(
         .magnitude
     )
     A_kwargs = dict(t=0) if time_dependent_vector_potential else dict()
-    vector_potential = applied_vector_potential_(x, y, z, **A_kwargs)
+    vector_potential = applied_vector_potential_(edge_xs, edge_ys, z0, **A_kwargs)
     vector_potential = np.asarray(vector_potential)[:, :2]
-    if vector_potential.shape != x.shape + (2,):
+    if vector_potential.shape != edge_xs.shape + (2,):
         raise ValueError(
             f"Unexpected shape for vector_potential: {vector_potential.shape}."
         )
@@ -216,14 +216,13 @@ def solve(
     if use_cupy:
         epsilon = cupy.asarray(epsilon)
         mu_boundary = cupy.asarray(mu_boundary)
-        edge_directions = cupy.asarray(edge_directions)
+        normalized_directions = cupy.asarray(normalized_directions)
         vector_potential = cupy.asarray(vector_potential)
 
     new_A_induced = None
     if options.include_screening:
-        A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
-        areas = A_scale * mesh.areas
-        edge_centers = mesh.edge_mesh.centers
+        A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / A0).to(1 / length_units)
+        areas = A_scale.magnitude * mesh.areas * xi**2
         if use_cupy:
             areas = cupy.asarray(areas)
             edge_centers = cupy.asarray(edge_centers)
@@ -281,14 +280,14 @@ def solve(
         if time_dependent_vector_potential:
             vector_potential = (
                 vector_potential_scale
-                * applied_vector_potential_(x, y, z, t=time)[:, :2]
+                * applied_vector_potential_(edge_xs, edge_ys, z0, t=time)[:, :2]
             )
             if use_cupy:
                 vector_potential = cupy.asarray(vector_potential)
             dA_dt = xp.einsum(
                 "ij, ij -> i",
                 (vector_potential - A_applied) / dt,
-                edge_directions,
+                normalized_directions,
             )
             if not options.include_screening:
                 if xp.any(xp.absolute(dA_dt) > 0):
@@ -318,7 +317,7 @@ def solve(
                     dA_dt = xp.einsum(
                         "ij, ij -> i",
                         (vector_potential + A_induced - A_applied) / dt,
-                        edge_directions,
+                        normalized_directions,
                     )
 
             # Adjust the time step and calculate the new the order parameter
@@ -339,23 +338,14 @@ def solve(
             )
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = operators.get_supercurrent(psi)
-            if time_dependent_vector_potential:
-                rhs = divergence @ (supercurrent - dA_dt) - (
-                    mu_boundary_laplacian @ mu_boundary
-                )
-            else:
-                rhs = (divergence @ supercurrent) - (
-                    mu_boundary_laplacian @ mu_boundary
-                )
+            rhs = (divergence @ (supercurrent - dA_dt)) - (
+                mu_boundary_laplacian @ mu_boundary
+            )
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
-            elif use_cupy:
-                mu = mu_laplacian_lu(cupy.asarray(rhs))
             else:
                 mu = mu_laplacian_lu(rhs)
-            normal_current = -(mu_gradient @ mu)
-            if time_dependent_vector_potential:
-                normal_current -= dA_dt
+            normal_current = -(mu_gradient @ mu) - dA_dt
 
             if not options.include_screening:
                 break
