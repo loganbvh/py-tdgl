@@ -53,6 +53,7 @@ def _get_spmatrix_offsets_cupy(spmatrix, i, j):
 
 
 def _spmatrix_set_many(spmatrix, i, j, x):
+    """spmatrix.__setitem__()"""
     if sp.issparse(spmatrix):
         i, j = spmatrix._swap((i, j))
         offsets, (i, j, M, N) = _get_spmatrix_offsets(spmatrix, i, j, len(x))
@@ -370,8 +371,8 @@ class MeshOperators:
             values = self.gradient_weights * link_variables
             rows = self.gradient_link_rows
             cols = self.gradient_link_cols
-            _spmatrix_set_many(self.psi_gradient, rows, cols, values)
             # self.psi_gradient[rows, cols] = values
+            _spmatrix_set_many(self.psi_gradient, rows, cols, values)
             # Update Laplacian for psi
             areas = self.areas
             weights = self.laplacian_weights
@@ -390,8 +391,8 @@ class MeshOperators:
             else:
                 rows = self.laplacian_link_rows
                 cols = self.laplacian_link_cols
-            _spmatrix_set_many(self.psi_laplacian, rows, cols, values)
             # self.psi_laplacian[rows, cols] = values
+            _spmatrix_set_many(self.psi_laplacian, rows, cols, values)
 
     def get_supercurrent(self, psi: np.ndarray):
         """Compute the supercurrent on the edges.
