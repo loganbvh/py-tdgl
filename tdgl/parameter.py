@@ -128,8 +128,24 @@ class Parameter:
             )
 
     def _hash_args(self, x, y, z, t) -> str:
+        def _coerce_to_tuple(a):
+            try:
+                return tuple(_coerce_to_tuple(i) for i in a)
+            except TypeError:
+                return a
+
+        def _to_tuple(items):
+            results = []
+            for key, value in items:
+                if isinstance(value, dict):
+                    value = _to_tuple(value.items())
+                elif isinstance(value, (list, np.ndarray)):
+                    value = _coerce_to_tuple(value)
+                results.append((key, value))
+            return tuple(results)
+
         return (
-            hex(hash(tuple(self.kwargs.items())))
+            hex(hash(_to_tuple(self.kwargs.items())))
             + hashlib.sha1(np.ascontiguousarray(x)).hexdigest()
             + hashlib.sha1(np.ascontiguousarray(y)).hexdigest()
             + hashlib.sha1(np.ascontiguousarray(z)).hexdigest()
