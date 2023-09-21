@@ -470,9 +470,7 @@ def solve(
             )
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = get_supercurrent(psi, operators.psi_gradient, edges)
-            rhs = divergence @ (supercurrent - dA_dt) - (
-                mu_boundary_laplacian @ mu_boundary
-            )
+            rhs = (divergence @ supercurrent) - (mu_boundary_laplacian @ mu_boundary)
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             else:
