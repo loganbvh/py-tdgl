@@ -8,8 +8,8 @@ import numpy as np
 import scipy.sparse as sp
 
 try:
-    import jax
-    import jax.numpy as jnp
+    import jax  # type: ignore
+    import jax.numpy as jnp  # type: ignore
 except (ModuleNotFoundError, ImportError):
     jax = None
 
@@ -243,16 +243,18 @@ def solve(
     sites = device.points
     edges = mesh.edge_mesh.edges
     edge_directions = mesh.edge_mesh.directions
+    normalized_directions = edge_directions / mesh.edge_mesh.edge_lengths[:, np.newaxis]
     length_units = ureg(device.length_units)
     xi = device.coherence_length.magnitude
-    probe_points = device.probe_point_indices
     u = device.layer.u
     gamma = device.layer.gamma
     K0 = device.K0
+    A0 = device.A0
+    probe_points = device.probe_point_indices
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
     edge_centers = xi * mesh.edge_mesh.centers
-    edge_xs, edge_ys = xi * edge_centers.T
+    edge_xs, edge_ys = edge_centers.T
     Bc2 = device.Bc2
     z0 = device.layer.z0 * np.ones_like(edge_xs)
     J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
@@ -337,7 +339,7 @@ def solve(
     use_pardiso = options.sparse_solver is SparseSolver.PARDISO
     if use_pardiso:
         assert mu_laplacian_lu is None
-        import pypardiso
+        import pypardiso  # type: ignore
 
         mu_laplacian = operators.mu_laplacian
     # Initialize the order parameter and electric potential
@@ -355,10 +357,8 @@ def solve(
         raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
 
     if options.include_screening:
-        A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
-        A_scale /= 4
-        areas = A_scale * mesh.areas
-        edge_centers = mesh.edge_mesh.centers
+        A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / A0).to(1 / length_units)
+        areas = A_scale.magnitude * mesh.areas * xi**2
         if not options.screening_use_numba:
             # Pre-compute the kernel for the screening integral.
             inv_rho = A_scale / distance.cdist(
@@ -397,7 +397,7 @@ def solve(
     ):
         A_induced = induced_vector_potential
         A_applied = applied_vector_potential
-        nonlocal tentative_dt
+        nonlocal tentative_dt, vector_potential
         step = state["step"]
         time = state["time"]
         old_sq_psi = np.abs(psi) ** 2
@@ -412,14 +412,12 @@ def solve(
 
         dA_dt = 0.0
         if time_dependent_vector_potential:
-            vector_potential = applied_vector_potential_(edge_xs, edge_ys, z0, t=time)[
-                :, :2
-            ]
-            vector_potential *= vector_potential_scale
+            vector_potential = applied_vector_potential_(edge_xs, edge_ys, z0, t=time)
+            vector_potential = vector_potential_scale * vector_potential[:, :2]
             dA_dt = np.einsum(
                 "ij, ij -> i",
                 (vector_potential - A_applied) / dt,
-                edge_directions,
+                normalized_directions,
             )
             if not options.include_screening:
                 if np.any(np.abs(dA_dt) > 0):
@@ -449,7 +447,7 @@ def solve(
                     dA_dt = np.einsum(
                         "ij, ij -> i",
                         (vector_potential + A_induced - A_applied) / dt,
-                        edge_directions,
+                        normalized_directions,
                     )
 
             # Adjust the time step and calculate the new the order parameter
@@ -470,7 +468,9 @@ def solve(
             )
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = get_supercurrent(psi, operators.psi_gradient, edges)
-            rhs = (divergence @ supercurrent) - (mu_boundary_laplacian @ mu_boundary)
+            rhs = (divergence @ (supercurrent - dA_dt)) - (
+                mu_boundary_laplacian @ mu_boundary
+            )
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             else:
