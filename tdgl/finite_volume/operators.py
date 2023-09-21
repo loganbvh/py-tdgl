@@ -53,10 +53,11 @@ def _get_spmatrix_offsets_cupy(spmatrix, i, j):
 
 
 def _spmatrix_set_many(spmatrix, i, j, x):
-    spmatrix = spmatrix.asformat("csr")
     if sp.issparse(spmatrix):
+        i, j = spmatrix._swap((i, j))
         offsets, (i, j, M, N) = _get_spmatrix_offsets(spmatrix, i, j, len(x))
     else:
+        i, j = spmatrix._swap(i, j)
         offsets, (i, j, M, N) = _get_spmatrix_offsets_cupy(spmatrix, i, j)
 
     mask = offsets > -1
