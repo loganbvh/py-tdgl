@@ -110,9 +110,10 @@ def solve(
 
     # The vector potential is evaluated on the mesh edges,
     # where the edge coordinates are in dimensionful units.
-    x, y = xi * mesh.edge_mesh.centers.T
+    edge_centers = xi * mesh.edge_mesh.centers
+    edge_xs, edge_ys = edge_centers.T
     Bc2 = device.Bc2
-    z = device.layer.z0 * xi * np.ones_like(x)
+    z0 = device.layer.z0 * np.ones_like(edge_xs)
     J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
     assert "dimensionless" in str(J_scale.units), str(J_scale.units)
     J_scale = J_scale.magnitude
@@ -134,9 +135,9 @@ def solve(
         .magnitude
     )
     A_kwargs = dict(t=0) if time_dependent_vector_potential else dict()
-    vector_potential = applied_vector_potential_(x, y, z, **A_kwargs)
+    vector_potential = applied_vector_potential_(edge_xs, edge_ys, z0, **A_kwargs)
     vector_potential = np.asarray(vector_potential)[:, :2]
-    if vector_potential.shape != x.shape + (2,):
+    if vector_potential.shape != edge_xs.shape + (2,):
         raise ValueError(
             f"Unexpected shape for vector_potential: {vector_potential.shape}."
         )
@@ -220,8 +221,8 @@ def solve(
     new_A_induced = None
     if options.include_screening:
         A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / Bc2).to_base_units().magnitude
+        A_scale /= 4
         areas = A_scale * mesh.areas
-        edge_centers = mesh.edge_mesh.centers
         if use_cupy:
             areas = cupy.asarray(areas)
             edge_centers = cupy.asarray(edge_centers)
@@ -279,7 +280,7 @@ def solve(
         if time_dependent_vector_potential:
             vector_potential = (
                 vector_potential_scale
-                * applied_vector_potential_(x, y, z, t=time)[:, :2]
+                * applied_vector_potential_(edge_xs, edge_ys, z0, t=time)[:, :2]
             )
             if use_cupy:
                 vector_potential = cupy.asarray(vector_potential)
