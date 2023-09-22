@@ -11,6 +11,11 @@ try:
 except ModuleNotFoundError:
     cupy = None
 
+try:
+    import pypardiso  # type: ignore
+except ModuleNotFoundError:
+    pypardiso = None
+
 from ..device.device import Device, TerminalInfo
 from ..finite_volume.operators import MeshOperators
 from ..parameter import Parameter
@@ -50,6 +55,12 @@ def validate_terminal_currents(
             check_total_current(terminal_currents(t))
     else:
         check_total_current(terminal_currents)
+
+
+def _solve_for_mu(mu_laplacian, mu_laplacian_lu, rhs, sparse_solver):
+    if sparse_solver is SparseSolver.PARDISO:
+        return pypardiso.spsolve(mu_laplacian, rhs)
+    return mu_laplacian_lu(rhs)
 
 
 def solve(
@@ -194,11 +205,10 @@ def solve(
     mu_laplacian_lu = operators.mu_laplacian_lu
     mu_gradient = operators.mu_gradient
     use_cupy = options.sparse_solver is SparseSolver.CUPY
-    use_pardiso = options.sparse_solver is SparseSolver.PARDISO
-    if use_pardiso:
+    mu_laplacian = operators.mu_laplacian
+    if options.sparse_solver is SparseSolver.PARDISO:
         assert mu_laplacian_lu is None
-        mu_laplacian = operators.mu_laplacian
-        import pypardiso  # type: ignore
+        assert pypardiso is not None
 
     # Initialize the order parameter and electric potential
     psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
@@ -341,10 +351,9 @@ def solve(
             rhs = (divergence @ (supercurrent - dA_dt)) - (
                 mu_boundary_laplacian @ mu_boundary
             )
-            if use_pardiso:
-                mu = pypardiso.spsolve(mu_laplacian, rhs)
-            else:
-                mu = mu_laplacian_lu(rhs)
+            mu = _solve_for_mu(
+                mu_laplacian, mu_laplacian_lu, rhs, options.sparse_solver
+            )
             normal_current = -(mu_gradient @ mu) - dA_dt
 
             if not options.include_screening:
