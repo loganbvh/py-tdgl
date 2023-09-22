@@ -499,6 +499,9 @@ class TDGLSolver:
         if options.include_screening:
             running_state.append("screening_iterations", screening_iteration)
 
+        if use_cupy:
+            cupy.cuda.get_current_stream().synchronize()
+
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
             # and use it to select a new time step.
