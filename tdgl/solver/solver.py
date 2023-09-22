@@ -502,7 +502,7 @@ class TDGLSolver:
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
             # and use it to select a new time step.
-            self.d_psi_sq_vals.append(xp.max(xp.absolute(abs_sq_psi - old_sq_psi)))
+            self.d_psi_sq_vals.append(xp.absolute(abs_sq_psi - old_sq_psi).max())
             window = options.adaptive_window
             if step > window:
                 new_dt = options.dt_init / xp.clip(

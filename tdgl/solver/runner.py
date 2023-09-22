@@ -320,7 +320,6 @@ class Runner:
         unit = "tau"
         bar_format = "{l_bar}{bar}" + r_bar
         it = itertools.count()
-        dt = float(self.dt)
 
         def save_step(step):
             data = dict(zip(self.names, self.values))
@@ -342,6 +341,7 @@ class Runner:
         ) as pbar:
             for i in it:
                 try:
+                    dt = float(self.dt)
                     self.state["step"] = i
                     self.state["time"] = self.time
                     self.state["dt"] = dt
@@ -375,9 +375,9 @@ class Runner:
                         pbar.update(end_time - self.time)
                     if self.time >= end_time:
                         break
-                    self.dt = new_dt
+                    self.dt = float(new_dt)
                     self.running_state.step += 1
-                    self.time += dt
+                    self.time += self.dt
                 except KeyboardInterrupt:
                     msg = f"{{}} simulation at step {i} of stage {name!r}."
                     if self.options.pause_on_interrupt:
