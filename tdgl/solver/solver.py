@@ -506,7 +506,7 @@ class TDGLSolver:
             window = options.adaptive_window
             if step > window:
                 new_dt = options.dt_init / xp.clip(
-                    xp.array(self.d_psi_sq_vals[-window:]),
+                    xp.array(self.d_psi_sq_vals[-window:]).mean(),
                     1e-10,
                     xp.inf,
                 )
