@@ -57,12 +57,6 @@ def validate_terminal_currents(
         check_total_current(terminal_currents)
 
 
-def _solve_for_mu(mu_laplacian, mu_laplacian_lu, rhs, sparse_solver):
-    if sparse_solver is SparseSolver.PARDISO:
-        return pypardiso.spsolve(mu_laplacian, rhs)
-    return mu_laplacian_lu(rhs)
-
-
 def solve(
     device: Device,
     options: SolverOptions,
@@ -351,9 +345,10 @@ def solve(
             rhs = (divergence @ (supercurrent - dA_dt)) - (
                 mu_boundary_laplacian @ mu_boundary
             )
-            mu = _solve_for_mu(
-                mu_laplacian, mu_laplacian_lu, rhs, options.sparse_solver
-            )
+            if options.sparse_solver is SparseSolver.PARDISO:
+                mu = pypardiso.spsolve(mu_laplacian, rhs)
+            else:
+                mu = mu_laplacian_lu(rhs)
             normal_current = -(mu_gradient @ mu) - dA_dt
 
             if not options.include_screening:
