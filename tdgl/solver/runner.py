@@ -320,6 +320,7 @@ class Runner:
         unit = "tau"
         bar_format = "{l_bar}{bar}" + r_bar
         it = itertools.count()
+        dt = float(self.dt)
 
         def save_step(step):
             data = dict(zip(self.names, self.values))
@@ -343,7 +344,7 @@ class Runner:
                 try:
                     self.state["step"] = i
                     self.state["time"] = self.time
-                    self.state["dt"] = self.dt
+                    self.state["dt"] = dt
                     # Print progress if TQDM is disabled.
                     if prog_disabled and (i % self.options.progress_interval) == 0:
                         then, now = now, time.perf_counter()
@@ -353,7 +354,7 @@ class Runner:
                             speed = self.options.progress_interval / (now - then)
                         self.logger.info(
                             f"{name}: Time {self.time}/{end_time}, "
-                            f"dt={self.dt:.2e}, {speed:.2f} it/s"
+                            f"dt={dt:.2e}, {speed:.2f} it/s"
                         )
                     if i % self.options.save_every == 0:
                         if save:
@@ -363,20 +364,20 @@ class Runner:
                     function_result = self.function(
                         self.state,
                         self.running_state,
-                        self.dt,
+                        dt,
                         **dict(zip(self.names, self.values)),
                     )
                     new_dt, *self.values = function_result
                     # tqdm will spit out a warning if you try to update past "total"
-                    if self.time + self.dt < end_time:
-                        pbar.update(self.dt)
+                    if self.time + dt < end_time:
+                        pbar.update(dt)
                     else:
                         pbar.update(end_time - self.time)
                     if self.time >= end_time:
                         break
                     self.dt = new_dt
                     self.running_state.step += 1
-                    self.time += self.dt
+                    self.time += dt
                 except KeyboardInterrupt:
                     msg = f"{{}} simulation at step {i} of stage {name!r}."
                     if self.options.pause_on_interrupt:
