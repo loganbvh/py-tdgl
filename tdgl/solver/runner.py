@@ -257,7 +257,7 @@ class Runner:
         self.time = 0
         self.state["step"] = 0
         self.state["time"] = self.time
-        self.state["dt"] = self.dt
+        self.state["dt"] = float(self.dt)
         self.data_handler.save_fixed_values(
             dict(zip(self.fixed_names, self.fixed_values))
         )
