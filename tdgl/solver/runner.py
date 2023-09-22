@@ -341,7 +341,7 @@ class Runner:
         ) as pbar:
             for i in it:
                 try:
-                    dt = float(self.dt)
+                    dt = self.dt
                     self.state["step"] = i
                     self.state["time"] = self.time
                     self.state["dt"] = dt
@@ -375,7 +375,7 @@ class Runner:
                         pbar.update(end_time - self.time)
                     if self.time >= end_time:
                         break
-                    self.dt = float(new_dt)
+                    self.dt = new_dt
                     self.running_state.step += 1
                     self.time += self.dt
                 except KeyboardInterrupt:

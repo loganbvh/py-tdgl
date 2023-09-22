@@ -447,16 +447,8 @@ class TDGLSolver:
                 psi_laplacian,
                 options,
             )
-
-            if use_cupy:
-                cupy.cuda.get_current_stream().synchronize()
-
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = operators.get_supercurrent(psi)
-
-            if use_cupy:
-                cupy.cuda.get_current_stream().synchronize()
-
             rhs = (divergence @ (supercurrent - dA_dt)) - (
                 mu_boundary_laplacian @ mu_boundary
             )
@@ -464,14 +456,7 @@ class TDGLSolver:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             else:
                 mu = mu_laplacian_lu(rhs)
-
-            if use_cupy:
-                cupy.cuda.get_current_stream().synchronize()
-
             normal_current = -(mu_gradient @ mu) - dA_dt
-
-            if use_cupy:
-                cupy.cuda.get_current_stream().synchronize()
 
             if not options.include_screening:
                 break
@@ -517,15 +502,13 @@ class TDGLSolver:
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
             # and use it to select a new time step.
-            self.d_psi_sq_vals.append(xp.absolute(abs_sq_psi - old_sq_psi).max())
+            self.d_psi_sq_vals.append(float(xp.absolute(abs_sq_psi - old_sq_psi).max()))
             window = options.adaptive_window
             if step > window:
-                new_dt = options.dt_init / xp.clip(
-                    xp.array(self.d_psi_sq_vals[-window:]).mean(),
-                    1e-10,
-                    xp.inf,
+                new_dt = options.dt_init / max(
+                    1e-10, np.mean(self.d_psi_sq_vals[-window:])
                 )
-                self.tentative_dt = xp.clip(0.5 * (new_dt + dt), 0, self.dt_max)
+                self.tentative_dt = np.clip(0.5 * (new_dt + dt), 0, self.dt_max)
 
         results = (
             dt,
