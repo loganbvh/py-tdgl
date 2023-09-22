@@ -447,8 +447,16 @@ class TDGLSolver:
                 psi_laplacian,
                 options,
             )
+
+            if use_cupy:
+                cupy.cuda.get_current_stream().synchronize()
+
             # Compute the supercurrent, scalar potential, and normal current
             supercurrent = operators.get_supercurrent(psi)
+
+            if use_cupy:
+                cupy.cuda.get_current_stream().synchronize()
+
             rhs = (divergence @ (supercurrent - dA_dt)) - (
                 mu_boundary_laplacian @ mu_boundary
             )
@@ -456,7 +464,14 @@ class TDGLSolver:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             else:
                 mu = mu_laplacian_lu(rhs)
+
+            if use_cupy:
+                cupy.cuda.get_current_stream().synchronize()
+
             normal_current = -(mu_gradient @ mu) - dA_dt
+
+            if use_cupy:
+                cupy.cuda.get_current_stream().synchronize()
 
             if not options.include_screening:
                 break
