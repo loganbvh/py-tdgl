@@ -506,7 +506,7 @@ class TDGLSolver:
             window = options.adaptive_window
             if step > window:
                 new_dt = options.dt_init / xp.max(
-                    [1e-10, xp.mean(self.d_psi_sq_vals[-window:])]
+                    xp.array([1e-10, xp.mean(xp.array(self.d_psi_sq_vals[-window:]))])
                 )
                 self.tentative_dt = xp.clip(0.5 * (new_dt + dt), 0, self.dt_max)
 
