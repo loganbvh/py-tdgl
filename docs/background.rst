@@ -431,8 +431,8 @@ Here we go through the full derivation of the quadratic equation for :math:`\lef
 Screening
 =========
 
-By default ``pyTDGL`` assumes that screening is negligible, i.e., that the total vector potential in the film is time-independent
-and equal to the applied vector potential: :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})`.
+By default ``pyTDGL`` assumes that screening is negligible, i.e., that the total vector potential in the film is 
+equal to the applied vector potential: :math:`\mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})`.
 Screening can optionally be included by evaluating the vector potential induced by currents flowing in the film.
 The vector potential in a 2D film induced by a sheet current density :math:`\mathbf{K}` flowing in the film is given by
 
@@ -447,7 +447,7 @@ Taking the induced vector potential into account, the total vector potential in 
 .. math::
     :label: A-total
 
-    \mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r})+\mathbf{A}_\mathrm{induced}(\mathbf{r}, t).
+    \mathbf{A}(\mathbf{r}, t)=\mathbf{A}_\mathrm{applied}(\mathbf{r}, t)+\mathbf{A}_\mathrm{induced}(\mathbf{r}, t).
 
 Because :math:`\mathbf{A} =\mathbf{A}_\mathrm{applied}+\mathbf{A}_\mathrm{induced}` enters into the covariant gradient and Laplacian of
 :math:`\psi` (:eq:`grad-psi` and :eq:`laplacian-psi`), which in turn determine the current density :math:`\mathbf{J}=\mathbf{K}/d`,
@@ -474,14 +474,9 @@ In :eq:`polyak`, we evaluate the sheet current density :math:`\mathbf{K}^n_\ell=
 sites :math:`\mathbf{r}_\ell`, and the vector potential on the mesh edges :math:`\mathbf{r}_{ij}`, so the denominator
 :math:`|\mathbf{r}_{ij}-\mathbf{r}_\ell|` is strictly greater than zero and :eq:`polyak` is well-defined.
 :eq:`polyak` involves the pairwise distances between all edges and all sites in the mesh, so,
-in contrast to the sparse finite volume calculation, it requires a dense matrix representation. This means that
-including screening significantly increases both the memory and number of floating point operations required for a
-TDGL simulation. To accelerate this portion of the calculation, the first line of :eq:`polyak` is automatically evaluated on a graphics processing unit (GPU)
-if one is available. Although including screening does introduce some time-dependence to the total vector potential in the film
-(:eq:`A-total`), we assume that :math:`\partial\mathbf{A}/\partial t` remains small enough that the electric field in the film is
-:math:`\mathbf{E}=-\nabla\mu - \partial\mathbf{A}/\partial t \approx -\nabla\mu`. The screening calculation (:eq:`polyak`) can fail
-to converge for models with strong screening, where the effective magnetic penetration depth :math:`\Lambda=\lambda^2/d` is much smaller
-than the film size.
+in contrast to the sparse finite volume calculation, it is a "dense" problem. This means that
+including screening significantly increases the number of floating point operations required for a
+TDGL simulation.
 
 Pseduocode for the solver algorithms
 ====================================

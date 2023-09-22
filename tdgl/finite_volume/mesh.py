@@ -196,9 +196,7 @@ class Mesh:
         """
         # Normalize the edge direction
         directions = self.edge_mesh.directions
-        normalized_directions = (
-            directions / np.linalg.norm(directions, axis=1)[:, np.newaxis]
-        )
+        normalized_directions = directions / self.edge_mesh.edge_lengths[:, np.newaxis]
         if vector:
             flux_x = quantity_on_edge * normalized_directions[:, 0]
             flux_y = quantity_on_edge * normalized_directions[:, 1]
