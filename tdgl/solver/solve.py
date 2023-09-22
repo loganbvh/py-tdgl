@@ -499,19 +499,16 @@ class TDGLSolver:
         if options.include_screening:
             running_state.append("screening_iterations", screening_iteration)
 
-        if use_cupy:
-            cupy.cuda.get_current_stream().synchronize()
-
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
             # and use it to select a new time step.
-            self.d_psi_sq_vals.append(float(xp.absolute(abs_sq_psi - old_sq_psi).max()))
+            self.d_psi_sq_vals.append(xp.max(xp.absolute(abs_sq_psi - old_sq_psi)))
             window = options.adaptive_window
             if step > window:
-                new_dt = options.dt_init / max(
-                    1e-10, np.mean(self.d_psi_sq_vals[-window:])
+                new_dt = options.dt_init / xp.max(
+                    [1e-10, xp.mean(self.d_psi_sq_vals[-window:])]
                 )
-                self.tentative_dt = np.clip(0.5 * (new_dt + dt), 0, self.dt_max)
+                self.tentative_dt = xp.clip(0.5 * (new_dt + dt), 0, self.dt_max)
 
         results = (
             dt,
