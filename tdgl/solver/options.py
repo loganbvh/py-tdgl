@@ -14,10 +14,7 @@ class SparseSolver(Enum):
     SUPERLU: str = "superlu"
     UMFPACK: str = "umfpack"
     PARDISO: str = "pardiso"
-    CUPY_LU: str = "cupy_lu"
-    CUPY_CG: str = "cupy_cg"
-    CUPY_GMRES: str = "cupy_gmres"
-    CUPY_SPSOLVE: str = "cupy_spsolve"
+    CUPY: str = "cupy"
 
 
 @dataclass
@@ -151,7 +148,7 @@ class SolverOptions:
                     "SparseSolver.CUPY requires an Intel CPU"
                     " and the pypardiso Python package."
                 )
-        if "cupy" in self.sparse_solver.value:
+        if self.sparse_solver is SparseSolver.CUPY:
             try:
                 import cupy  # type: ignore # noqa: F401
             except ModuleNotFoundError:

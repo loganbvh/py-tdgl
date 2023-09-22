@@ -8,7 +8,6 @@ import numpy as np
 
 try:
     import cupy  # type: ignore
-    import cupyx.scipy.sparse.linalg  # type: ignore
 except ModuleNotFoundError:
     cupy = None
 
@@ -194,11 +193,11 @@ def solve(
     mu_boundary_laplacian = operators.mu_boundary_laplacian
     mu_laplacian_lu = operators.mu_laplacian_lu
     mu_gradient = operators.mu_gradient
-    use_cupy = "cupy" in options.sparse_solver.value
+    use_cupy = options.sparse_solver is SparseSolver.CUPY
     use_pardiso = options.sparse_solver is SparseSolver.PARDISO
-    mu_laplacian = operators.mu_laplacian
     if use_pardiso:
         assert mu_laplacian_lu is None
+        mu_laplacian = operators.mu_laplacian
         import pypardiso  # type: ignore
 
     # Initialize the order parameter and electric potential
@@ -344,19 +343,8 @@ def solve(
             )
             if use_pardiso:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
-            elif options.sparse_solver in {
-                SparseSolver.SUPERLU,
-                SparseSolver.UMFPACK,
-                SparseSolver.CUPY_LU,
-            }:
-                mu = mu_laplacian_lu(rhs)
-            elif options.sparse_solver is SparseSolver.CUPY_CG:
-                mu, _ = cupyx.scipy.sparse.linalg.cg(mu_laplacian, rhs)
-            elif options.sparse_solver is SparseSolver.CUPY_GMRES:
-                mu, _ = cupyx.scipy.sparse.linalg.gmres(mu_laplacian, rhs)
             else:
-                assert options.sparse_solver is SparseSolver.CUPY_SPSOLVE
-                mu = cupyx.scipy.sparse.linalg.spsolve(mu_laplacian, rhs)
+                mu = mu_laplacian_lu(rhs)
             normal_current = -(mu_gradient @ mu) - dA_dt
 
             if not options.include_screening:

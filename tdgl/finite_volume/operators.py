@@ -300,22 +300,15 @@ class MeshOperators:
         self.mu_boundary_laplacian = build_neumann_boundary_laplacian(mesh)
         self.mu_gradient = build_gradient(mesh, weights=self.gradient_weights)
         self.divergence = build_divergence(mesh)
-        if "cupy" in self.sparse_solver.value:
+        if self.sparse_solver is SparseSolver.CUPY:
             assert cupy is not None
             self.mu_laplacian = csc_matrix(self.mu_laplacian)
             self.mu_boundary_laplacian = csr_matrix(self.mu_boundary_laplacian)
             self.mu_gradient = csr_matrix(self.mu_gradient)
             self.divergence = csr_matrix(self.divergence)
+            self.mu_laplacian_lu = factorized(self.mu_laplacian)
             self.areas = cupy.array(self.areas)
             self.edge_directions = cupy.array(self.edge_directions)
-        if self.sparse_solver is SparseSolver.CUPY_LU:
-            self.mu_laplacian_lu = factorized(self.mu_laplacian)
-        elif self.sparse_solver in {
-            SparseSolver.CUPY_CG,
-            SparseSolver.CUPY_GMRES,
-            SparseSolver.CUPY_SPSOLVE,
-        }:
-            self.mu_laplacian_lu = None
         elif self.sparse_solver is SparseSolver.PARDISO:
             self.mu_laplacian_lu = None
         else:
@@ -332,7 +325,7 @@ class MeshOperators:
                 a link variable.
         """
         mesh = self.mesh
-        if "cupy" in self.sparse_solver.value:
+        if self.sparse_solver is SparseSolver.CUPY:
             xp = cupy
         else:
             xp = np
@@ -356,7 +349,7 @@ class MeshOperators:
                 free_rows=free_rows,
                 weights=self.laplacian_weights,
             )
-            if "cupy" in self.sparse_solver.value:
+            if self.sparse_solver is SparseSolver.CUPY:
                 self.psi_gradient = csr_matrix(self.psi_gradient)
                 self.psi_laplacian = csr_matrix(self.psi_laplacian)
                 self.gradient_weights = cupy.asarray(self.gradient_weights)

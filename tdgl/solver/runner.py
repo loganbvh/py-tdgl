@@ -14,7 +14,7 @@ import numpy as np
 from tqdm import TqdmWarning, tqdm
 
 from ..finite_volume.mesh import Mesh
-from .options import SolverOptions
+from .options import SolverOptions, SparseSolver
 
 
 def _get(item):
@@ -233,7 +233,7 @@ class Runner:
         self.running_names_and_sizes = (
             running_names_and_sizes if running_names_and_sizes is not None else {}
         )
-        if "cupy" in options.sparse_solver.value:
+        if options.sparse_solver is SparseSolver.CUPY:
             import cupy  # type: ignore
 
             array_module = cupy
