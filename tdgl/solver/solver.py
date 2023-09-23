@@ -455,7 +455,11 @@ class TDGLSolver:
             if options.sparse_solver is SparseSolver.PARDISO:
                 mu = pypardiso.spsolve(mu_laplacian, rhs)
             else:
+                if use_cupy:
+                    rhs = rhs.get()
                 mu = mu_laplacian_lu(rhs)
+                if use_cupy:
+                    mu = cupy.asarray(mu)
             normal_current = -(mu_gradient @ mu) - dA_dt
 
             if not options.include_screening:

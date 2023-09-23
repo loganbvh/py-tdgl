@@ -8,7 +8,8 @@ from scipy.sparse._sparsetools import csr_sample_offsets
 try:
     import cupy  # type: ignore
     from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
-    from cupyx.scipy.sparse.linalg import factorized  # type: ignore
+
+    # from cupyx.scipy.sparse.linalg import factorized  # type: ignore
 except ModuleNotFoundError:
     cupy = None
 
@@ -306,7 +307,8 @@ class MeshOperators:
             self.mu_boundary_laplacian = csr_matrix(self.mu_boundary_laplacian)
             self.mu_gradient = csr_matrix(self.mu_gradient)
             self.divergence = csr_matrix(self.divergence)
-            self.mu_laplacian_lu = factorized(self.mu_laplacian)
+            # self.mu_laplacian_lu = factorized(self.mu_laplacian)
+            self.mu_laplacian_lu = sp.linalg.factorize(self.mu_laplacian)
             self.areas = cupy.array(self.areas)
             self.edge_directions = cupy.array(self.edge_directions)
         elif self.sparse_solver is SparseSolver.PARDISO:
