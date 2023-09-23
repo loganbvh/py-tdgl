@@ -303,12 +303,12 @@ class MeshOperators:
         self.divergence = build_divergence(mesh)
         if self.sparse_solver is SparseSolver.CUPY:
             assert cupy is not None
+            self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
             self.mu_laplacian = csc_matrix(self.mu_laplacian)
             self.mu_boundary_laplacian = csr_matrix(self.mu_boundary_laplacian)
             self.mu_gradient = csr_matrix(self.mu_gradient)
             self.divergence = csr_matrix(self.divergence)
             # self.mu_laplacian_lu = factorized(self.mu_laplacian)
-            self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
             self.areas = cupy.array(self.areas)
             self.edge_directions = cupy.array(self.edge_directions)
         elif self.sparse_solver is SparseSolver.PARDISO:
