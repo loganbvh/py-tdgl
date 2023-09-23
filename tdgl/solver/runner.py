@@ -133,7 +133,7 @@ class DataHandler:
 
     def save_time_step(
         self,
-        state: Dict[str, float],
+        state: Dict[str, Union[int, float]],
         data: Dict[str, np.ndarray],
         running_state: Union[Dict[str, np.ndarray], None],
     ) -> None:

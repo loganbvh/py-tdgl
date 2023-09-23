@@ -2,9 +2,10 @@ import itertools
 import logging
 import math
 from datetime import datetime
-from typing import Callable, Dict, Optional, Sequence, Union
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
 
 import numpy as np
+import scipy.sparse as sp
 
 try:
     import cupy  # type: ignore
@@ -21,9 +22,8 @@ from ..finite_volume.operators import MeshOperators
 from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
-from .euler import adaptive_euler_step
 from .options import SolverOptions, SparseSolver
-from .runner import DataHandler, Runner
+from .runner import DataHandler, Runner, RunningState
 from .screening import get_A_induced_cupy, get_A_induced_numba
 
 logger = logging.getLogger("solver")
@@ -57,7 +57,53 @@ def validate_terminal_currents(
         check_total_current(terminal_currents)
 
 
+class SolverResult(NamedTuple):
+    """A container for the results of a single solve step.
+
+    dt: The time step size used for the solve step
+    psi: The order parameter
+    mu: The scalar potential
+    supercurrent: The supercurrent density
+    normal_current: The normal current density
+    A_induced: The induced vector potential
+    A_applied: The applied vector potential. This will be ``None``
+        in the case of a time-independent vector potential.
+    """
+
+    dt: float
+    psi: np.ndarray
+    mu: np.ndarray
+    supercurrent: np.ndarray
+    normal_current: np.ndarray
+    A_induced: np.ndarray
+    A_applied: Optional[np.ndarray]
+
+
 class TDGLSolver:
+    """Solver for a TDGL model.
+
+    Args:
+        device: The :class:`tdgl.Device` to solve.
+        options: An instance :class:`tdgl.SolverOptions` specifying the solver
+            parameters.
+        applied_vector_potential: A function or :class:`tdgl.Parameter` that computes
+            the applied vector potential as a function of position ``(x, y, z)``,
+            or of position and time ``(x, y, z, *, t)``. If a float ``B`` is given,
+            the applied vector potential will be that of a uniform magnetic field with
+            strength ``B`` ``field_units``.
+        terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
+            ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
+            in units of ``current_units`` and ``time`` is the dimensionless time.
+        disorder_epsilon: A float in range [-1, 1], or a callable with signature
+            ``disorder_epsilon(r: Tuple[float, float]) -> epsilon``, where ``epsilon``
+            is a float in range [-1, 1]. Setting
+            :math:`\\epsilon(\\mathbf{r})=T_c(\\mathbf{r})/T_c - 1 < 1` suppresses the
+            critical temperature at position :math:`\\mathbf{r}`, which can be used
+            to model inhomogeneity.
+        seed_solution: A :class:`tdgl.Solution` instance to use as the initial state
+            for the simulation.
+    """
+
     def __init__(
         self,
         device: Device,
@@ -70,7 +116,6 @@ class TDGLSolver:
         self.device = device
         self.options = options
         self.options.validate()
-        self.applied_vector_potential = applied_vector_potential
         self.terminal_currents = terminal_currents
         self.disorder_epsilon = disorder_epsilon
         self.seed_solution = seed_solution
@@ -121,7 +166,7 @@ class TDGLSolver:
                 field_units=field_units,
                 length_units=device.length_units,
             )
-        self.applied_vector_potential_ = applied_vector_potential
+        self.applied_vector_potential = applied_vector_potential
         # Evaluate the vector potential
         vector_potential_scale = (
             (ureg(field_units) * length_units / (Bc2 * xi * length_units))
@@ -129,7 +174,7 @@ class TDGLSolver:
             .magnitude
         )
         A_kwargs = dict(t=0) if self.time_dependent_vector_potential else dict()
-        vector_potential = self.applied_vector_potential_(
+        vector_potential = self.applied_vector_potential(
             self.edge_centers[:, 0], self.edge_centers[:, 1], self.z0, **A_kwargs
         )
         vector_potential = np.asarray(vector_potential)[:, :2]
@@ -150,7 +195,6 @@ class TDGLSolver:
                     f"Terminal {term_info.name!r} does not contain any points"
                     " on the boundary of the mesh."
                 )
-
         # Define the source-drain current.
         if terminal_currents and device.probe_points is None:
             logger.warning(
@@ -173,12 +217,12 @@ class TDGLSolver:
             key: J_scale * value for key, value in current_func(t).items()
         }
         validate_terminal_currents(self.current_func, self.terminal_info, self.options)
+        # Cache the terminal current densities at each time step.
         self.terminal_current_densities = {name: 0 for name in self.terminal_names}
 
-        if self.terminal_info:
-            normal_boundary_index = np.concatenate(
-                [t.site_indices for t in self.terminal_info], dtype=np.int64
-            )
+        terminal_indices = [t.site_indices for t in self.terminal_info]
+        if terminal_indices:
+            normal_boundary_index = np.concatenate(terminal_indices, dtype=np.int64)
         else:
             normal_boundary_index = np.array([], dtype=np.int64)
 
@@ -221,7 +265,7 @@ class TDGLSolver:
         self.mu_init = mu_init
         self.epsilon = epsilon
         self.mu_boundary = mu_boundary
-        self.normalize_directions = normalized_directions
+        self.normalized_directions = normalized_directions
         self.vector_potential = vector_potential
 
         self.new_A_induced = None
@@ -241,7 +285,382 @@ class TDGLSolver:
         self.tentative_dt = options.dt_init
         self.dt_max = options.dt_max if options.adaptive else options.dt_init
 
+    def update_mu_boundary(self, time: float) -> None:
+        """Computes the terminal current density for a given time step and
+        updates the scalar potential boundary conditions accordingly.
+
+        Args:
+            time: The current value of the dimensionless time.
+        """
+        # Compute the current density for this step
+        # and update the current boundary conditions.
+        currents = self.current_func(time)
+        terminal_current_densities = self.terminal_current_densities
+        mu_boundary = self.mu_boundary
+        for term in self.terminal_info:
+            current_density = (-1 / term.length) * sum(
+                currents.get(name, 0)
+                for name in self.terminal_names
+                if name != term.name
+            )
+            # Only update mu_boundary if the terminal current has changed
+            if current_density != terminal_current_densities[term.name]:
+                terminal_current_densities[term.name] = current_density
+                mu_boundary[term.boundary_edge_indices] = current_density
+
+    def update_applied_vector_potential(
+        self, time: float, dt: float, A_applied: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Evaluates the time-dependent vector potential and its time-derivative.
+
+        Args:
+            time: The current value of the dimensionless time.
+            dt: The current value of the dimensionless time step.
+            A_applied: The previous value of the applied vector potential.
+
+        Returns:
+            The new value of the applied vector potential and the time-derivative
+            of the applied vector potential.
+        """
+        A_scale = self.vector_potential_scale
+        applied_vector_potential = self.applied_vector_potential
+        use_cupy = self.use_cupy
+        xp = self.xp
+        vector_potential = (
+            A_scale
+            * applied_vector_potential(
+                self.edge_centers[:, 0], self.edge_centers[:, 1], self.z0, t=time
+            )[:, :2]
+        )
+        if use_cupy:
+            vector_potential = cupy.asarray(vector_potential)
+        dA_dt = xp.einsum(
+            "ij, ij -> i",
+            (vector_potential - A_applied) / dt,
+            self.normalized_directions,
+        )
+        if not self.options.include_screening:
+            if xp.any(xp.absolute(dA_dt) > 0):
+                self.operators.set_link_exponents(vector_potential)
+        else:
+            assert A_applied is None
+        return vector_potential, dA_dt
+
+    @staticmethod
+    def solve_for_psi_squared(
+        *,
+        psi: np.ndarray,
+        abs_sq_psi: np.ndarray,
+        mu: np.ndarray,
+        epsilon: np.ndarray,
+        gamma: float,
+        u: float,
+        dt: float,
+        psi_laplacian: sp.spmatrix,
+    ) -> Union[Tuple[np.ndarray, np.ndarray], None]:
+        """Solve for :math:`\\psi_i^{n+1}` and :math:`|\\psi_i^{n+1}|^2` given
+        :math:`\\psi_i^n` and :math:`\\mu_i^n`.
+
+        Args:
+            psi: The current value of the order parameter, :math:`\\psi_^n`
+            abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
+            mu: The current value of the electric potential, :math:`\\mu^n`
+            epsilon: The disorder parameter, :math:`\\epsilon`
+            gamma: The inelastic scattering parameter, :math:`\\gamma`.
+            u: The ratio of relaxation times for the order parameter, :math:`u`
+            dt: The time step
+            psi_laplacian: The covariant Laplacian for the order parameter
+
+        Returns:
+            ``None`` if the calculation failed to converge, otherwise the new order
+            parameter :math:`\\psi^{n+1}` and superfluid density :math:`|\\psi^{n+1}|^2`.
+        """
+        if isinstance(psi, np.ndarray):
+            xp = np
+        else:
+            import cupy  # type: ignore
+
+            assert isinstance(psi, cupy.ndarray)
+            xp = cupy
+        U = xp.exp(-1j * mu * dt)
+        z = U * gamma**2 / 2 * psi
+        with np.errstate(all="raise"):
+            try:
+                w = z * abs_sq_psi + U * (
+                    psi
+                    + (dt / u)
+                    * xp.sqrt(1 + gamma**2 * abs_sq_psi)
+                    * ((epsilon - abs_sq_psi) * psi + psi_laplacian @ psi)
+                )
+                c = w.real * z.real + w.imag * z.imag
+                two_c_1 = 2 * c + 1
+                w2 = xp.absolute(w) ** 2
+                discriminant = two_c_1**2 - 4 * xp.absolute(z) ** 2 * w2
+            except Exception:
+                logger.warning("Unable to solve for |psi|^2.", exc_info=True)
+                return None
+        if xp.any(discriminant < 0):
+            return None
+        new_sq_psi = (2 * w2) / (two_c_1 + xp.sqrt(discriminant))
+        psi = w - z * new_sq_psi
+        return psi, new_sq_psi
+
+    def adaptive_euler_step(
+        self,
+        step: int,
+        psi: np.ndarray,
+        abs_sq_psi: np.ndarray,
+        mu: np.ndarray,
+        dt: float,
+    ) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Update the order parameter and time step in an adaptive Euler step.
+
+        Args:
+            step: The solve step index, :math:`n`
+            psi: The current value of the order parameter, :math:`\\psi_^n`
+            abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
+            mu: The current value of the electric potential, :math:`\\mu^n`
+            dt: The tentative time step, which will be updated
+
+        Returns:
+            :math:`\\psi^{n+1}`, :math:`|\\psi^{n+1}|^2`, and :math:`\\Delta t^{n}`.
+        """
+        options = self.options
+        kwargs = dict(
+            psi=psi,
+            abs_sq_psi=abs_sq_psi,
+            mu=mu,
+            epsilon=self.epsilon,
+            gamma=self.gamma,
+            u=self.u,
+            dt=dt,
+            psi_laplacian=self.operators.psi_laplacian,
+        )
+        result = self.solve_for_psi_squared(**kwargs)
+        for retries in itertools.count():
+            if result is not None:
+                break  # First evaluation of |psi|^2 was successful.
+            if (not options.adaptive) or retries > options.max_solve_retries:
+                raise RuntimeError(
+                    f"Solver failed to converge in {options.max_solve_retries}"
+                    f" retries at step {step} with dt = {dt:.2e}."
+                    f" Try using a smaller dt_init."
+                )
+            kwargs["dt"] = dt = dt * options.adaptive_time_step_multiplier
+            result = self.solve_for_psi_squared(**kwargs)
+        psi, new_sq_psi = result
+        return psi, new_sq_psi, dt
+
+    def solve_for_observables(
+        self, psi: np.ndarray, dA_dt: Union[float, np.ndarray]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Solves for the scalar potential :math:`\\mu`, the supercurrent density
+        :math:`\\mathbf{J}_s`, and the normal current density :math:`\\mathbf{J}_n`.
+
+        Args:
+            psi: The order parameter.
+            dA_dt: The time-derivative of the vector potential.
+
+        Returns:
+            :math:`\\mu`, :math:`\\mathbf{J}_s`, and :math:`\\mathbf{J}_n`
+        """
+        use_cupy = self.use_cupy
+        operators = self.operators
+        # Compute the supercurrent, scalar potential, and normal current
+        supercurrent = operators.get_supercurrent(psi)
+        rhs = (operators.divergence @ (supercurrent - dA_dt)) - (
+            operators.mu_boundary_laplacian @ self.mu_boundary
+        )
+        if self.options.sparse_solver is SparseSolver.PARDISO:
+            mu = pypardiso.spsolve(operators.mu_laplacian, rhs)
+        else:
+            if use_cupy:
+                rhs = cupy.asnumpy(rhs)
+            mu = operators.mu_laplacian_lu(rhs)
+            if use_cupy:
+                mu = cupy.asarray(mu)
+        normal_current = -(operators.mu_gradient @ mu) - dA_dt
+        return mu, supercurrent, normal_current
+
+    def get_induced_vector_potential(
+        self,
+        current_density: np.ndarray,
+        A_induced_vals: List[np.ndarray],
+        velocity: List[np.ndarray],
+    ) -> Tuple[np.ndarray, float]:
+        """Computes a new value of the induced vector potential based on Polyak's method.
+
+        Args:
+            current_density: The total current density :math:`\\mathbf{J}_s + \\mathbf{J}_n`
+            A_induced_vals: A running list of the induced vector potential for previous
+                iterations of Polyak's method.
+            velocity: A running list of the "velocities" for previous iterations of
+                Polyak's method.
+
+        Returns:
+            A new value for the induced vector potential, and the relative error in the
+            induced vector potential between this iteration of Polyak's method and the
+            previous iteration.
+        """
+        xp = self.xp
+        use_cupy = self.use_cupy
+        options = self.options
+        mesh = self.device.mesh
+        # Evaluate the induced vector potential.
+        J_site = mesh.get_quantity_on_site(current_density, use_cupy=use_cupy)
+        areas = self.areas
+        sites = self.sites
+        edge_centers = self.edge_centers
+        if use_cupy:
+            threads_per_block = 512
+            num_blocks = math.ceil(self.num_edges / threads_per_block)
+            get_A_induced_cupy(
+                (num_blocks,),
+                (threads_per_block, 2),
+                (J_site, areas, sites, edge_centers, self.new_A_induced),
+            )
+        else:
+            new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
+        # Update induced vector potential using Polyak's method
+        A_induced = A_induced_vals[-1]
+        dA = new_A_induced - A_induced
+        velocity.append(
+            (1 - options.screening_step_drag) * velocity[-1]
+            + options.screening_step_size * dA
+        )
+        A_induced = A_induced + velocity[-1]
+        A_induced_vals.append(A_induced)
+        if len(A_induced_vals) > 1:
+            screening_error = xp.max(
+                xp.linalg.norm(dA, axis=1) / xp.linalg.norm(A_induced, axis=1)
+            )
+            screening_error = float(screening_error)
+            del velocity[:-2]
+            del A_induced_vals[:-2]
+        return A_induced, screening_error
+
+    def update(
+        self,
+        state: Dict[str, Union[int, float]],
+        running_state: RunningState,
+        dt: float,
+        *,
+        psi: np.ndarray,
+        mu: np.ndarray,
+        supercurrent: np.ndarray,
+        normal_current: np.ndarray,
+        induced_vector_potential: np.ndarray,
+        applied_vector_potential: Optional[np.ndarray] = None,
+    ) -> SolverResult:
+        """This method is called at each time step to update the state of the system.
+
+        Args:
+            state: The solver state, i.e., the solve step, time, and time step
+            running_state: A container for scalar data that is saved at each time step
+            dt: The time step for the previous solve step
+            psi: The order parameter
+            mu: The scalar potential
+            supercurrent: The supercurrent density
+            normal_current: The normal current density
+            induced_vector_potential: The induced vector potential
+            applied_vector_potential: The applied vector potential. This will be ``None``
+                in the case of a time-independent vector potential.
+
+        Returns:
+            A :class:`tdgl.SolverResult` instance for the solve step.
+        """
+        xp = self.xp
+        options = self.options
+        operators = self.operators
+
+        A_induced = induced_vector_potential
+        A_applied = applied_vector_potential
+        step = state["step"]
+        time = state["time"]
+
+        self.update_mu_boundary(time)
+        vector_potential = self.vector_potential
+        dA_dt = 0.0
+        if self.time_dependent_vector_potential:
+            vector_potential, dA_dt = self.update_applied_vector_potential(time, dt)
+        self.vector_potential = vector_potential
+
+        old_sq_psi = xp.absolute(psi) ** 2
+        screening_error = np.inf
+        A_induced_vals = []
+        velocity = [0]  # Velocity for Polyak's method
+        # This loop runs only once if options.include_screening is False
+        for screening_iteration in itertools.count():
+            if screening_error < options.screening_tolerance:
+                break  # Screening calculation converged.
+            if screening_iteration > options.max_iterations_per_step:
+                raise RuntimeError(
+                    f"Screening calculation failed to converge at step {step} after"
+                    f" {options.max_iterations_per_step} iterations. Relative error in"
+                    f" induced vector potential: {screening_error:.2e}"
+                    f" (tolerance: {options.screening_tolerance:.2e})."
+                )
+            if options.include_screening:
+                # Update the link variables in the covariant Laplacian and gradient
+                # for psi based on the induced vector potential from the previous iteration.
+                operators.set_link_exponents(vector_potential + A_induced)
+                if self.time_dependent_vector_potential:
+                    dA_dt = xp.einsum(
+                        "ij, ij -> i",
+                        (vector_potential + A_induced - A_applied) / dt,
+                        self.normalized_directions,
+                    )
+
+            # Adjust the time step and calculate the new the order parameter
+            if screening_iteration == 0:
+                # Find a new time step only for the first screening iteration.
+                dt = self.tentative_dt
+
+            psi, abs_sq_psi, dt = self.adaptive_euler_step(
+                step, psi, old_sq_psi, mu, dt
+            )
+            mu, supercurrent, normal_current = self.solve_for_observables(psi, dA_dt)
+
+            if options.include_screening:
+                A_induced, screening_error = self.get_induced_vector_potential(
+                    supercurrent + normal_current, A_induced_vals, velocity
+                )
+            else:
+                break
+
+        running_state.append("dt", dt)
+        if self.probe_points is not None:
+            # Update the voltage and phase difference
+            running_state.append("mu", mu[self.probe_points])
+            running_state.append("theta", xp.angle(psi[self.probe_points]))
+        if options.include_screening:
+            running_state.append("screening_iterations", screening_iteration)
+
+        if options.adaptive:
+            # Compute the max abs change in |psi|^2, averaged over the adaptive window,
+            # and use it to select a new time step.
+            self.d_psi_sq_vals.append(float(xp.absolute(abs_sq_psi - old_sq_psi).max()))
+            window = options.adaptive_window
+            if step > window:
+                new_dt = options.dt_init / max(
+                    1e-10, np.mean(self.d_psi_sq_vals[-window:])
+                )
+                self.tentative_dt = np.clip(0.5 * (new_dt + dt), 0, self.dt_max)
+
+        results = [dt, psi, mu, supercurrent, normal_current, A_induced]
+        if self.time_dependent_vector_potential:
+            results.append(vector_potential)
+        else:
+            results.append(None)
+        return SolverResult(*results)
+
     def solve(self) -> Optional[Solution]:
+        """Runs the solver.
+
+        Returns:
+            A :class:`tdgl.Solution` instance. Returns ``None`` if the simulation was
+            cancelled during the thermalization stage.
+        """
         start_time = datetime.now()
         options = self.options
         options.validate()
@@ -295,7 +714,7 @@ class TDGLSolver:
                 f"Simulation started at {start_time}"
                 f" using solver {options.sparse_solver.value!r}."
             )
-            result = Runner(
+            runner = Runner(
                 function=self.update,
                 options=options,
                 data_handler=data_handler,
@@ -305,17 +724,18 @@ class TDGLSolver:
                 fixed_names=fixed_names,
                 running_names_and_sizes=running_names_and_sizes,
                 logger=logger,
-            ).run()
+            )
+            data_was_generated = runner.run()
             end_time = datetime.now()
             logger.info(f"Simulation ended at {end_time}")
             logger.info(f"Simulation took {end_time - start_time}")
 
-            if result:
+            if data_was_generated:
                 solution = Solution(
                     device=self.device,
                     path=data_handler.output_path,
                     options=options,
-                    applied_vector_potential=self.applied_vector_potential_,
+                    applied_vector_potential=self.applied_vector_potential,
                     terminal_currents=self.terminal_currents,
                     disorder_epsilon=self.disorder_epsilon,
                     total_seconds=(end_time - start_time).total_seconds(),
@@ -323,205 +743,3 @@ class TDGLSolver:
                 solution.to_hdf5()
                 return solution
             return None
-
-    def update(
-        self,
-        state,
-        running_state,
-        dt,
-        *,
-        psi,
-        mu,
-        supercurrent,
-        normal_current,
-        induced_vector_potential,
-        applied_vector_potential=None,
-    ):
-        mesh = self.device.mesh
-        xp = self.xp
-        use_cupy = self.use_cupy
-        options = self.options
-
-        operators = self.operators
-        divergence = operators.divergence
-        psi_laplacian = operators.psi_laplacian
-        mu_gradient = operators.mu_gradient
-        mu_laplacian = operators.mu_laplacian
-        mu_laplacian_lu = operators.mu_laplacian_lu
-        mu_boundary_laplacian = operators.mu_boundary_laplacian
-
-        areas = self.areas
-        sites = self.sites
-        edge_centers = self.edge_centers
-        new_A_induced = self.new_A_induced
-
-        vector_potential = self.vector_potential
-        current_func = self.current_func
-        terminal_info = self.terminal_info
-        mu_boundary = self.mu_boundary
-        A_scale = self.vector_potential_scale
-        applied_vector_potential_ = self.applied_vector_potential_
-        normalized_directions = self.normalize_directions
-        terminal_current_densities = self.terminal_current_densities
-
-        A_induced = induced_vector_potential
-        A_applied = applied_vector_potential
-        step = state["step"]
-        time = state["time"]
-        old_sq_psi = xp.absolute(psi) ** 2
-        # Compute the current density for this step
-        # and update the current boundary conditions.
-        currents = current_func(time)
-        for term in terminal_info:
-            current_density = (-1 / term.length) * sum(
-                currents.get(name, 0)
-                for name in self.terminal_names
-                if name != term.name
-            )
-            # Only update mu_boundary if the terminal current has changed
-            if current_density != terminal_current_densities[term.name]:
-                terminal_current_densities[term.name] = current_density
-                mu_boundary[term.boundary_edge_indices] = current_density
-
-        # Evaluate the time-dependent vector potential and its time-derivative
-        dA_dt = 0.0
-        if self.time_dependent_vector_potential:
-            vector_potential = (
-                A_scale
-                * applied_vector_potential_(
-                    self.edge_centers[:, 0], self.edge_centers[:, 1], self.z0, t=time
-                )[:, :2]
-            )
-            if use_cupy:
-                vector_potential = cupy.asarray(vector_potential)
-            self.vector_potential = vector_potential
-            dA_dt = xp.einsum(
-                "ij, ij -> i",
-                (vector_potential - A_applied) / dt,
-                normalized_directions,
-            )
-            if not options.include_screening:
-                if xp.any(xp.absolute(dA_dt) > 0):
-                    operators.set_link_exponents(vector_potential)
-        else:
-            assert A_applied is None
-
-        screening_error = np.inf
-        A_induced_vals = []
-        v = [0]  # Velocity for Polyak's method
-        # This loop runs only once if options.include_screening is False
-        for screening_iteration in itertools.count():
-            if screening_error < options.screening_tolerance:
-                break  # Screening calculation converged.
-            if screening_iteration > options.max_iterations_per_step:
-                raise RuntimeError(
-                    f"Screening calculation failed to converge at step {step} after"
-                    f" {options.max_iterations_per_step} iterations. Relative error in"
-                    f" induced vector potential: {screening_error:.2e}"
-                    f" (tolerance: {options.screening_tolerance:.2e})."
-                )
-            if options.include_screening:
-                # Update the link variables in the covariant Laplacian and gradient
-                # for psi based on the induced vector potential from the previous iteration.
-                operators.set_link_exponents(vector_potential + A_induced)
-                if self.time_dependent_vector_potential:
-                    dA_dt = xp.einsum(
-                        "ij, ij -> i",
-                        (vector_potential + A_induced - A_applied) / dt,
-                        normalized_directions,
-                    )
-
-            # Adjust the time step and calculate the new the order parameter
-            if screening_iteration == 0:
-                # Find a new time step only for the first screening iteration.
-                dt = self.tentative_dt
-            psi, abs_sq_psi, dt = adaptive_euler_step(
-                step,
-                psi,
-                old_sq_psi,
-                mu,
-                self.epsilon,
-                self.gamma,
-                self.u,
-                dt,
-                psi_laplacian,
-                options,
-            )
-            # Compute the supercurrent, scalar potential, and normal current
-            supercurrent = operators.get_supercurrent(psi)
-            rhs = (divergence @ (supercurrent - dA_dt)) - (
-                mu_boundary_laplacian @ mu_boundary
-            )
-            if options.sparse_solver is SparseSolver.PARDISO:
-                mu = pypardiso.spsolve(mu_laplacian, rhs)
-            else:
-                if use_cupy:
-                    rhs = rhs.get()
-                mu = mu_laplacian_lu(rhs)
-                if use_cupy:
-                    mu = cupy.asarray(mu)
-            normal_current = -(mu_gradient @ mu) - dA_dt
-
-            if not options.include_screening:
-                break
-
-            # Evaluate the induced vector potential.
-            J_site = mesh.get_quantity_on_site(
-                supercurrent + normal_current, use_cupy=use_cupy
-            )
-            if use_cupy:
-                threads_per_block = 512
-                num_blocks = math.ceil(self.num_edges / threads_per_block)
-                get_A_induced_cupy(
-                    (num_blocks,),
-                    (threads_per_block, 2),
-                    (J_site, areas, sites, edge_centers, new_A_induced),
-                )
-            else:
-                new_A_induced = get_A_induced_numba(J_site, areas, sites, edge_centers)
-            # Update induced vector potential using Polyak's method
-            dA = new_A_induced - A_induced
-            v.append(
-                (1 - options.screening_step_drag) * v[-1]
-                + options.screening_step_size * dA
-            )
-            A_induced = A_induced + v[-1]
-            A_induced_vals.append(A_induced)
-            if len(A_induced_vals) > 1:
-                screening_error = xp.max(
-                    xp.linalg.norm(dA, axis=1) / xp.linalg.norm(A_induced, axis=1)
-                )
-                screening_error = float(screening_error)
-                del v[:-2]
-                del A_induced_vals[:-2]
-
-        running_state.append("dt", dt)
-        if self.probe_points is not None:
-            # Update the voltage and phase difference
-            running_state.append("mu", mu[self.probe_points])
-            running_state.append("theta", xp.angle(psi[self.probe_points]))
-        if options.include_screening:
-            running_state.append("screening_iterations", screening_iteration)
-
-        if options.adaptive:
-            # Compute the max abs change in |psi|^2, averaged over the adaptive window,
-            # and use it to select a new time step.
-            self.d_psi_sq_vals.append(float(xp.absolute(abs_sq_psi - old_sq_psi).max()))
-            window = options.adaptive_window
-            if step > window:
-                new_dt = options.dt_init / max(
-                    1e-10, np.mean(self.d_psi_sq_vals[-window:])
-                )
-                self.tentative_dt = np.clip(0.5 * (new_dt + dt), 0, self.dt_max)
-
-        results = (
-            dt,
-            psi,
-            mu,
-            supercurrent,
-            normal_current,
-            A_induced,
-        )
-        if self.time_dependent_vector_potential:
-            results = results + (vector_potential,)
-        return results
