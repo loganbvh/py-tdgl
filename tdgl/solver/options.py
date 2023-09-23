@@ -34,6 +34,8 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
+        gpu: Use the GPU via CuPy. This option requires a GPU and the
+            CuPy Python package, which can be installed via pip.
         sparse_solver: One of ``"superlu"``, ``"umfpack"``, ``"pardiso"``, or ``"cupy"``.
             ``"umfpack"`` requires suitesparse, which can be installed via conda,
             and scikit-umfpack, which can be installed via pip. ``"pardiso"``
@@ -70,6 +72,7 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
+    gpu: bool = False
     sparse_solver: Union[SparseSolver, str] = SparseSolver.SUPERLU
     terminal_psi: Union[float, complex, None] = 0.0
     pause_on_interrupt: bool = True
@@ -84,7 +87,6 @@ class SolverOptions:
     screening_step_size: float = 1.0
     screening_step_drag: float = 0.5
     screening_use_numba: bool = True
-    gpu: bool = False
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
@@ -120,6 +122,14 @@ class SolverOptions:
                 f" (got {self.screening_tolerance})."
             )
 
+        if self.gpu:
+            try:
+                import cupy  # type: ignore # noqa: F401
+            except ModuleNotFoundError:
+                raise SolverOptionsError(
+                    "GPU option requires a GPU and the CuPy Python package."
+                )
+
         solver = self.sparse_solver
         if isinstance(solver, str):
             try:
@@ -149,10 +159,8 @@ class SolverOptions:
                     " and the pypardiso Python package."
                 )
         if self.sparse_solver is SparseSolver.CUPY:
-            try:
-                import cupy  # type: ignore # noqa: F401
-            except ModuleNotFoundError:
+            if not self.gpu:
                 raise SolverOptionsError(
-                    "SparseSolver.CUPY requires an NVIDIA GPU"
-                    " and the CuPy Python package."
+                    "SparseSolver.CUPY requires SolverOptions.gpu = True,"
+                    " and therefore requires a GPU and the CuPy Python package."
                 )

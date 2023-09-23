@@ -14,7 +14,7 @@ import numpy as np
 from tqdm import TqdmWarning, tqdm
 
 from ..finite_volume.mesh import Mesh
-from .options import SolverOptions, SparseSolver
+from .options import SolverOptions
 
 
 def _get(item):
@@ -133,7 +133,7 @@ class DataHandler:
 
     def save_time_step(
         self,
-        state: Dict[str, float],
+        state: Dict[str, Union[int, float]],
         data: Dict[str, np.ndarray],
         running_state: Union[Dict[str, np.ndarray], None],
     ) -> None:
@@ -233,7 +233,7 @@ class Runner:
         self.running_names_and_sizes = (
             running_names_and_sizes if running_names_and_sizes is not None else {}
         )
-        if options.sparse_solver is SparseSolver.CUPY:
+        if options.gpu:
             import cupy  # type: ignore
 
             array_module = cupy
@@ -257,7 +257,7 @@ class Runner:
         self.time = 0
         self.state["step"] = 0
         self.state["time"] = self.time
-        self.state["dt"] = self.dt
+        self.state["dt"] = float(self.dt)
         self.data_handler.save_fixed_values(
             dict(zip(self.fixed_names, self.fixed_values))
         )
@@ -341,9 +341,10 @@ class Runner:
         ) as pbar:
             for i in it:
                 try:
+                    dt = self.dt
                     self.state["step"] = i
                     self.state["time"] = self.time
-                    self.state["dt"] = self.dt
+                    self.state["dt"] = dt
                     # Print progress if TQDM is disabled.
                     if prog_disabled and (i % self.options.progress_interval) == 0:
                         then, now = now, time.perf_counter()
@@ -353,7 +354,7 @@ class Runner:
                             speed = self.options.progress_interval / (now - then)
                         self.logger.info(
                             f"{name}: Time {self.time}/{end_time}, "
-                            f"dt={self.dt:.2e}, {speed:.2f} it/s"
+                            f"dt={dt:.2e}, {speed:.2f} it/s"
                         )
                     if i % self.options.save_every == 0:
                         if save:
@@ -363,13 +364,13 @@ class Runner:
                     function_result = self.function(
                         self.state,
                         self.running_state,
-                        self.dt,
+                        dt,
                         **dict(zip(self.names, self.values)),
                     )
                     new_dt, *self.values = function_result
                     # tqdm will spit out a warning if you try to update past "total"
-                    if self.time + self.dt < end_time:
-                        pbar.update(self.dt)
+                    if self.time + dt < end_time:
+                        pbar.update(dt)
                     else:
                         pbar.update(end_time - self.time)
                     if self.time >= end_time:
