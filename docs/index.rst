@@ -109,6 +109,7 @@ The ``pyTDGL`` Python API is adapted from `SuperScreen <https://superscreen.read
    :maxdepth: 2
    :caption: Tutorials
 
+   notebooks/screening.ipynb
    notebooks/polygons.ipynb
    notebooks/logo.ipynb
 
