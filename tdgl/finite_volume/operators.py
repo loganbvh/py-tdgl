@@ -8,8 +8,7 @@ from scipy.sparse._sparsetools import csr_sample_offsets
 try:
     import cupy  # type: ignore
     from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
-
-    # from cupyx.scipy.sparse.linalg import factorized  # type: ignore
+    from cupyx.scipy.sparse.linalg import factorized  # type: ignore
 except ModuleNotFoundError:
     cupy = None
 
@@ -255,6 +254,7 @@ class MeshOperators:
         mesh: The :class:`tdgl.finite_volume.Mesh` instance for which to construct
             operators.
         sparse_solver: The sparse solver for which to build mesh operators.
+        use_cupy: Use CuPy for linear algebra.
         fixed_sites: The indices of any sites for which the value of :math:`\\psi`
             and :math:`\\mu` are fixed as boundary conditions.
     """
@@ -263,6 +263,7 @@ class MeshOperators:
         self,
         mesh: Mesh,
         sparse_solver: SparseSolver,
+        use_cupy: bool = False,
         fixed_sites: Union[np.ndarray, None] = None,
         fix_psi: bool = True,
     ):
@@ -271,6 +272,7 @@ class MeshOperators:
         edge_mesh = mesh.edge_mesh
         self.edges = edge_mesh.edges
         self.edge_directions = edge_mesh.directions
+        self.use_cupy = use_cupy
         self.sparse_solver = sparse_solver
         self.fixed_sites = fixed_sites
         self.fix_psi = fix_psi
@@ -301,16 +303,17 @@ class MeshOperators:
         self.mu_boundary_laplacian = build_neumann_boundary_laplacian(mesh)
         self.mu_gradient = build_gradient(mesh, weights=self.gradient_weights)
         self.divergence = build_divergence(mesh)
-        if self.sparse_solver is SparseSolver.CUPY:
+        if self.use_cupy:
             assert cupy is not None
-            self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
-            self.mu_laplacian = csc_matrix(self.mu_laplacian)
             self.mu_boundary_laplacian = csr_matrix(self.mu_boundary_laplacian)
             self.mu_gradient = csr_matrix(self.mu_gradient)
             self.divergence = csr_matrix(self.divergence)
-            # self.mu_laplacian_lu = factorized(self.mu_laplacian)
             self.areas = cupy.array(self.areas)
             self.edge_directions = cupy.array(self.edge_directions)
+        if self.sparse_solver is SparseSolver.CUPY:
+            assert cupy is not None
+            self.mu_laplacian = csc_matrix(self.mu_laplacian)
+            self.mu_laplacian_lu = factorized(self.mu_laplacian)
         elif self.sparse_solver is SparseSolver.PARDISO:
             self.mu_laplacian_lu = None
         else:
@@ -327,10 +330,7 @@ class MeshOperators:
                 a link variable.
         """
         mesh = self.mesh
-        if self.sparse_solver is SparseSolver.CUPY:
-            xp = cupy
-        else:
-            xp = np
+        xp = cupy if self.use_cupy else np
         self.link_exponents = xp.asarray(link_exponents)
         if self.psi_gradient is None:
             # Build the matrices from scratch
@@ -351,7 +351,7 @@ class MeshOperators:
                 free_rows=free_rows,
                 weights=self.laplacian_weights,
             )
-            if self.sparse_solver is SparseSolver.CUPY:
+            if self.use_cupy:
                 self.psi_gradient = csr_matrix(self.psi_gradient)
                 self.psi_laplacian = csr_matrix(self.psi_laplacian)
                 self.gradient_weights = cupy.asarray(self.gradient_weights)
@@ -405,5 +405,4 @@ class MeshOperators:
         Returns:
             The supercurrent at each edge.
         """
-        gradient = self.psi_gradient
-        return (psi.conjugate()[self.edges[:, 0]] * (gradient @ psi)).imag
+        return (psi.conjugate()[self.edges[:, 0]] * (self.psi_gradient @ psi)).imag

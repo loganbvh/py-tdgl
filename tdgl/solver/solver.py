@@ -120,7 +120,7 @@ class TDGLSolver:
         self.disorder_epsilon = disorder_epsilon
         self.seed_solution = seed_solution
 
-        if self.options.sparse_solver is SparseSolver.CUPY:
+        if self.options.gpu:
             import cupy  # type: ignore
 
             self.xp = cupy
@@ -232,6 +232,7 @@ class TDGLSolver:
         operators = MeshOperators(
             mesh,
             options.sparse_solver,
+            use_cupy=self.use_cupy,
             fixed_sites=normal_boundary_index,
             fix_psi=(terminal_psi is not None),
         )
@@ -465,20 +466,22 @@ class TDGLSolver:
             :math:`\\mu`, :math:`\\mathbf{J}_s`, and :math:`\\mathbf{J}_n`
         """
         use_cupy = self.use_cupy
+        options = self.options
+        use_cupy_solver = options.sparse_solver is SparseSolver.CUPY
         operators = self.operators
         # Compute the supercurrent, scalar potential, and normal current
         supercurrent = operators.get_supercurrent(psi)
         rhs = (operators.divergence @ (supercurrent - dA_dt)) - (
             operators.mu_boundary_laplacian @ self.mu_boundary
         )
+        if use_cupy and not use_cupy_solver:
+            rhs = cupy.asnumpy(rhs)
         if self.options.sparse_solver is SparseSolver.PARDISO:
             mu = pypardiso.spsolve(operators.mu_laplacian, rhs)
         else:
-            if use_cupy:
-                rhs = cupy.asnumpy(rhs)
             mu = operators.mu_laplacian_lu(rhs)
-            if use_cupy:
-                mu = cupy.asarray(mu)
+        if use_cupy and not use_cupy_solver:
+            mu = cupy.asarray(mu)
         normal_current = -(operators.mu_gradient @ mu) - dA_dt
         return mu, supercurrent, normal_current
 
@@ -712,7 +715,8 @@ class TDGLSolver:
             data_handler.save_mesh(self.device.mesh)
             logger.info(
                 f"Simulation started at {start_time}"
-                f" using solver {options.sparse_solver.value!r}."
+                f" using sparse solver {options.sparse_solver.value!r}"
+                f" with {'CuPy' if self.use_cupy else 'NumPy'}."
             )
             runner = Runner(
                 function=self.update,
