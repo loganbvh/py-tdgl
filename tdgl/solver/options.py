@@ -137,7 +137,7 @@ class SolverOptions:
             except KeyError:
                 valid_solvers = list(SparseSolver.__members__.keys())
                 if solver not in valid_solvers:
-                    raise ValueError(
+                    raise SolverOptionsError(
                         f"sparse solver must be one of {valid_solvers!r}, got {solver}."
                     )
             self.sparse_solver = solver
