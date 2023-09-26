@@ -76,7 +76,7 @@ class SolverResult(NamedTuple):
     supercurrent: np.ndarray
     normal_current: np.ndarray
     A_induced: np.ndarray
-    A_applied: Optional[np.ndarray]
+    A_applied: Union[np.ndarray, None]
 
 
 class TDGLSolver:
@@ -121,8 +121,7 @@ class TDGLSolver:
         self.seed_solution = seed_solution
 
         if self.options.gpu:
-            import cupy  # type: ignore
-
+            assert cupy is not None
             self.xp = cupy
             self.use_cupy = True
         else:
@@ -273,9 +272,9 @@ class TDGLSolver:
         self.areas = None
         if options.include_screening:
             A_scale = (ureg("mu_0") / (4 * np.pi) * K0 / A0).to(1 / length_units)
-            areas = A_scale.magnitude * mesh.areas * xi**2
+            self.areas = A_scale.magnitude * mesh.areas * xi**2
             if self.use_cupy:
-                self.areas = cupy.asarray(areas)
+                self.areas = cupy.asarray(self.areas)
                 self.edge_centers = cupy.asarray(self.edge_centers)
                 self.sites = cupy.asarray(self.sites)
                 self.new_A_induced = cupy.empty((self.num_edges, 2), dtype=float)
@@ -297,20 +296,19 @@ class TDGLSolver:
         # and update the current boundary conditions.
         currents = self.current_func(time)
         terminal_current_densities = self.terminal_current_densities
-        mu_boundary = self.mu_boundary
-        for term in self.terminal_info:
-            current_density = (-1 / term.length) * sum(
+        for terminal in self.terminal_info:
+            current_density = (-1 / terminal.length) * sum(
                 currents.get(name, 0)
                 for name in self.terminal_names
-                if name != term.name
+                if name != terminal.name
             )
             # Only update mu_boundary if the terminal current has changed
-            if current_density != terminal_current_densities[term.name]:
-                terminal_current_densities[term.name] = current_density
-                mu_boundary[term.boundary_edge_indices] = current_density
+            if current_density != terminal_current_densities[terminal.name]:
+                terminal_current_densities[terminal.name] = current_density
+                self.mu_boundary[terminal.boundary_edge_indices] = current_density
 
     def update_applied_vector_potential(
-        self, time: float, dt: float, A_applied: np.ndarray
+        self, time: float, dt: float, A_applied: Union[np.ndarray, None]
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Evaluates the time-dependent vector potential and its time-derivative.
 
@@ -342,7 +340,7 @@ class TDGLSolver:
         )
         if not self.options.include_screening:
             if xp.any(xp.absolute(dA_dt) > 0):
-                self.operators.set_link_exponents(vector_potential)
+                self.operators.set_link_exponents(self.vector_potential)
         else:
             assert A_applied is None
         return vector_potential, dA_dt
@@ -379,8 +377,7 @@ class TDGLSolver:
         if isinstance(psi, np.ndarray):
             xp = np
         else:
-            import cupy  # type: ignore
-
+            assert cupy is not None
             assert isinstance(psi, cupy.ndarray)
             xp = cupy
         U = xp.exp(-1j * mu * dt)
@@ -585,13 +582,15 @@ class TDGLSolver:
         vector_potential = self.vector_potential
         dA_dt = 0.0
         if self.time_dependent_vector_potential:
-            vector_potential, dA_dt = self.update_applied_vector_potential(time, dt)
+            vector_potential, dA_dt = self.update_applied_vector_potential(
+                time, dt, A_applied
+            )
         self.vector_potential = vector_potential
 
         old_sq_psi = xp.absolute(psi) ** 2
         screening_error = np.inf
-        A_induced_vals = []
-        velocity = [0]  # Velocity for Polyak's method
+        A_induced_vals = [A_induced]
+        velocity = [0.0]  # Velocity for Polyak's method
         # This loop runs only once if options.include_screening is False
         for screening_iteration in itertools.count():
             if screening_error < options.screening_tolerance:
