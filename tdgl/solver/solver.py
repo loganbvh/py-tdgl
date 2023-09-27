@@ -514,9 +514,11 @@ class TDGLSolver:
         if len(A_induced_vals) > 1:
             numerator = xp.linalg.norm(dA, axis=1)
             denominator = xp.linalg.norm(A_induced, axis=1)
-            if xp.all(numerator == 0):
+            if not xp.sum(numerator, dtype=bool):
+                # Numerator is all zeros
                 screening_error = 0.0
-            elif xp.any(denominator == 0):
+            elif xp.sum(denominator == 0, dtype=bool):
+                # Denominator has one or more zeros
                 screening_error = xp.inf
             else:
                 screening_error = xp.max(numerator / denominator)
