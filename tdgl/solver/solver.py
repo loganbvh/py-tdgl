@@ -167,7 +167,7 @@ class TDGLSolver:
             )
         self.applied_vector_potential = applied_vector_potential
         # Evaluate the vector potential
-        vector_potential_scale = (
+        self.A_scale = (
             (ureg(field_units) * length_units / (Bc2 * xi * length_units))
             .to_base_units()
             .magnitude
@@ -176,14 +176,11 @@ class TDGLSolver:
         current_A_applied = self.applied_vector_potential(
             self.edge_centers[:, 0], self.edge_centers[:, 1], self.z0, **A_kwargs
         )
-        current_A_applied = np.asarray(current_A_applied)[:, :2]
+        current_A_applied = self.A_scale * np.asarray(current_A_applied)[:, :2]
         if current_A_applied.shape != self.edge_centers.shape:
             raise ValueError(
                 f"Unexpected shape for vector_potential: {current_A_applied.shape}."
             )
-        current_A_applied *= vector_potential_scale
-        self.A_scale = vector_potential_scale
-        self.current_A_applied = current_A_applied
 
         # Find the current terminal sites.
         self.terminal_info = device.terminal_info()
@@ -228,8 +225,24 @@ class TDGLSolver:
         # Only update the mu boundary conditions if the current has changed.
         self.terminal_current_densities = {name: 0 for name in self.terminal_names}
 
-        # Initialize the order parameter and electric potential
+        # Construct finite-volume operators
         terminal_psi = options.terminal_psi
+        logger.info("Constructing finite volume operators.")
+        operators = MeshOperators(
+            mesh,
+            options.sparse_solver,
+            use_cupy=self.use_cupy,
+            fixed_sites=normal_boundary_index,
+            fix_psi=(terminal_psi is not None),
+        )
+        operators.build_operators()
+        operators.set_link_exponents(current_A_applied)
+        self.operators = operators
+        if options.sparse_solver is SparseSolver.PARDISO:
+            assert self.operators.mu_laplacian_lu is None
+            assert pypardiso is not None
+
+        # Initialize the order parameter and electric potential
         psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
         if terminal_psi is not None:
             psi_init[normal_boundary_index] = terminal_psi
@@ -254,22 +267,6 @@ class TDGLSolver:
         self.mu_boundary = mu_boundary
         self.normalized_directions = normalized_directions
         self.current_A_applied = current_A_applied
-
-        # Construct finite-volume operators
-        logger.info("Constructing finite volume operators.")
-        operators = MeshOperators(
-            mesh,
-            options.sparse_solver,
-            use_cupy=self.use_cupy,
-            fixed_sites=normal_boundary_index,
-            fix_psi=(terminal_psi is not None),
-        )
-        operators.build_operators()
-        operators.set_link_exponents(self.current_A_applied)
-        self.operators = operators
-        if options.sparse_solver is SparseSolver.PARDISO:
-            assert self.operators.mu_laplacian_lu is None
-            assert pypardiso is not None
 
         self.new_A_induced = None
         self.areas = None
