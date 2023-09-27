@@ -514,15 +514,9 @@ class TDGLSolver:
         if len(A_induced_vals) > 1:
             numerator = xp.linalg.norm(dA, axis=1)
             denominator = xp.linalg.norm(A_induced, axis=1)
-            if not xp.sum(numerator, dtype=bool):
-                # Numerator is all zeros
-                screening_error = 0.0
-            elif xp.sum(denominator == 0, dtype=bool):
-                # Denominator has one or more zeros
-                screening_error = xp.inf
-            else:
-                screening_error = xp.max(numerator / denominator)
-            screening_error = float(screening_error)
+            # Avoid division by zero in the case of zero A_induced
+            denominator[denominator == 0] = 1e-20
+            screening_error = float(xp.max(numerator / denominator))
             del velocity[:-2]
             del A_induced_vals[:-2]
         return A_induced, screening_error
