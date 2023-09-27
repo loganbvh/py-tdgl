@@ -82,6 +82,9 @@ class SolverResult(NamedTuple):
 class TDGLSolver:
     """Solver for a TDGL model.
 
+    An instance of :class:`tdgl.TDGLSolver` is created and executed
+    by calling :func:`tdgl.solve`.
+
     Args:
         device: The :class:`tdgl.Device` to solve.
         options: An instance :class:`tdgl.SolverOptions` specifying the solver
@@ -315,8 +318,7 @@ class TDGLSolver:
             time: The current value of the dimensionless time.
 
         Returns:
-            The new value of the applied vector potential and the time-derivative
-            of the applied vector potential.
+            The new value of the applied vector potential.
         """
         A_applied = self.applied_vector_potential(
             self.edge_centers[:, 0], self.edge_centers[:, 1], self.z0, t=time
@@ -338,11 +340,11 @@ class TDGLSolver:
         dt: float,
         psi_laplacian: sp.spmatrix,
     ) -> Union[Tuple[np.ndarray, np.ndarray], None]:
-        """Solve for :math:`\\psi_i^{n+1}` and :math:`|\\psi_i^{n+1}|^2` given
-        :math:`\\psi_i^n` and :math:`\\mu_i^n`.
+        """Solves for :math:`\\psi^{n+1}` and :math:`|\\psi^{n+1}|^2` given
+        :math:`\\psi^n` and :math:`\\mu^n`.
 
         Args:
-            psi: The current value of the order parameter, :math:`\\psi_^n`
+            psi: The current value of the order parameter, :math:`\\psi^n`
             abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
             mu: The current value of the electric potential, :math:`\\mu^n`
             epsilon: The disorder parameter, :math:`\\epsilon`
@@ -392,11 +394,11 @@ class TDGLSolver:
         mu: np.ndarray,
         dt: float,
     ) -> Tuple[np.ndarray, np.ndarray, float]:
-        """Update the order parameter and time step in an adaptive Euler step.
+        """Updates the order parameter and time step in an adaptive Euler step.
 
         Args:
             step: The solve step index, :math:`n`
-            psi: The current value of the order parameter, :math:`\\psi_^n`
+            psi: The current value of the order parameter, :math:`\\psi^n`
             abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
             mu: The current value of the electric potential, :math:`\\mu^n`
             dt: The tentative time step, which will be updated
@@ -734,6 +736,7 @@ class TDGLSolver:
             logger.info(f"Simulation ended at {end_time}")
             logger.info(f"Simulation took {end_time - start_time}")
 
+            solution = None
             if data_was_generated:
                 solution = Solution(
                     device=self.device,
@@ -745,5 +748,4 @@ class TDGLSolver:
                     total_seconds=(end_time - start_time).total_seconds(),
                 )
                 solution.to_hdf5()
-                return solution
-            return None
+            return solution

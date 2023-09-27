@@ -28,7 +28,7 @@ def test_source_drain_current(
 ):
     device = transport_device
     total_time = 10
-    skip_time = 10
+    skip_time = 1
 
     if gpu and cupy is None:
         options = tdgl.SolverOptions(
@@ -77,7 +77,7 @@ def test_source_drain_current(
             terminal_currents=terminal_currents,
         )
     if time_dependent:
-        ramp = tdgl.sources.LinearRamp(tmin=0, tmax=50)
+        ramp = tdgl.sources.LinearRamp(tmin=1, tmax=8)
         constant_field = tdgl.sources.ConstantField(
             field,
             field_units=options.field_units,

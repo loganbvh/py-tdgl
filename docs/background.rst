@@ -465,7 +465,7 @@ The strategy for updating the induced vector potential to converge to a self-con
 
 
 The integer index :math:`s` counts the number of iterations performed in the self-consistent calculation.
-The parameters :math:`\alpha\in(0,\infty)` and :math:`\beta\in(0,1)` in :eq:`polyak` can be set by the user,
+The parameters :math:`\alpha\in(0,\infty)` and :math:`\beta\in(0,1]` in :eq:`polyak` can be set by the user,
 and the initial conditions for :eq:`polyak` are :math:`\mathbf{A}^{n,0}_{\mathrm{induced},ij} = \mathbf{A}^{n-1}_{\mathrm{induced},ij}`
 and :math:`\mathbf{v}^{n,0}_{ij} = \mathbf{0}`. The iterative application of :eq:`polyak` terminates when the relative change in the
 induced vector potential between iterations falls below a user-defined tolerance.
