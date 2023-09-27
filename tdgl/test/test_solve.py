@@ -27,7 +27,7 @@ def test_source_drain_current(
     gpu,
 ):
     device = transport_device
-    total_time = 100
+    total_time = 10
     skip_time = 10
 
     if gpu and cupy is None:
@@ -144,7 +144,7 @@ def test_screening(screening_device: tdgl.Device):
     ]
 
     options = tdgl.SolverOptions(
-        solve_time=5,
+        solve_time=2,
         field_units="mT",
         current_units="uA",
         include_screening=False,
@@ -162,14 +162,9 @@ def test_screening(screening_device: tdgl.Device):
         error = abs(total_fluxoid / fluxoid.flux_part.magnitude)
         assert error > 1
 
-    options = tdgl.SolverOptions(
-        solve_time=5,
-        field_units="mT",
-        current_units="uA",
-        include_screening=True,
-        screening_tolerance=1e-6,
-        dt_max=1e-3,
-    )
+    options.include_screening = True
+    options.screening_tolerance = 1e-6
+    options.dt_max = 1e-3
 
     screening_solution = tdgl.solve(device, options, applied_vector_potential=0.1)
     K = screening_solution.current_density

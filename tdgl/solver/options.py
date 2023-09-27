@@ -34,6 +34,11 @@ class SolverOptions:
             given solve iteration before giving up.
         adaptive_time_step_multiplier: The factor by which to multiple the time
             step ``dt`` for each adaptive solve retry.
+        terminal_psi: Fixed value for the order parameter in current terminals.
+        output_file: Path to an HDF5 file in which to save the data.
+            If the file name already exists, a unique name will be generated.
+            If ``output_file`` is ``None``, the solver results will not be saved
+            to disk.
         gpu: Use the GPU via CuPy. This option requires a GPU and the
             CuPy Python package, which can be installed via pip.
         sparse_solver: One of ``"superlu"``, ``"umfpack"``, ``"pardiso"``, or ``"cupy"``.
@@ -42,13 +47,8 @@ class SolverOptions:
             requires an Intel CPU and the pypardiso package, which can be
             installed via pip or conda. ``"cupy"`` requires a GPU and the
             CuPy Python package, which can be installed via pip.
-        terminal_psi: Fixed value for the order parameter in current terminals.
         field_units: The units for magnetic fields.
         current_units: The units for currents.
-        output_file: Path to an HDF5 file in which to save the data.
-            If the file name already exists, a unique name will be generated.
-            If ``output_file`` is ``None``, the solver results will not be saved
-            to disk.
         pause_on_interrupt: Pause the simulation in the event of a ``KeyboardInterrupt``.
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
@@ -60,8 +60,6 @@ class SolverOptions:
             step.
         screening_step_size: Step size :math:`\\alpha` for Polyak's method.
         screening_step_drag: Drag parameter :math:`\\beta` for Polyak's method.
-        screening_use_numba: Use numba for the screening calculation.
-        gpu: Solve the model on an NVIDIA GPU.
     """
 
     solve_time: float
@@ -72,21 +70,20 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
+    output_file: Union[os.PathLike, None] = None
+    terminal_psi: Union[float, complex, None] = 0.0
     gpu: bool = False
     sparse_solver: Union[SparseSolver, str] = SparseSolver.SUPERLU
-    terminal_psi: Union[float, complex, None] = 0.0
     pause_on_interrupt: bool = True
     save_every: int = 100
     progress_interval: int = 0
     field_units: str = "mT"
     current_units: str = "uA"
-    output_file: Union[os.PathLike, None] = None
     include_screening: bool = False
     max_iterations_per_step: int = 1000
     screening_tolerance: float = 1e-3
     screening_step_size: float = 1.0
     screening_step_drag: float = 0.5
-    screening_use_numba: bool = True
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
