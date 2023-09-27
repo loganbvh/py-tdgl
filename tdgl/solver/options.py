@@ -82,7 +82,7 @@ class SolverOptions:
     include_screening: bool = False
     max_iterations_per_step: int = 1000
     screening_tolerance: float = 1e-3
-    screening_step_size: float = 1.0
+    screening_step_size: float = 0.1
     screening_step_drag: float = 0.5
 
     def validate(self) -> None:
@@ -103,7 +103,7 @@ class SolverOptions:
 
         if not (0 < self.screening_step_drag <= 1):
             raise SolverOptionsError(
-                "screening_step_drag must be in (0, 1)"
+                "screening_step_drag must be in (0, 1]"
                 f" (got {self.screening_step_drag})."
             )
 
