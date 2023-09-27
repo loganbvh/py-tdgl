@@ -35,10 +35,9 @@ def get_A_induced_numba(
         for k in range(J_site.shape[1]):
             tmp = 0.0
             for j in range(J_site.shape[0]):
-                dr = np.sqrt(
-                    (edge_centers[i, 0] - sites[j, 0]) ** 2
-                    + (edge_centers[i, 1] - sites[j, 1]) ** 2
-                )
+                dx = edge_centers[i, 0] - sites[j, 0]
+                dy = edge_centers[i, 1] - sites[j, 1]
+                dr = np.sqrt(dx * dx + dy * dy)
                 tmp += J_site[j, k] * site_areas[j] / dr
             A_induced[i, k] = tmp
 
@@ -69,9 +68,8 @@ if cupy is not None:
         if i < edge_centers.shape[0] and k < J_site.shape[1]:
             tmp = 0.0
             for j in cupyx.jit.range(sites.shape[0]):
-                dr = cupy.sqrt(
-                    (edge_centers[i, 0] - sites[j, 0]) ** 2
-                    + (edge_centers[i, 1] - sites[j, 1]) ** 2
-                )
+                dx = edge_centers[i, 0] - sites[j, 0]
+                dy = edge_centers[i, 1] - sites[j, 1]
+                dr = cupy.sqrt(dx * dx + dy * dy)
                 tmp += J_site[j, k] * site_areas[j] / dr
             A_induced[i, k] = tmp

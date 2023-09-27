@@ -486,6 +486,8 @@ class TDGLSolver:
         use_cupy = self.use_cupy
         options = self.options
         mesh = self.device.mesh
+        alpha = options.screening_step_size
+        beta = options.screening_step_drag
         # Evaluate the induced vector potential.
         J_site = mesh.get_quantity_on_site(current_density, use_cupy=use_cupy)
         areas = self.areas
@@ -505,17 +507,14 @@ class TDGLSolver:
         # Update induced vector potential using Polyak's method
         A_induced = A_induced_vals[-1]
         dA = new_A_induced - A_induced
-        velocity.append(
-            (1 - options.screening_step_drag) * velocity[-1]
-            + options.screening_step_size * dA
-        )
+        velocity.append((1 - beta) * velocity[-1] + alpha * dA)
         A_induced = A_induced + velocity[-1]
         A_induced_vals.append(A_induced)
         if len(A_induced_vals) > 1:
             numerator = xp.linalg.norm(dA, axis=1)
             denominator = xp.linalg.norm(A_induced, axis=1)
             # Avoid division by zero in the case of zero A_induced
-            denominator[denominator == 0] = 1e-20
+            denominator = xp.maximum(denominator, 1e-20, out=denominator)
             screening_error = float(xp.max(numerator / denominator))
             del velocity[:-2]
             del A_induced_vals[:-2]
