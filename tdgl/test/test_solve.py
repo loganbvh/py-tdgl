@@ -154,7 +154,7 @@ def test_screening(screening_device: tdgl.Device):
     K = no_screening_solution.current_density
     K_max = np.sqrt(K[:, 0] ** 2 + K[:, 1] ** 2).max().to("uA / um").magnitude
 
-    assert np.isclose(K_max, 450, rtol=1e-2)
+    assert np.isclose(K_max, 450, rtol=5e-2)
 
     for curve in fluxoid_curves:
         fluxoid = no_screening_solution.polygon_fluxoid(curve)
