@@ -3,9 +3,74 @@ from typing import Callable, Tuple, Union
 
 import numpy as np
 import scipy.sparse as sp
+from scipy.sparse._sparsetools import csr_sample_offsets
+
+try:
+    import cupy  # type: ignore
+    from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
+    from cupyx.scipy.sparse.linalg import factorized  # type: ignore
+except ModuleNotFoundError:
+    cupy = None
 
 from ..solver.options import SparseSolver
 from .mesh import Mesh
+
+
+def _get_spmatrix_offsets(
+    spmatrix: sp.spmatrix, i: np.ndarray, j: np.ndarray, n_samples: int
+) -> np.ndarray:
+    """Calculates the sparse matrix offsets for a set of rows ``i`` and columns ``j``."""
+    # See _set_many() at
+    # https://github.com/scipy/scipy/blob/3f9a8c80e281e746225092621935b88c1ce68040/scipy/sparse/_compressed.py#L901
+    i, j, M, N = spmatrix._prepare_indices(i, j)
+    offsets = np.empty(n_samples, dtype=spmatrix.indices.dtype)
+    ret = csr_sample_offsets(
+        M, N, spmatrix.indptr, spmatrix.indices, n_samples, i, j, offsets
+    )
+    if ret == 1:
+        spmatrix.sum_duplicates()
+        csr_sample_offsets(
+            M, N, spmatrix.indptr, spmatrix.indices, n_samples, i, j, offsets
+        )
+    return offsets, (i, j, M, N)
+
+
+def _get_spmatrix_offsets_cupy(spmatrix, i, j):
+    """Calculates the sparse matrix offsets for a set of rows ``i`` and columns ``j``."""
+    # See _set_many() at
+    # https://github.com/cupy/cupy/blob/5c32e40af32f6f9627e09d47ecfeb7e9281ccab2/cupyx/scipy/sparse/_compressed.py#L525
+    i, j, M, N = spmatrix._prepare_indices(i, j)
+    new_sp = csr_matrix(
+        (
+            cupy.arange(spmatrix.nnz, dtype=cupy.float32),
+            spmatrix.indices,
+            spmatrix.indptr,
+        ),
+        shape=(M, N),
+    )
+    offsets = new_sp._get_arrayXarray(i, j, not_found_val=-1).astype(cupy.int32).ravel()
+    return offsets, (i, j, M, N)
+
+
+def _spmatrix_set_many(spmatrix, i, j, x):
+    """spmatrix.__setitem__()"""
+    if sp.issparse(spmatrix):
+        i, j = spmatrix._swap((i, j))
+        offsets, (i, j, M, N) = _get_spmatrix_offsets(spmatrix, i, j, len(x))
+    else:
+        i, j = spmatrix._swap(i, j)
+        offsets, (i, j, M, N) = _get_spmatrix_offsets_cupy(spmatrix, i, j)
+
+    mask = offsets > -1
+    spmatrix.data[offsets[mask]] = x[mask]
+    if not mask.all():
+        # only insertions remain
+        mask = ~mask
+        i = i[mask]
+        i[i < 0] += M
+        j = j[mask]
+        j[j < 0] += N
+        spmatrix._insert_many(i, j, x[mask])
 
 
 def build_divergence(mesh: Mesh) -> sp.csr_array:
@@ -188,6 +253,8 @@ class MeshOperators:
     Args:
         mesh: The :class:`tdgl.finite_volume.Mesh` instance for which to construct
             operators.
+        sparse_solver: The sparse solver for which to build mesh operators.
+        use_cupy: Use CuPy for linear algebra.
         fixed_sites: The indices of any sites for which the value of :math:`\\psi`
             and :math:`\\mu` are fixed as boundary conditions.
     """
@@ -195,11 +262,18 @@ class MeshOperators:
     def __init__(
         self,
         mesh: Mesh,
+        sparse_solver: SparseSolver,
+        use_cupy: bool = False,
         fixed_sites: Union[np.ndarray, None] = None,
         fix_psi: bool = True,
     ):
         self.mesh = mesh
+        self.areas = mesh.areas
         edge_mesh = mesh.edge_mesh
+        self.edges = edge_mesh.edges
+        self.edge_directions = edge_mesh.directions
+        self.use_cupy = use_cupy
+        self.sparse_solver = sparse_solver
         self.fixed_sites = fixed_sites
         self.fix_psi = fix_psi
         self.laplacian_free_rows: Union[np.ndarray, None] = None
@@ -222,18 +296,30 @@ class MeshOperators:
             [edge_mesh.edges[:, 1], edge_mesh.edges[:, 0]]
         )
 
-    def build_operators(self, sparse_solver: SparseSolver) -> None:
+    def build_operators(self) -> None:
         """Construct the vector potential-independent operators."""
         mesh = self.mesh
         self.mu_laplacian, _ = build_laplacian(mesh, weights=self.laplacian_weights)
-        if sparse_solver is SparseSolver.PARDISO:
-            self.mu_laplacian_lu = None
-        else:
-            sp.linalg.use_solver(useUmfpack=(sparse_solver is SparseSolver.UMFPACK))
-            self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
         self.mu_boundary_laplacian = build_neumann_boundary_laplacian(mesh)
         self.mu_gradient = build_gradient(mesh, weights=self.gradient_weights)
         self.divergence = build_divergence(mesh)
+        if self.use_cupy:
+            assert cupy is not None
+            self.mu_boundary_laplacian = csr_matrix(self.mu_boundary_laplacian)
+            self.mu_gradient = csr_matrix(self.mu_gradient)
+            self.divergence = csr_matrix(self.divergence)
+            self.areas = cupy.array(self.areas)
+            self.edge_directions = cupy.array(self.edge_directions)
+        if self.sparse_solver is SparseSolver.CUPY:
+            assert cupy is not None
+            self.mu_laplacian = csc_matrix(self.mu_laplacian)
+            self.mu_laplacian_lu = factorized(self.mu_laplacian)
+        elif self.sparse_solver is SparseSolver.PARDISO:
+            self.mu_laplacian_lu = None
+        else:
+            use_umfpack = self.sparse_solver is SparseSolver.UMFPACK
+            sp.linalg.use_solver(useUmfpack=use_umfpack)
+            self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
 
     def set_link_exponents(self, link_exponents: np.ndarray) -> None:
         """Set the link variables and construct the covarient gradient
@@ -244,9 +330,8 @@ class MeshOperators:
                 a link variable.
         """
         mesh = self.mesh
-        if link_exponents is not None:
-            link_exponents = np.asarray(link_exponents)
-        self.link_exponents = link_exponents
+        xp = cupy if self.use_cupy else np
+        self.link_exponents = xp.asarray(link_exponents)
         if self.psi_gradient is None:
             # Build the matrices from scratch
             self.psi_gradient = build_gradient(
@@ -266,40 +351,58 @@ class MeshOperators:
                 free_rows=free_rows,
                 weights=self.laplacian_weights,
             )
+            if self.use_cupy:
+                self.psi_gradient = csr_matrix(self.psi_gradient)
+                self.psi_laplacian = csr_matrix(self.psi_laplacian)
+                self.gradient_weights = cupy.asarray(self.gradient_weights)
+                self.laplacian_weights = cupy.asarray(self.laplacian_weights)
             return
         # Just update the link variables
-        edges = mesh.edge_mesh.edges
-        directions = mesh.edge_mesh.directions
+        edges = self.edges
+        directions = self.edge_directions
         if self.link_exponents is None:
-            link_variables = np.ones(len(directions))
+            link_variables = xp.ones(len(directions))
         else:
-            link_variables = np.exp(
-                -1j * np.einsum("ij, ij -> i", self.link_exponents, directions)
+            link_variables = xp.exp(
+                -1j * xp.einsum("ij, ij -> i", self.link_exponents, directions)
             )
         with warnings.catch_warnings():
-            # This is slightly faster than re-creating the sparse matrices
-            # from scratch.
+            # This is faster than re-creating the sparse matrices from scratch.
             warnings.filterwarnings("ignore", category=sp.SparseEfficiencyWarning)
             # Update gradient for psi
-            rows, cols = self.gradient_link_rows, self.gradient_link_cols
-            self.psi_gradient[rows, cols] = self.gradient_weights * link_variables
+            values = self.gradient_weights * link_variables
+            rows = self.gradient_link_rows
+            cols = self.gradient_link_cols
+            # self.psi_gradient[rows, cols] = values
+            _spmatrix_set_many(self.psi_gradient, rows, cols, values)
             # Update Laplacian for psi
-            areas0 = mesh.areas[edges[:, 0]]
-            areas1 = mesh.areas[edges[:, 1]]
+            areas = self.areas
+            weights = self.laplacian_weights
+            values = xp.concatenate(
+                [
+                    weights * link_variables / areas[edges[:, 0]],
+                    weights * link_variables.conjugate() / areas[edges[:, 1]],
+                ]
+            )
             # Only update rows that are not fixed by boundary conditions
             if self.fix_psi:
                 free_rows = self.laplacian_free_rows[: len(self.laplacian_link_rows)]
                 rows = self.laplacian_link_rows[free_rows]
                 cols = self.laplacian_link_cols[free_rows]
+                values = values[free_rows]
             else:
                 rows = self.laplacian_link_rows
                 cols = self.laplacian_link_cols
-            values = np.concatenate(
-                [
-                    self.laplacian_weights * link_variables / areas0,
-                    self.laplacian_weights * link_variables.conjugate() / areas1,
-                ]
-            )
-            if self.fix_psi:
-                values = values[free_rows]
-            self.psi_laplacian[rows, cols] = values
+            # self.psi_laplacian[rows, cols] = values
+            _spmatrix_set_many(self.psi_laplacian, rows, cols, values)
+
+    def get_supercurrent(self, psi: np.ndarray):
+        """Compute the supercurrent on the edges.
+
+        Args:
+            psi: The value of the complex order parameter.
+
+        Returns:
+            The supercurrent at each edge.
+        """
+        return (psi.conjugate()[self.edges[:, 0]] * (self.psi_gradient @ psi)).imag

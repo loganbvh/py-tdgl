@@ -128,8 +128,24 @@ class Parameter:
             )
 
     def _hash_args(self, x, y, z, t) -> str:
+        def _coerce_to_tuple(a):
+            try:
+                return tuple(_coerce_to_tuple(i) for i in a)
+            except TypeError:
+                return a
+
+        def _to_tuple(items):
+            results = []
+            for key, value in items:
+                if isinstance(value, dict):
+                    value = _to_tuple(value.items())
+                elif isinstance(value, (list, np.ndarray)):
+                    value = _coerce_to_tuple(value)
+                results.append((key, value))
+            return tuple(results)
+
         return (
-            hex(hash(tuple(self.kwargs.items())))
+            hex(hash(_to_tuple(self.kwargs.items())))
             + hashlib.sha1(np.ascontiguousarray(x)).hexdigest()
             + hashlib.sha1(np.ascontiguousarray(y)).hexdigest()
             + hashlib.sha1(np.ascontiguousarray(z)).hexdigest()
@@ -225,7 +241,25 @@ class Parameter:
         if self.func.__code__ != other.func.__code__:
             return False
 
-        return self.kwargs == other.kwargs
+        if set(self.kwargs) != set(other.kwargs):
+            return False
+
+        def array_safe_equals(a, b) -> bool:
+            """Check if a and b are equal, even if they are numpy arrays."""
+            if a is b:
+                return True
+            if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+                return a.shape == b.shape and np.allclose(a, b)
+            try:
+                return a == b
+            except TypeError:
+                return NotImplemented
+
+        for key in self.kwargs:
+            if not array_safe_equals(self.kwargs[key], other.kwargs[key]):
+                return False
+
+        return True
 
 
 class CompositeParameter(Parameter):

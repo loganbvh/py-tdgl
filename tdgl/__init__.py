@@ -18,5 +18,6 @@ from .solution.plot_solution import (
 from .solution.solution import BiotSavartField, Solution
 from .solver.options import SolverOptions
 from .solver.solve import solve
+from .solver.solver import SolverResult, TDGLSolver
 from .version import __git_revision__, __version__
 from .visualization.common import non_gui_backend

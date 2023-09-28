@@ -17,6 +17,12 @@ from ..finite_volume.mesh import Mesh
 from .options import SolverOptions
 
 
+def _get(item):
+    if not isinstance(item, np.ndarray):
+        item = item.get()
+    return item
+
+
 class DataHandler:
     """A context manager that is responsible for reading from and writing to disk.
 
@@ -123,11 +129,11 @@ class DataHandler:
     def save_fixed_values(self, fixed_data: Dict[str, np.ndarray]) -> None:
         """Save the fixed values, i.e., those that aren't updated at each solve step."""
         for key, value in fixed_data.items():
-            self.output_file[key] = value
+            self.output_file[key] = _get(value)
 
     def save_time_step(
         self,
-        state: Dict[str, float],
+        state: Dict[str, Union[int, float]],
         data: Dict[str, np.ndarray],
         running_state: Union[Dict[str, np.ndarray], None],
     ) -> None:
@@ -135,14 +141,15 @@ class DataHandler:
         group = self.time_step_group.create_group(f"{self.save_number}")
         group.attrs["timestamp"] = datetime.now().isoformat()
         self.save_number += 1
+
         for key, value in state.items():
             group.attrs[key] = value
         for key, value in data.items():
-            group[key] = value
+            group[key] = _get(value)
         if running_state is not None:
             running_grp = group.create_group("running_state")
             for key, value in running_state.items():
-                running_grp[key] = np.squeeze(value)
+                running_grp[key] = np.squeeze(_get(value))
 
 
 class RunningState:
@@ -155,12 +162,15 @@ class RunningState:
             before writing to disk.
     """
 
-    def __init__(self, names_and_sizes: Dict[str, int], buffer_size: int):
+    def __init__(
+        self, names_and_sizes: Dict[str, int], buffer_size: int, array_module=np
+    ):
         self.step = 0
+        self.array_module = array_module
         self.buffer_size = buffer_size
         self.names_and_sizes = names_and_sizes
         self.values = {
-            name: np.zeros((size, buffer_size))
+            name: array_module.zeros((size, buffer_size))
             for name, size in self.names_and_sizes.items()
         }
 
@@ -168,7 +178,7 @@ class RunningState:
         """Clear the buffer."""
         self.step = 0
         for name, size in self.names_and_sizes.items():
-            self.values[name] = np.zeros((size, self.buffer_size))
+            self.values[name] = self.array_module.zeros((size, self.buffer_size))
 
     def append(self, name: str, value: Sequence[float]) -> None:
         """Append data to the buffer.
@@ -223,8 +233,16 @@ class Runner:
         self.running_names_and_sizes = (
             running_names_and_sizes if running_names_and_sizes is not None else {}
         )
+        if options.gpu:
+            import cupy  # type: ignore
+
+            array_module = cupy
+        else:
+            array_module = np
         self.running_state = RunningState(
-            self.running_names_and_sizes, self.options.save_every
+            self.running_names_and_sizes,
+            self.options.save_every,
+            array_module=array_module,
         )
         self.state = state if state is not None else {}
         self.logger = logger if logger is not None else logging.getLogger()
@@ -239,7 +257,7 @@ class Runner:
         self.time = 0
         self.state["step"] = 0
         self.state["time"] = self.time
-        self.state["dt"] = self.dt
+        self.state["dt"] = float(self.dt)
         self.data_handler.save_fixed_values(
             dict(zip(self.fixed_names, self.fixed_values))
         )
@@ -323,9 +341,10 @@ class Runner:
         ) as pbar:
             for i in it:
                 try:
+                    dt = self.dt
                     self.state["step"] = i
                     self.state["time"] = self.time
-                    self.state["dt"] = self.dt
+                    self.state["dt"] = dt
                     # Print progress if TQDM is disabled.
                     if prog_disabled and (i % self.options.progress_interval) == 0:
                         then, now = now, time.perf_counter()
@@ -335,7 +354,7 @@ class Runner:
                             speed = self.options.progress_interval / (now - then)
                         self.logger.info(
                             f"{name}: Time {self.time}/{end_time}, "
-                            f"dt={self.dt:.2e}, {speed:.2f} it/s"
+                            f"dt={dt:.2e}, {speed:.2f} it/s"
                         )
                     if i % self.options.save_every == 0:
                         if save:
@@ -345,13 +364,13 @@ class Runner:
                     function_result = self.function(
                         self.state,
                         self.running_state,
-                        self.dt,
+                        dt,
                         **dict(zip(self.names, self.values)),
                     )
                     new_dt, *self.values = function_result
                     # tqdm will spit out a warning if you try to update past "total"
-                    if self.time + self.dt < end_time:
-                        pbar.update(self.dt)
+                    if self.time + dt < end_time:
+                        pbar.update(dt)
                     else:
                         pbar.update(end_time - self.time)
                     if self.time >= end_time:
@@ -360,7 +379,7 @@ class Runner:
                     self.running_state.step += 1
                     self.time += self.dt
                 except KeyboardInterrupt:
-                    msg = f"{{}} simulation at step {i} of stage {name!r}"
+                    msg = f"{{}} simulation at step {i} of stage {name!r}."
                     if self.options.pause_on_interrupt:
                         response = input(
                             f"Simulation paused at stage {name!r} (step {i})."

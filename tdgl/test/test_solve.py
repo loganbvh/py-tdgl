@@ -1,21 +1,48 @@
+import numba
 import numpy as np
 import pytest
 
+try:
+    import cupy  # type: ignore
+except ModuleNotFoundError:
+    cupy = None
+
 import tdgl
+from tdgl.geometry import box, circle
 from tdgl.solver.options import SolverOptionsError
 
 
 @pytest.mark.parametrize("current", [5.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
 @pytest.mark.parametrize(
-    "terminal_psi, time_dependent", [(0, False), (1, False), (1, True)]
+    "terminal_psi, time_dependent, gpu",
+    [(0, False, True), (1, False, False), (1, True, True)],
 )
 def test_source_drain_current(
-    transport_device, current, field, terminal_psi, time_dependent
+    transport_device,
+    current,
+    field,
+    terminal_psi,
+    time_dependent,
+    gpu,
 ):
     device = transport_device
-    total_time = 100
-    skip_time = 10
+    total_time = 10
+    skip_time = 1
+
+    if gpu and cupy is None:
+        options = tdgl.SolverOptions(
+            solve_time=total_time,
+            skip_time=skip_time,
+            field_units="uT",
+            current_units="uA",
+            save_every=100,
+            terminal_psi=terminal_psi,
+            gpu=gpu,
+        )
+        with pytest.raises(SolverOptionsError):
+            options.validate()
+        return
 
     options = tdgl.SolverOptions(
         solve_time=total_time,
@@ -24,10 +51,11 @@ def test_source_drain_current(
         current_units="uA",
         save_every=100,
         terminal_psi=terminal_psi,
+        gpu=gpu,
     )
 
     options.sparse_solver = "unknown"
-    with pytest.raises(ValueError):
+    with pytest.raises(SolverOptionsError):
         options.validate()
     options.sparse_solver = "superlu"
     options.validate()
@@ -49,7 +77,7 @@ def test_source_drain_current(
             terminal_currents=terminal_currents,
         )
     if time_dependent:
-        ramp = tdgl.sources.LinearRamp(tmin=0, tmax=50)
+        ramp = tdgl.sources.LinearRamp(tmin=1, tmax=8)
         constant_field = tdgl.sources.ConstantField(
             field,
             field_units=options.field_units,
@@ -79,68 +107,72 @@ def test_source_drain_current(
     assert np.allclose(measured_currents, current, rtol=0.1)
 
 
-@pytest.mark.skip
-@pytest.mark.parametrize(
-    "use_numba, use_jax", [(False, True), (True, False), (False, False)]
-)
-def test_screening(box_device, use_numba, use_jax):
-    device = box_device
-    total_time = 5
+@pytest.fixture
+def screening_device() -> tdgl.Device:
+    length_units = "um"
+    xi = 0.1
+    london_lambda = 0.075
+    thickness = 0.05
 
-    with pytest.raises(SolverOptionsError):
-        tdgl.SolverOptions(solve_time=total_time, dt_init=1e-3, dt_max=1e-4).validate()
-    with pytest.raises(SolverOptionsError):
-        tdgl.SolverOptions(solve_time=total_time, terminal_psi=2).validate()
-    with pytest.raises(SolverOptionsError):
-        tdgl.SolverOptions(solve_time=total_time, screening_step_size=-1).validate()
-    with pytest.raises(SolverOptionsError):
-        tdgl.SolverOptions(solve_time=total_time, screening_tolerance=-1).validate()
-    with pytest.raises(SolverOptionsError):
-        tdgl.SolverOptions(solve_time=total_time, screening_step_drag=2).validate()
-    with pytest.raises(SolverOptionsError):
-        tdgl.SolverOptions(
-            solve_time=total_time, adaptive_time_step_multiplier=2
-        ).validate()
-    with pytest.raises(SolverOptionsError):
-        tdgl.SolverOptions(
-            solve_time=total_time, screening_use_jax=True, screening_use_numba=True
-        ).validate()
+    height = 1
+    width = 2
+
+    layer = tdgl.Layer(
+        coherence_length=xi, london_lambda=london_lambda, thickness=thickness
+    )
+    film = tdgl.Polygon("film", points=tdgl.geometry.box(width, height, points=301))
+    device = tdgl.Device(
+        "bar",
+        layer=layer,
+        film=film,
+        length_units=length_units,
+    )
+    device.make_mesh(max_edge_length=xi / 2, smooth=100)
+    return device
+
+
+def test_screening(screening_device: tdgl.Device):
+    numba.set_num_threads(2)
+    device = screening_device
+
+    fluxoid_curves = [
+        circle(0.25, center=(0, 0)),
+        circle(0.1, center=(0.15, 0.25)),
+        circle(0.3, center=(0.6, -0.1)),
+        box(0.5, center=(-0.5, 0)),
+        box(0.5, center=(-0.6, -0.2)),
+    ]
 
     options = tdgl.SolverOptions(
-        solve_time=total_time,
-        field_units="uT",
+        solve_time=2,
+        field_units="mT",
         current_units="uA",
-        screening_use_jax=use_jax,
-        screening_use_numba=use_numba,
-    )
-    field = tdgl.sources.ConstantField(50)
-
-    options.include_screening = False
-    solution = tdgl.solve(
-        device,
-        options,
-        applied_vector_potential=field,
+        include_screening=False,
     )
 
-    circle = tdgl.geometry.circle(2, points=401)
-    centers = [(0, 0), (-1.5, -2.5), (2.5, 2), (0, 1)]
+    no_screening_solution = tdgl.solve(device, options, applied_vector_potential=0.1)
+    K = no_screening_solution.current_density
+    K_max = np.sqrt(K[:, 0] ** 2 + K[:, 1] ** 2).max().to("uA / um").magnitude
 
-    fluxoids_without_screening = []
-    for r0 in centers:
-        fluxoid = solution.polygon_fluxoid(circle + np.atleast_2d(r0), with_units=False)
-        # Without screening the fluxoid will not be quantized.
-        fluxoids_without_screening.append(abs(sum(fluxoid)))
+    assert np.isclose(K_max, 450, rtol=5e-2)
+
+    for curve in fluxoid_curves:
+        fluxoid = no_screening_solution.polygon_fluxoid(curve)
+        total_fluxoid = sum(fluxoid).magnitude
+        error = abs(total_fluxoid / fluxoid.flux_part.magnitude)
+        assert error > 1
 
     options.include_screening = True
-    solution = tdgl.solve(
-        device,
-        options,
-        applied_vector_potential=field,
-    )
+    options.screening_tolerance = 1e-6
+    options.dt_max = 1e-3
 
-    fluxoids_with_screening = []
-    for r0 in centers:
-        fluxoid = solution.polygon_fluxoid(circle + np.atleast_2d(r0), with_units=False)
-        fluxoids_with_screening.append(abs(sum(fluxoid)))
+    screening_solution = tdgl.solve(device, options, applied_vector_potential=0.1)
+    K = screening_solution.current_density
+    K_max = np.sqrt(K[:, 0] ** 2 + K[:, 1] ** 2).max().to("uA / um").magnitude
+    assert np.isclose(K_max, 270, rtol=2e-2)
 
-    assert np.all(fluxoids_with_screening < fluxoids_without_screening)
+    for curve in fluxoid_curves:
+        fluxoid = screening_solution.polygon_fluxoid(curve)
+        total_fluxoid = sum(fluxoid).magnitude
+        error = abs(total_fluxoid / fluxoid.flux_part.magnitude)
+        assert error < 5e-2

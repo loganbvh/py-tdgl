@@ -53,8 +53,9 @@ To install an editable version of ``pyTDGL`` for development, run:
 
   :ref:`Contributing to pyTDGL <about/contributing:Contributing>`
 
-Optional dependencies
----------------------
+
+Alternative sparse solvers
+--------------------------
 
 ``tdgl`` supports multiple solvers for sparse systems of linear equations: `SuperLU <https://portal.nersc.gov/project/sparse/superlu/>`_ (the default),
 `UMFPACK <https://people.engr.tamu.edu/davis/suitesparse.html>`_, and `MKL PARDISO <https://www.intel.com/content/www/us/en/docs/onemkl/developer-reference-c/2023-0/onemkl-pardiso-parallel-direct-sparse-solver-iface.html>`_.
@@ -62,7 +63,7 @@ Optional dependencies
 ``SuperLU``, the default solver, is included in ``scipy`` and therefore requires no additional installation.
 
 The other solvers, ``UMFPACK`` and ``PARDISO``, may outperform ``SuperLU`` on certain problems and certain CPU hardware.
-In particular, ``PARDISO`` is optimized for Intel CPUs and, unlike ``SuperLU`` and ``UMFPACK``, is multithreaded.
+In particular, ``PARDISO`` is optimized for Intel CPUs and, unlike ``SuperLU`` and ``UMFPACK``, ``PARDISO`` is multithreaded.
 This means that ``PARDISO`` may perform best when solving models with very large meshes on Intel CPUs.
 
 Your mileage may vary, so we encourage you to try the different solvers if you are looking to optimize the run time of your ``tdgl`` simulations.
@@ -99,10 +100,32 @@ Installing PARDISO
   # or conda install -c conda-forge pypardiso
   # or pip install tdgl[pardiso]
 
-Verify the installation
------------------------
+GPU acceleration
+----------------
 
-To verify your installation by running the ``tdgl`` test suite,
+For users with an NVIDIA or AMD GPU, ``tdgl`` can be accelerated using the `CuPy <https://cupy.dev/>`_ library.
+First install the appropriate version of ``cupy`` for your GPU hardware and driver version
+(see installation instructions `here <https://docs.cupy.dev/en/stable/install.html>`_).
+Then set the ``gpu`` attribute of :class:`tdgl.SolverOptions` to ``True``. Setting ``tdgl.SolverOptions.gpu = True``
+means that essentially all portions of the simulation *except* the sparse linear solve used to compute the scalar electric potential
+:math:`\mu(\mathbf{r}, t)` will be performed on the GPU. The sparse linear solve will be performed on the CPU using the solver specified by
+``tdgl.SolverOptions.sparse_solver`` (by default, ``SuperLU``). One can also perform the sparse linear solve on the GPU using
+``cupy`` by setting ``tdgl.SolverOptions.sparse_solver = "cupy"``, however emperically it seems that this is slower than
+performing the sparse linear solve on the CPU.
+
+Due to overheads related to transferring data between the CPU and GPU, it is expected that ``cupy`` will provide
+a significant speedup only for models with relatively large meshes and/or models that include `screening <notebooks/screening.ipynb>`_.
+Please open a `GitHub issue <https://github.com/loganbvh/py-tdgl/issues>`_ if you have any problems using ``tdgl`` with ``cupy``.
+
+.. note::
+
+  Note that ``cupy`` support for AMD GPUs is `currently experimental <https://docs.cupy.dev/en/stable/install.html#using-cupy-on-amd-gpu-experimental>`_.
+
+
+Verifying the installation
+--------------------------
+
+If you would like to verify your installation by running the ``tdgl`` test suite,
 execute the following command in a terminal:
 
 .. code-block:: bash

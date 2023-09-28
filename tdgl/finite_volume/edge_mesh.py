@@ -35,6 +35,9 @@ class EdgeMesh:
         self.edges = np.asarray(edges)
         self.boundary_edge_indices = np.asarray(boundary_edge_indices, dtype=np.int64)
         self.directions = np.asarray(directions)
+        self.normalized_directions = (
+            self.directions / np.linalg.norm(self.directions, axis=1)[:, np.newaxis]
+        )
         self.edge_lengths = np.asarray(edge_lengths)
         self.dual_edge_lengths = np.asarray(dual_edge_lengths)
 

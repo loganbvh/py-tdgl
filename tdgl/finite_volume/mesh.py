@@ -4,6 +4,11 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    import cupy  # type: ignore
+except ModuleNotFoundError:
+    cupy = None
+
 from ..geometry import close_curve
 from .edge_mesh import EdgeMesh
 from .util import (
@@ -182,7 +187,10 @@ class Mesh:
         return areas, voronoi_polygons
 
     def get_quantity_on_site(
-        self, quantity_on_edge: np.ndarray, vector: bool = True
+        self,
+        quantity_on_edge: np.ndarray,
+        vector: bool = True,
+        use_cupy: bool = False,
     ) -> np.ndarray:
         """Compute the quantity on site by averaging over all edges
         connecting to each site.
@@ -190,28 +198,32 @@ class Mesh:
         Args:
             quantity_on_edge: Observable on the edges.
             vector: Whether ``quantity_on_edge`` is a vector quantity.
+            use_cupy. Whether to use ``cupy`` interface.
 
         Returns:
             The quantity vector or scalar at each site.
         """
-        # Normalize the edge direction
-        directions = self.edge_mesh.directions
-        normalized_directions = directions / self.edge_mesh.edge_lengths[:, np.newaxis]
+        normalized_directions = self.edge_mesh.normalized_directions
+        edges = self.edge_mesh.edges
+        if use_cupy:
+            xp = cupy
+            normalized_directions = xp.asarray(normalized_directions)
+            edges = xp.asarray(edges)
+        else:
+            xp = np
         if vector:
             flux_x = quantity_on_edge * normalized_directions[:, 0]
             flux_y = quantity_on_edge * normalized_directions[:, 1]
         else:
             flux_x = flux_y = quantity_on_edge
         # Sum x and y components for every edge connecting to the vertex
-        vertices = np.concatenate(
-            [self.edge_mesh.edges[:, 0], self.edge_mesh.edges[:, 1]]
-        )
-        x_values = np.concatenate([flux_x, flux_x])
-        y_values = np.concatenate([flux_y, flux_y])
-        counts = np.bincount(vertices)
-        x_group_values = np.bincount(vertices, weights=x_values) / counts
-        y_group_values = np.bincount(vertices, weights=y_values) / counts
-        vector_val = np.array([x_group_values, y_group_values]).T / 2
+        vertices = xp.concatenate([edges[:, 0], edges[:, 1]])
+        x_values = xp.concatenate([flux_x, flux_x])
+        y_values = xp.concatenate([flux_y, flux_y])
+        counts = xp.bincount(vertices)
+        x_group_values = xp.bincount(vertices, weights=x_values) / counts
+        y_group_values = xp.bincount(vertices, weights=y_values) / counts
+        vector_val = xp.array([x_group_values, y_group_values]).T / 2
         if vector:
             return vector_val
         return vector_val[:, 0]

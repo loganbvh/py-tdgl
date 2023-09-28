@@ -58,7 +58,7 @@ def CurrentLoop(
         loop_vector_potential,
         current=current,
         radius=radius,
-        center=center,
+        center=tuple(center),
         current_units=current_units,
         field_units=field_units,
         length_units=length_units,
