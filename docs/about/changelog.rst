@@ -20,6 +20,47 @@ View release history on `PyPI <https://pypi.org/project/tdgl/#history>`_ or `Git
 
 ----
 
+Version 0.6.0
+-------------
+
+Release date: 2023-09-28 | `PyPI <https://pypi.org/project/tdgl/0.6.0/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.6.0>`_
+
+Changes
+=======
+
+* Add GPU support using `CuPy <https://cupy.dev/>`_ (`#36 <https://github.com/loganbvh/py-tdgl/pull/36>`_)
+
+  * Refactor solver into a class, :class:`tdgl.TDGLSolver`, for better readability and easier profiling
+  * Add GPU support using CuPy
+
+----
+
+Version 0.5.1
+-------------
+
+Release date: 2023-09-21 | `PyPI <https://pypi.org/project/tdgl/0.5.1/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.5.1>`_
+
+Changes
+=======
+
+* Fix scaling issue in screening code (`#37 <https://github.com/loganbvh/py-tdgl/pull/37>`_)
+
+----
+
+Version 0.5.0
+-------------
+
+Release date: 2023-09-08 | `PyPI <https://pypi.org/project/tdgl/0.5.0/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.5.0>`_
+
+Changes
+=======
+
+* Add ``--dimensionless`` and ``--axis-scale options`` in ``tdgl.visualize`` (`#30 <https://github.com/loganbvh/py-tdgl/pull/30>`_)
+* Add time-dependent ``Parameters`` (`#33 <https://github.com/loganbvh/py-tdgl/pull/33>`_)
+* Add umfpack and pardiso solvers (`#35 <https://github.com/loganbvh/py-tdgl/pull/35>`_)
+
+----
+
 Version 0.4.0
 -------------
 
