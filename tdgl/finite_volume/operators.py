@@ -41,14 +41,13 @@ def _spmatrix_set_many(spmatrix, i, j, x):
     i, j = spmatrix._swap(i, j)
     offsets, (i, j, M, N) = _get_spmatrix_offsets_cupy(spmatrix, i, j)
 
-    if -1 not in offsets.get():
-        # only affects existing non-zero cells
-        spmatrix.data[offsets] = x
-        return
-
-    # replace where possible
     mask = offsets > -1
     spmatrix.data[offsets[mask]] = x[mask]
+
+    if mask.all():
+        # only affects existing non-zero cells
+        return
+
     # only insertions remain
     mask = ~mask
     i = i[mask]
