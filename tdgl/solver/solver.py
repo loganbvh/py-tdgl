@@ -572,7 +572,7 @@ class TDGLSolver:
                 (current_A_applied - prev_A_applied) / dt,
                 self.normalized_directions,
             )
-            if not options.include_screening and xp.any(xp.absolute(dA_dt) > 0):
+            if xp.any(xp.absolute(dA_dt) > 0):
                 # Update the link exponents only if the applied vector potential
                 # has actually changed.
                 operators.set_link_exponents(current_A_applied)
