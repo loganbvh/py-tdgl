@@ -459,7 +459,7 @@ class TDGLSolver:
             mu = operators.mu_laplacian_lu(rhs)
         if use_cupy and not use_cupy_solver:
             mu = cupy.asarray(mu)
-        normal_current = -(operators.mu_gradient @ mu) - 0 * dA_dt
+        normal_current = -(operators.mu_gradient @ mu) - dA_dt
         return mu, supercurrent, normal_current
 
     def get_induced_vector_potential(
