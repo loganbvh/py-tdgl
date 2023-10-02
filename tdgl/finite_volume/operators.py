@@ -42,19 +42,17 @@ def _spmatrix_set_many(spmatrix, i, j, x):
     offsets, (i, j, M, N) = _get_spmatrix_offsets_cupy(spmatrix, i, j)
 
     mask = offsets > -1
+    # update where possible
     spmatrix.data[offsets[mask]] = x[mask]
 
-    if mask.all():
-        # only affects existing non-zero cells
-        return
-
-    # only insertions remain
-    mask = ~mask
-    i = i[mask]
-    i[i < 0] += M
-    j = j[mask]
-    j[j < 0] += N
-    spmatrix._insert_many(i, j, x[mask])
+    if not mask.all():
+        # only insertions remain
+        mask = ~mask
+        i = i[mask]
+        i[i < 0] += M
+        j = j[mask]
+        j[j < 0] += N
+        spmatrix._insert_many(i, j, x[mask])
 
 
 def build_divergence(mesh: Mesh) -> sp.csr_array:
