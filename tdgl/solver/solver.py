@@ -459,7 +459,7 @@ class TDGLSolver:
             mu = operators.mu_laplacian_lu(rhs)
         if use_cupy and not use_cupy_solver:
             mu = cupy.asarray(mu)
-        normal_current = -(operators.mu_gradient @ mu) - 0 * dA_dt
+        normal_current = -(operators.mu_gradient @ mu) - dA_dt
         return mu, supercurrent, normal_current
 
     def get_induced_vector_potential(
@@ -572,7 +572,7 @@ class TDGLSolver:
                 (current_A_applied - prev_A_applied) / dt,
                 self.normalized_directions,
             )
-            if not options.include_screening and xp.any(xp.absolute(dA_dt) > 0):
+            if xp.any(xp.absolute(dA_dt) > 0):
                 # Update the link exponents only if the applied vector potential
                 # has actually changed.
                 operators.set_link_exponents(current_A_applied)
