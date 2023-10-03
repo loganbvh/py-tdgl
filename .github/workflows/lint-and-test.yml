@@ -24,6 +24,7 @@ jobs:
         echo "OPENBLAS_NUM_THREADS=2" >> $GITHUB_OUTPUT
         echo "OMP_NUM_THREADS=2" >> $GITHUB_OUTPUT
         echo "NUMBA_NUM_THREADS=2" >> $GITHUB_OUTPUT
+        echo "NUMBA_DISABLE_JIT=1" >> $GITHUB_OUTPUT
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
