@@ -22,6 +22,7 @@ Overview
 
 Post-processing methods:
 
+* :meth:`tdgl.Solution.magnetic_moment`
 * :meth:`tdgl.Solution.interp_current_density`
 * :meth:`tdgl.Solution.grid_current_density`
 * :meth:`tdgl.Solution.interp_order_parameter`
