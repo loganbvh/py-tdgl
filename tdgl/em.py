@@ -1,11 +1,11 @@
 from typing import Optional, Sequence, Union
 
+import numba
 import numpy as np
 import pint
 from scipy import spatial, special
 from scipy.constants import mu_0
 
-from .distance import pairwise_difference
 from .finite_volume.mesh import Mesh
 
 ureg = pint.UnitRegistry()
@@ -68,6 +68,48 @@ def convert_field(
     return value
 
 
+@numba.njit(fastmath=True, parallel=True)
+def _biot_savart_1d_vector(
+    eval_positions: np.ndarray,
+    current_positions: np.ndarray,
+    current_vectors: np.ndarray,
+    currents: np.ndarray,
+) -> np.ndarray:
+    """Returns the vector magnetic field (in tesla)
+    from a discrete set of 1D current elements.
+
+    Args:
+        eval_positions: Shape (n, 3) array of (x, y, z) positions at which to
+            evaluate the field (in meters).
+        current_positions: Shape (m, 3) array of (x, y, z) positions for the
+            current elements (in meters).
+        current_vectors: Shape (m, 3) array of (dx, dy, dy) distance vectors
+            indicating the direction and length of the current elements (in meters).
+        currents: Shape (m, ) array of current magnitudes for each
+            current element (in amps).
+
+    Returns:
+        The vector magnetic field in tesla
+    """
+    assert eval_positions.ndim == 2
+    assert eval_positions.shape[1] == 3
+    assert current_positions.ndim == 2
+    assert current_positions.shape[1] == 3
+    assert current_vectors.ndim == 2
+    assert current_vectors.shape[1] == 3
+    assert currents.ndim == 1
+    assert current_positions.shape[0] == current_vectors.shape[0] == currents.shape[0]
+
+    B_out = np.zeros((len(eval_positions), 3), dtype=float)
+    for i in numba.prange(eval_positions.shape[0]):
+        for k in range(current_positions.shape[0]):
+            I_dl = currents[k] * current_vectors[k]
+            r = eval_positions[i] - current_positions[k]
+            dr = np.linalg.norm(r)
+            B_out[i] += mu_0 / (4 * np.pi) * np.cross(I_dl, r) / dr**3
+    return B_out
+
+
 def biot_savart(
     eval_positions: np.ndarray,
     *,
@@ -97,20 +139,114 @@ def biot_savart(
     eval_positions = np.atleast_2d(eval_positions)
     current_positions = np.atleast_2d(current_positions)
     current_vectors = np.atleast_2d(current_vectors)
-    currents = np.atleast_2d(currents)
-    assert eval_positions.shape[-1] == 3
-    assert current_positions.shape[-1] == 3
-    assert current_vectors.shape[-1] == 3
-    assert currents.shape[-1] == 1
+    currents = np.atleast_1d(currents)
+    B = _biot_savart_1d_vector(
+        eval_positions,
+        current_positions,
+        current_vectors,
+        currents,
+    )
+    return B * ureg("tesla")
 
-    dx = pairwise_difference(eval_positions[:, 0], current_positions[:, 0])
-    dy = pairwise_difference(eval_positions[:, 1], current_positions[:, 1])
-    dz = pairwise_difference(eval_positions[:, 2], current_positions[:, 2])
-    rprime = np.stack([dx, dy, dz], axis=-1)
-    denom = (np.linalg.norm(rprime, axis=-1) ** 3)[:, :, np.newaxis]
-    integrand = np.cross(current_vectors, rprime) / denom
-    integral = np.einsum("jk,ijk -> ik", currents, integrand)
-    return mu_0 / (4 * np.pi) * integral * ureg("tesla")
+
+@numba.njit(fastmath=True, parallel=True)
+def _biot_savart_2d_z(
+    eval_positions: np.ndarray,
+    positions: np.ndarray,
+    current_densities: np.ndarray,
+    areas: np.ndarray,
+) -> np.ndarray:
+    """Returns the z-component of the magnetic field (in tesla)
+    from a given sheet current density distribution.
+
+    Args:
+        eval_positions: The ``(x, y, z)`` coordinates at which to evaluate the field in meters
+        positions: The ``(x, y, z)`` coordinates of the sheet current in meters
+        current_densities: The sheet current density in amps / meter
+        areas: The effective areas of the sheet current mesh in meters**2
+
+    Returns:
+        The z-component of the magnetic field in tesla
+    """
+    assert eval_positions.ndim == 2
+    assert eval_positions.shape[1] == 3
+    assert positions.ndim == 2
+    assert positions.shape[0] == areas.shape[0] == current_densities.shape[0]
+    assert positions.shape[1] == 3
+
+    Jx = current_densities[:, 0]
+    Jy = current_densities[:, 1]
+    Bz_out = np.empty(len(eval_positions), dtype=float)
+
+    for i in numba.prange(eval_positions.shape[0]):
+        Jx_dy = 0.0
+        Jy_dx = 0.0
+        for k in range(positions.shape[0]):
+            dx = eval_positions[i, 0] - positions[k, 0]
+            dy = eval_positions[i, 1] - positions[k, 1]
+            dz = eval_positions[i, 2] - positions[k, 2]
+            pref = (
+                (mu_0 / (4 * np.pi))
+                * areas[k]
+                * (dx * dx + dy * dy + dz * dz) ** (-3 / 2)
+            )
+            Jx_dy += pref * Jx[k] * dy
+            Jy_dx += pref * Jy[k] * dx
+        Bz_out[i] = Jx_dy - Jy_dx
+    return Bz_out
+
+
+@numba.njit(fastmath=True, parallel=True)
+def _biot_savart_2d_vector(
+    eval_positions: np.ndarray,
+    positions: np.ndarray,
+    current_densities: np.ndarray,
+    areas: np.ndarray,
+) -> np.ndarray:
+    """Returns the vector magnetic field (in tesla)
+    from a given sheet current density distribution.
+
+    Args:
+        eval_positions: The ``(x, y, z)`` coordinates at which to evaluate the field in meters
+        positions: The ``(x, y, z)`` coordinates of the sheet current in meters
+        current_densities: The sheet current density in amps / meter
+        areas: The effective areas of the sheet current mesh in meters**2
+
+    Returns:
+        The vector magnetic field in tesla
+    """
+    assert eval_positions.ndim == 2
+    assert eval_positions.shape[1] == 3
+    assert positions.ndim == 2
+    assert positions.shape[0] == areas.shape[0] == current_densities.shape[0]
+    assert positions.shape[1] == 3
+
+    Jx = current_densities[:, 0]
+    Jy = current_densities[:, 1]
+    B_out = np.empty((len(eval_positions), 3), dtype=float)
+
+    for i in numba.prange(eval_positions.shape[0]):
+        Jx_dy = 0.0
+        Jy_dx = 0.0
+        Jx_dz = 0.0
+        Jy_dz = 0.0
+        for k in range(positions.shape[0]):
+            dx = eval_positions[i, 0] - positions[k, 0]
+            dy = eval_positions[i, 1] - positions[k, 1]
+            dz = eval_positions[i, 2] - positions[k, 2]
+            pref = (
+                (mu_0 / (4 * np.pi))
+                * areas[k]
+                * (dx * dx + dy * dy + dz * dz) ** (-3 / 2)
+            )
+            Jx_dy += pref * Jx[k] * dy
+            Jy_dx += pref * Jy[k] * dx
+            Jx_dz += pref * Jx[k] * dz
+            Jy_dz += pref * Jy[k] * dz
+        B_out[i, 0] = Jy_dz
+        B_out[i, 1] = -Jx_dz
+        B_out[i, 2] = Jx_dy - Jy_dx
+    return B_out
 
 
 def biot_savart_2d(
@@ -179,20 +315,13 @@ def biot_savart_2d(
     x, y, z = np.atleast_1d(x, y, z)
     if z.shape[0] == 1:
         z = z * np.ones_like(x)
-    x = x * to_meter
-    y = y * to_meter
-    z = z * to_meter
+    eval_positions = np.array([x, y, z]).T * to_meter
     positions, current_densities = np.atleast_2d(positions, current_densities)
+    positions = np.concatenate(
+        [positions, z0 * np.ones(len(positions))[:, np.newaxis]], axis=1
+    )
     positions = positions * to_meter
-    z0 = z0 * to_meter
     current_densities = current_densities * to_amp_per_meter
-    # Calculate the pairwise distance between the current sheet and evaluation
-    # points for each axis.
-    x0, y0 = positions[:, 0], positions[:, 1]
-    Jx, Jy = current_densities[:, 0], current_densities[:, 1]
-    dx = pairwise_difference(x, x0)
-    dy = pairwise_difference(y, y0)
-    dz = pairwise_difference(z, z0 * np.ones_like(x0))
     if areas is None:
         # Triangulate the current sheet to assign an effective area to each vertex.
         triangles = spatial.Delaunay(positions).simplices
@@ -201,17 +330,11 @@ def biot_savart_2d(
     else:
         areas = areas * to_meter**2
     # Evaluate the Biot-Savart integral.
-    pref = (mu_0 / (4 * np.pi)) * areas * (dx**2 + dy**2 + dz**2) ** (-3 / 2)
-    Jx_dy = np.einsum("ij, ij, j -> i", pref, dy, Jx)
-    Jy_dx = np.einsum("ij, ij, j -> i", pref, dx, Jy)
-    Bz = Jx_dy - Jy_dx
-    if not vector:
-        return Bz
-    Jy_dz = np.einsum("ij, ij, j -> i", pref, dz, Jy)
-    Jx_dz = np.einsum("ij, ij, j -> i", pref, dz, Jx)
-    Bx = Jy_dz
-    By = -Jx_dz
-    return np.array([Bx, By, Bz]).T * ureg("tesla")
+    if vector:
+        B = _biot_savart_2d_vector(eval_positions, positions, current_densities, areas)
+    else:
+        B = _biot_savart_2d_z(eval_positions, positions, current_densities, areas)
+    return B * ureg("tesla")
 
 
 def current_loop_vector_potential(
@@ -303,11 +426,12 @@ def current_loop_field(
     loop = loop_radius * circ + loop_center
     dloop = np.diff(loop, axis=0)
     loop = loop[:-1]
+    currents = current * np.ones(len(loop))
     return biot_savart(
         positions,
         current_positions=loop,
         current_vectors=dloop,
-        currents=current,
+        currents=currents,
     ).to("tesla")
 
 

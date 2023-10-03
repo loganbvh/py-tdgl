@@ -3,26 +3,6 @@ import numpy as np
 
 
 @numba.njit(fastmath=True, parallel=True)
-def pairwise_difference(xA: np.ndarray, xB: np.ndarray):
-    """Pairwise different between two 1D arrays.
-
-    This is equivalent to ``numpy.subtract.outer(XA, XB)``.
-
-    Args:
-        xA: A shape (n,) array
-        xB: A shep (m,) array
-
-    Returns:
-        A shape (n, m) array of pairwise differences.
-    """
-    out = np.empty((xA.shape[0], xB.shape[0]), dtype=xA.dtype)
-    for i in numba.prange(xA.shape[0]):
-        for j in range(xB.shape[0]):
-            out[i, j] = xA[i] - xB[j]
-    return out
-
-
-@numba.njit(fastmath=True, parallel=True)
 def sqeuclidean_distance_2d(XA: np.ndarray, XB: np.ndarray):
     """Squared Euclidean pointwise distance between two 2D arrays."""
     out = np.empty((XA.shape[0], XB.shape[0]), dtype=XA.dtype)
