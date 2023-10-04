@@ -17,6 +17,7 @@ from .util import (
     generate_voronoi_vertices,
     get_edges,
     get_voronoi_polygon_indices,
+    triangle_areas,
 )
 
 
@@ -65,6 +66,7 @@ class Mesh:
         self.dual_sites = dual_sites
         self.edge_mesh = edge_mesh
         self.voronoi_polygons = voronoi_polygons
+        self._center_of_mass: Union[Tuple[float, float], None] = None
 
     @property
     def x(self) -> np.ndarray:
@@ -75,6 +77,18 @@ class Mesh:
     def y(self) -> np.ndarray:
         """The y-coordinates of the mesh sites."""
         return self.sites[:, 1]
+
+    @property
+    def center_of_mass(self) -> Tuple[float, float]:
+        """The ``(x, y)`` coordinates of the center of mass of the mesh."""
+        if self._center_of_mass is None:
+            sites = self.sites
+            triangles = self.elements
+            tri_areas = triangle_areas(sites, triangles)
+            tri_centroids = sites[triangles].mean(axis=1)
+            com = np.average(tri_centroids, axis=0, weights=tri_areas)
+            self._center_of_mass = tuple(com)
+        return self._center_of_mass
 
     def closest_site(self, xy: Tuple[float, float]) -> int:
         """Returns the index of the mesh site closest to ``(x, y)``.
