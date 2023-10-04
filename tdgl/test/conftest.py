@@ -1,13 +1,7 @@
-import os
-
-import numba
 import pytest
 
 import tdgl
 from tdgl.geometry import box, circle
-
-if os.getenv("GITHUB_ACTIONS") == "true":
-    numba.config.DISABLE_JIT
 
 
 @pytest.fixture(scope="package")
