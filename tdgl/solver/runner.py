@@ -82,7 +82,7 @@ class DataHandler:
             name_suffix = f"-{serial_number}" if serial_number is not None else ""
             file_name = f"{name}{name_suffix}.{suffix}"
             file_path = os.path.join(directory, file_name)
-            tmp_file_name = f".{name}{name_suffix}.tmp.{suffix}"
+            tmp_file_name = f"{file_name}.tmp"
             tmp_file_path = os.path.join(directory, tmp_file_name)
             try:
                 file = h5py.File(file_path, "x")
@@ -384,10 +384,12 @@ class Runner:
                             cmd = [
                                 sys.executable,
                                 "-m",
-                                "tdgl.visualization.monitor",
-                                self.data_handler.tmp_path,
+                                "tdgl.visualize",
+                                "--input",
+                                self.data_handler.output_path,
+                                "monitor",
                             ]
-                            _ = subprocess.Popen(cmd)
+                            _ = subprocess.Popen(cmd, start_new_session=True)
                     # Print progress if TQDM is disabled.
                     if prog_disabled and (i % self.options.progress_interval) == 0:
                         then, now = now, time.perf_counter()

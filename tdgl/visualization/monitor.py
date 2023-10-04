@@ -141,7 +141,7 @@ def monitor_solution(
             try:
                 update()
             except KeyboardInterrupt:
-                pass
+                plt.close(fig)
 
 
 if __name__ == "__main__":

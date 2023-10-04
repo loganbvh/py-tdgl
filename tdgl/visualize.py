@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 
 from .visualization import (
     DEFAULT_QUANTITIES,
@@ -7,6 +8,7 @@ from .visualization import (
     MultiInteractivePlot,
     Quantity,
     create_animation,
+    monitor_solution,
 )
 
 logger = logging.getLogger("visualize")
@@ -188,11 +190,13 @@ def visualize_tdgl(args):
 
 
 def monitor_tdgl(args):
+    dirname = os.path.dirname(args.input)
+    fname = os.path.basename(args.input) + ".tmp"
+    h5path = os.path.join(dirname, fname)
     kwargs = dict(
-        h5path=args.input,
+        h5path=h5path,
         autoscale=args.autoscale,
         dimensionless=args.dimensionless,
-        figsize=args.figsize,
     )
     if args.figsize is not None:
         kwargs["figure_kwargs"] = dict(figsize=args.figsize)
@@ -200,7 +204,7 @@ def monitor_tdgl(args):
         kwargs["quantities"] = DEFAULT_QUANTITIES
     else:
         kwargs["quantities"] = args.quantities
-    monitor_tdgl(**kwargs)
+    monitor_solution(**kwargs)
 
 
 def main(args):
