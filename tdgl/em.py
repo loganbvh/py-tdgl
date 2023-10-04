@@ -317,11 +317,9 @@ def biot_savart_2d(
         z = z * np.ones_like(x)
     eval_positions = np.array([x, y, z]).T * to_meter
     positions, current_densities = np.atleast_2d(positions, current_densities)
-    positions = np.concatenate(
-        [positions, z0 * np.ones(len(positions))[:, np.newaxis]], axis=1
-    )
-    positions = positions * to_meter
     current_densities = current_densities * to_amp_per_meter
+    positions = positions * to_meter
+    z0 = z0 * np.ones(len(positions)) * to_meter
     if areas is None:
         # Triangulate the current sheet to assign an effective area to each vertex.
         triangles = spatial.Delaunay(positions).simplices
@@ -329,6 +327,7 @@ def biot_savart_2d(
         areas = mesh.areas
     else:
         areas = areas * to_meter**2
+    positions = np.concatenate([positions, z0[:, np.newaxis]], axis=1)
     # Evaluate the Biot-Savart integral.
     if vector:
         B = _biot_savart_2d_vector(eval_positions, positions, current_densities, areas)
