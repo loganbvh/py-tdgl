@@ -14,7 +14,6 @@ def get_plot_data(
     mesh: Mesh,
     quantity: Quantity,
     frame: int,
-    refresh: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, Sequence[float]]:
     """Get data to plot.
 
