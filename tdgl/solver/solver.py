@@ -710,7 +710,7 @@ class TDGLSolver:
             logger.info(
                 f"Simulation started at {start_time}"
                 f" using sparse solver {options.sparse_solver.value!r}"
-                f" with {'CuPy' if self.use_cupy else 'NumPy'}."
+                f" and backend {('CuPy' if self.use_cupy else 'NumPy')!r}."
             )
             runner = Runner(
                 function=self.update,

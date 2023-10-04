@@ -256,6 +256,38 @@ class Solution:
         """A dictionary of dependency versions."""
         return self._version_info
 
+    def magnetic_moment(
+        self, units: Union[str, None] = None, with_units: bool = True
+    ) -> Union[float, pint.Quantity]:
+        """Computes the :math:`z`-component of the magnetic dipole moment of the film.
+
+        .. math::
+
+            m_z = \\hat{z}\\cdot\\frac{1}{2}
+                \\int_\\mathrm{film}\\mathbf{r}\\times\\mathbf{K}(\\mathbf{r})\\,\\mathrm{d}^2r,
+
+        where :math:`\\mathbf{r}` is the position in the film relative to the film center of mass.
+
+        Args:
+            units: The desired units for the current density. Defaults to
+                ``self.current_units * self.device.length_units ** 2``.
+            with_units: Whether to return a :class:`pint.Quantity` with units attached.
+
+        Returns:
+            The magnetic dipole moment of the film as either a float or a pint.Quantity
+        """
+        device = self.device
+        mesh = device.mesh
+        xi = device.coherence_length
+        sites = xi * (mesh.sites - np.atleast_2d(mesh.center_of_mass))
+        areas = mesh.areas * xi**2
+        K = self.current_density
+        units = units or f"{self.current_units} * {device.length_units}**2"
+        m = np.sum(0.5 * np.cross(sites, K) * areas).to(units)
+        if not with_units:
+            m = m.magnitude
+        return m
+
     def grid_current_density(
         self,
         *,

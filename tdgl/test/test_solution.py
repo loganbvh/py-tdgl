@@ -156,3 +156,17 @@ def test_get_current_through_paths(solution: tdgl.Solution, dataset, interp_meth
             assert isinstance(cs[0], pint.Quantity)
             if dataset is None:
                 assert np.allclose(cs.m[1:], Isrc, rtol=2e-2)
+
+
+@pytest.mark.parametrize("units", [None, "A * m**2"])
+@pytest.mark.parametrize("with_units", [False, True])
+def test_magnetic_moment(solution: tdgl.Solution, units, with_units):
+    device = solution.device
+    m = solution.magnetic_moment(units=units, with_units=with_units)
+    if with_units:
+        assert isinstance(m, pint.Quantity)
+        if units is None:
+            units = f"{solution.current_units} * {device.length_units}**2"
+        assert m.units == device.ureg(units)
+    else:
+        assert isinstance(m, float)
