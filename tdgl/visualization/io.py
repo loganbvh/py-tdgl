@@ -10,7 +10,11 @@ from .common import Quantity
 
 
 def get_plot_data(
-    h5file: h5py.File, mesh: Mesh, quantity: Quantity, frame: int
+    h5file: h5py.File,
+    mesh: Mesh,
+    quantity: Quantity,
+    frame: int,
+    refresh: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, Sequence[float]]:
     """Get data to plot.
 

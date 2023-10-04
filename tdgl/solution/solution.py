@@ -168,7 +168,7 @@ class Solution:
                 Defaults to -1, i.e. the final step.
         """
         if h5file is None:
-            read_context = h5py.File(self.path, "r", libver="latest")
+            read_context = h5py.File(self.path, "r")
         else:
             read_context = nullcontext(h5file)
         with read_context as f:
@@ -854,7 +854,7 @@ class Solution:
 
         if isinstance(h5file, str):
             mode = "x" if save_tdgl_data else "r+"
-            save_context = h5py.File(h5file, mode, libver="latest")
+            save_context = h5py.File(h5file, mode)
         else:
             save_context = nullcontext(h5file)
 
@@ -940,7 +940,7 @@ class Solution:
                 return pickle.loads(np.void(grp[f"{name}.pickle"]).tobytes())
             raise IOError(f"Unable to load {name}.")
 
-        with h5py.File(path, "r", libver="latest") as f:
+        with h5py.File(path, "r") as f:
             grp = f["solution"]
             options_kwargs = dict()
             for k, v in grp["options"].attrs.items():

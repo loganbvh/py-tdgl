@@ -7,3 +7,4 @@ from .common import (
     auto_range_iqr,
 )
 from .interactive import InteractivePlot, MultiInteractivePlot
+from .monitor import monitor_solution

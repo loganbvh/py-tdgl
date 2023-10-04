@@ -8,12 +8,11 @@ import h5py
 import numpy as np
 from matplotlib import animation
 from matplotlib import pyplot as plt
-from matplotlib.ticker import FuncFormatter
 from tqdm import tqdm
 
 from ..device.device import Device
 from ..solution.data import get_data_range
-from .common import PLOT_DEFAULTS, Quantity, auto_grid
+from .common import DEFAULT_QUANTITIES, PLOT_DEFAULTS, Quantity, auto_grid
 from .io import get_plot_data, get_state_string
 
 
@@ -21,7 +20,7 @@ def create_animation(
     input_file: Union[str, h5py.File],
     *,
     output_file: Union[str, None] = None,
-    quantities: Union[str, Sequence[str]],
+    quantities: Union[str, Sequence[str]] = DEFAULT_QUANTITIES,
     fps: int = 30,
     dpi: float = 100,
     max_cols: int = 4,
@@ -56,6 +55,7 @@ def create_animation(
         max_frame: The last frame of the animation.
         autoscale: Autoscale colorbar limits at each frame.
         quiver: Add quiver arrows to the plots.
+        dimensionless: Use dimensionless units for axes
         axes_off: Turn off the axes for each subplot.
         title_off: Turn off the figure suptitle.
         full_title: Include the full "state" for each frame in the figure suptitle.
@@ -90,7 +90,7 @@ def create_animation(
 
     mpl_context = nullcontext() if output_file is None else plt.ioff()
     if isinstance(input_file, str):
-        h5_context = h5py.File(input_file, "r", libver="latest")
+        h5_context = h5py.File(input_file, "r")
     else:
         h5_context = nullcontext(input_file)
 
@@ -142,9 +142,7 @@ def create_animation(
                         scale=0.05,
                         units="dots",
                     )
-                cbar = fig.colorbar(
-                    collection, ax=ax, format=FuncFormatter("{:.2f}".format)
-                )
+                cbar = fig.colorbar(collection, ax=ax)
                 cbar.set_label(opts.clabel)
                 ax.set_aspect("equal")
                 ax.set_title(quantity.value)

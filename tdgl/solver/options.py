@@ -52,6 +52,7 @@ class SolverOptions:
         pause_on_interrupt: Pause the simulation in the event of a ``KeyboardInterrupt``.
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
+        monitor: Plot data in real time as the simulation is running.
         include_screening: Whether to include screening in the simulation.
         max_iterations_per_step: The maximum number of screening iterations per solve
             step.
@@ -77,6 +78,7 @@ class SolverOptions:
     pause_on_interrupt: bool = True
     save_every: int = 100
     progress_interval: int = 0
+    monitor: bool = False
     field_units: str = "mT"
     current_units: str = "uA"
     include_screening: bool = False

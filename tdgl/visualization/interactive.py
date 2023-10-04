@@ -4,7 +4,6 @@ from typing import Any, Dict, Sequence, Union
 import h5py
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.ticker import FuncFormatter
 
 from ..device.device import Device
 from ..solution.data import get_data_range
@@ -28,7 +27,7 @@ class InteractivePlot:
         self.logger = logger or logging.getLogger()
 
     def show(self):
-        with h5py.File(self.input_file, "r", libver="latest") as h5file:
+        with h5py.File(self.input_file, "r") as h5file:
             device = Device.from_hdf5(h5file["solution/device"])
             mesh = device.mesh
             if self.dimensionless:
@@ -164,7 +163,7 @@ class MultiInteractivePlot:
         self.figure_kwargs.setdefault("figsize", default_figsize)
 
     def show(self):
-        with h5py.File(self.input_file, "r", libver="latest") as h5file:
+        with h5py.File(self.input_file, "r") as h5file:
             device = Device.from_hdf5(h5file["solution/device"])
             mesh = device.mesh
             if self.dimensionless:
@@ -249,9 +248,7 @@ class MultiInteractivePlot:
                     shading="gouraud",
                     cmap=opts.cmap,
                 )
-                cbar = fig.colorbar(
-                    collection, ax=ax, format=FuncFormatter("{:.2f}".format)
-                )
+                cbar = fig.colorbar(collection, ax=ax)
                 cbar.set_label(opts.clabel)
                 ax.set_aspect("equal")
                 ax.set_title(quantity.value)

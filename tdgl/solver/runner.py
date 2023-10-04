@@ -1,6 +1,8 @@
 import itertools
 import logging
 import os
+import subprocess
+import sys
 import tempfile
 import time
 import traceback
@@ -36,7 +38,6 @@ class DataHandler:
         output_file: Union[str, None],
         logger: Union[logging.Logger, None] = None,
     ):
-        self.output_file = None
         self.tempdir = None
         self.mesh_group = None
         self.time_step_group = None
@@ -45,10 +46,12 @@ class DataHandler:
         self._base_output_file = output_file
         self.output_file: Union[h5py.File, None] = None
         self.output_path: Union[str, None] = None
+        self.tmp_file: Union[h5py.File, None] = None
+        self.tmp_path: Union[str, None] = None
         self.time_step_group: Union[h5py.Group, None] = None
         self.mesh_group: Union[h5py.Group, None] = None
 
-    def _create_output_file(self, output: str) -> Tuple[h5py.File, str]:
+    def _create_output_file(self, output: str) -> Tuple[h5py.File, str, h5py.File, str]:
         """Create an output file.
 
         Args:
@@ -79,8 +82,11 @@ class DataHandler:
             name_suffix = f"-{serial_number}" if serial_number is not None else ""
             file_name = f"{name}{name_suffix}.{suffix}"
             file_path = os.path.join(directory, file_name)
+            tmp_file_name = f".{name}{name_suffix}.tmp.{suffix}"
+            tmp_file_path = os.path.join(directory, tmp_file_name)
             try:
-                file = h5py.File(file_path, "x", libver="latest")
+                file = h5py.File(file_path, "x")
+                tmp_file = h5py.File(tmp_file_path, "x", libver="latest")
             except (OSError, FileExistsError):
                 if serial_number is None:
                     serial_number = 1
@@ -92,13 +98,21 @@ class DataHandler:
                     self.logger.warning(
                         f"Output file already exists. Renaming to {file_name}."
                     )
-            return file, file_path
+            return file, file_path, tmp_file, tmp_file_path
 
     def __enter__(self) -> "DataHandler":
-        self.output_file, self.output_path = self._create_output_file(
-            self._base_output_file
-        )
+        (
+            self.output_file,
+            self.output_path,
+            self.tmp_file,
+            self.tmp_path,
+        ) = self._create_output_file(self._base_output_file)
         self.time_step_group = self.output_file.create_group("data", track_order=True)
+
+        grp = self.tmp_file.create_group("data/-1")
+        grp["step"] = np.array([0])
+        grp["time"] = np.array([0.0])
+        grp["dt"] = np.array([0.0])
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
@@ -114,6 +128,10 @@ class DataHandler:
     def close(self):
         """Clean up by closing the output file."""
         self.output_file.close()
+        if self.tmp_file is not None:
+            self.tmp_file.flush()
+            self.tmp_file.close()
+            os.remove(self.tmp_path)
         if self.tempdir is not None:
             self.tempdir.cleanup()
 
@@ -129,7 +147,9 @@ class DataHandler:
     def save_fixed_values(self, fixed_data: Dict[str, np.ndarray]) -> None:
         """Save the fixed values, i.e., those that aren't updated at each solve step."""
         for key, value in fixed_data.items():
-            self.output_file[key] = _get(value)
+            value = _get(value)
+            self.output_file[key] = value
+            self.tmp_file[key] = value
 
     def save_time_step(
         self,
@@ -141,11 +161,21 @@ class DataHandler:
         group = self.time_step_group.create_group(f"{self.save_number}")
         group.attrs["timestamp"] = datetime.now().isoformat()
         self.save_number += 1
+        tmp_grp = self.tmp_file["data/-1"]
 
         for key, value in state.items():
             group.attrs[key] = value
         for key, value in data.items():
-            group[key] = _get(value)
+            value = _get(value)
+            group[key] = value
+            if key in tmp_grp:
+                tmp_grp[key][:] = value
+            else:
+                tmp_grp[key] = value
+            tmp_grp[key].flush()
+        for key in ("step", "time", "dt"):
+            tmp_grp[key][:] = np.array([state[key]])
+            tmp_grp[key].flush()
         if running_state is not None:
             running_grp = group.create_group("running_state")
             for key, value in running_state.items():
@@ -201,6 +231,7 @@ class Runner:
         initial_values: Initial values passed as parameters to the update function.
         names: Names of the parameters.
         data_handler: The data handler used to save to disk.
+        monitor: Launch a subprocess to plot results during the simulation.
         fixed_values: Values that do not change over time, but should be added
             to saved data.
         fixed_names: Fixed data variable names.
@@ -216,6 +247,7 @@ class Runner:
         initial_values: List[Any],
         names: Sequence[str],
         data_handler: DataHandler,
+        monitor: bool = False,
         fixed_values: Union[List[Any], None] = None,
         fixed_names: Union[Sequence, None] = None,
         running_names_and_sizes: Union[Dict[str, int], None] = None,
@@ -247,6 +279,7 @@ class Runner:
         self.state = state if state is not None else {}
         self.logger = logger if logger is not None else logging.getLogger()
         self.data_handler = data_handler
+        self.monitor = monitor
 
     def run(self) -> bool:
         """Run the simulation loop.
@@ -345,6 +378,16 @@ class Runner:
                     self.state["step"] = i
                     self.state["time"] = self.time
                     self.state["dt"] = dt
+                    if save and i == 1 and self.data_handler.tmp_file is not None:
+                        self.data_handler.tmp_file.swmr_mode = True
+                        if self.monitor:
+                            cmd = [
+                                sys.executable,
+                                "-m",
+                                "tdgl.visualization.monitor",
+                                self.data_handler.tmp_path,
+                            ]
+                            _ = subprocess.Popen(cmd)
                     # Print progress if TQDM is disabled.
                     if prog_disabled and (i % self.options.progress_interval) == 0:
                         then, now = now, time.perf_counter()

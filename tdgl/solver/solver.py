@@ -1,6 +1,7 @@
 import itertools
 import logging
 import math
+import os
 from datetime import datetime
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
 
@@ -285,6 +286,9 @@ class TDGLSolver:
         self.d_psi_sq_vals = []
         self.tentative_dt = options.dt_init
         self.dt_max = options.dt_max if options.adaptive else options.dt_init
+
+        if options.monitor:
+            os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
     def update_mu_boundary(self, time: float) -> None:
         """Computes the terminal current density for a given time step and
@@ -707,6 +711,10 @@ class TDGLSolver:
 
         with DataHandler(output_file=output_file, logger=logger) as data_handler:
             data_handler.save_mesh(self.device.mesh)
+            if data_handler.tmp_file is not None:
+                self.device.to_hdf5(
+                    data_handler.tmp_file.create_group("solution/device")
+                )
             logger.info(
                 f"Simulation started at {start_time}"
                 f" using sparse solver {options.sparse_solver.value!r}"
@@ -716,6 +724,7 @@ class TDGLSolver:
                 function=self.update,
                 options=options,
                 data_handler=data_handler,
+                monitor=options.monitor,
                 initial_values=list(parameters.values()),
                 names=list(parameters),
                 fixed_values=fixed_values,

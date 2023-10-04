@@ -105,12 +105,39 @@ def make_parser():
         choices=Quantity.get_keys() + ["ALL"],
         nargs="*",
         help=(
-            "Name(s) of the quantities to show. Because 11quantities11 takes a "
+            "Name(s) of the quantities to show. Because ``quantities`` takes a "
             "variable number of arguments, it must be the last argument provided."
         ),
     )
-
     animate_parser.set_defaults(func=animate_tdgl)
+
+    monitor_parser = subparsers.add_parser(
+        "monitor", help="Visualize the results of a simulation as it is running."
+    )
+    monitor_parser.add_argument(
+        "--autoscale",
+        action="store_true",
+        help="Autoscale colorbar limits at each frame.",
+    )
+    monitor_parser.add_argument(
+        "--figsize",
+        type=float,
+        nargs=2,
+        default=None,
+        help="Figure size (width, height) in inches.",
+    )
+    monitor_parser.add_argument(
+        "-q",
+        "--quantities",
+        type=lambda s: str(s).upper(),
+        choices=Quantity.get_keys() + ["ALL"],
+        nargs="*",
+        help=(
+            "Name(s) of the quantities to show. Because ``quantities`` takes a "
+            "variable number of arguments, it must be the last argument provided."
+        ),
+    )
+    monitor_parser.set_defaults(func=monitor_tdgl)
 
     return parser
 
@@ -158,6 +185,22 @@ def visualize_tdgl(args):
     if "ALL" not in args.quantities:
         kwargs["quantities"] = args.quantities
     MultiInteractivePlot(**kwargs).show()
+
+
+def monitor_tdgl(args):
+    kwargs = dict(
+        h5path=args.input,
+        autoscale=args.autoscale,
+        dimensionless=args.dimensionless,
+        figsize=args.figsize,
+    )
+    if args.figsize is not None:
+        kwargs["figure_kwargs"] = dict(figsize=args.figsize)
+    if args.quantities is None or "ALL" in args.quantities:
+        kwargs["quantities"] = DEFAULT_QUANTITIES
+    else:
+        kwargs["quantities"] = args.quantities
+    monitor_tdgl(**kwargs)
 
 
 def main(args):
