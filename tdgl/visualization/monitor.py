@@ -135,13 +135,14 @@ def monitor_solution(
             fig.canvas.draw_idle()
             fig.canvas.start_event_loop(1e-3)
 
-        while True:
-            if not os.path.exists(h5path):
-                plt.close(fig)
-            try:
-                update()
-            except KeyboardInterrupt:
-                plt.close(fig)
+        try:
+            while True:
+                if os.path.exists(h5path):
+                    update()
+                else:
+                    plt.close(fig)
+        except KeyboardInterrupt:
+            plt.close(fig)
 
 
 if __name__ == "__main__":
