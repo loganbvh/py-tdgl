@@ -143,7 +143,3 @@ def monitor_solution(
                     plt.close(fig)
         except KeyboardInterrupt:
             plt.close(fig)
-
-
-if __name__ == "__main__":
-    monitor_solution(sys.argv[1])
