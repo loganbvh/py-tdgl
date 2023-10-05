@@ -20,6 +20,36 @@ View release history on `PyPI <https://pypi.org/project/tdgl/#history>`_ or `Git
 
 ----
 
+Version 0.7.0
+-------------
+
+Release date: 2023-10-05 | `PyPI <https://pypi.org/project/tdgl/0.7.0/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.7.0>`_
+
+Changes
+=======
+
+* Add :meth:`tdgl.Solution.magnetic_moment` to compute the total magnetic dipole moment of a film (`#46 <https://github.com/loganbvh/py-tdgl/pull/46>`_)
+* Add option to plot the results of a running simulation in real time (`#47 <https://github.com/loganbvh/py-tdgl/pull/47>`_)
+
+  * To use, you can 1) set ``tdgl.SolverOptions.monitor = True``,
+    or 2) run ``tdgl.visualize --input=<h5_file_path> monitor`` from a separate terminal,
+    where ``<h5_file_path>`` is the path to the HDF5 file for the currently-running simulation. See :doc:`../api/visualization` for more details.
+
+----
+
+Version 0.6.1
+-------------
+
+Release date: 2023-10-03 | `PyPI <https://pypi.org/project/tdgl/0.6.1/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.6.1>`_
+
+Changes
+=======
+
+* Simplify spmatrix _set_many (`#42 <https://github.com/loganbvh/py-tdgl/pull/42>`_)
+* Fix typo in solver with time-dependent applied vector potential (`#43 <https://github.com/loganbvh/py-tdgl/pull/43>`_)
+
+----
+
 Version 0.6.0
 -------------
 
