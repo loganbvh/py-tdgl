@@ -112,9 +112,13 @@ class TDGLData:
             if key in ["state"]:
                 return load_state_data(h5file, step)
             if key in h5file:
-                return np.asarray(h5file[key])
+                dset = h5file[key]
+                dset.refresh()
+                return np.asarray(dset)
             if key in h5file["data"][step]:
-                return np.array(h5file["data"][step][key])
+                dset = h5file["data"][step][key]
+                dset.refresh()
+                return np.array(dset)
             return default
 
         return TDGLData(

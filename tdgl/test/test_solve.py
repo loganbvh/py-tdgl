@@ -148,6 +148,7 @@ def test_screening(screening_device: tdgl.Device):
         field_units="mT",
         current_units="uA",
         include_screening=False,
+        monitor=True,
     )
 
     no_screening_solution = tdgl.solve(device, options, applied_vector_potential=0.1)
