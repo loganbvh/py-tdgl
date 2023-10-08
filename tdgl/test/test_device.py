@@ -156,6 +156,16 @@ def device():
                 probe_points=probe_points,
             )
 
+    with pytest.raises(ValueError):
+        # Test duplicate hole names
+        _ = tdgl.Device(
+            "device",
+            layer=layer,
+            film=film,
+            holes=[hole, hole.copy().set_name(hole.name)],
+            probe_points=probe_points,
+        )
+
     device = tdgl.Device(
         "device",
         layer=layer,

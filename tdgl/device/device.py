@@ -79,16 +79,19 @@ class Device:
         self.film = film
         self.holes = holes or []
         self.terminals = tuple(terminals or [])
-        names = set()
+        terminal_names = set()
         for terminal in self.terminals:
             terminal.mesh = False
-            if terminal.name is None or terminal.name in names:
+            if terminal.name is None or terminal.name in terminal_names:
                 raise ValueError("All terminals must have a unique name")
-            names.add(terminal.name)
+            terminal_names.add(terminal.name)
 
         for polygon in [self.film] + self.holes:
             if not polygon.is_valid:
                 raise ValueError("Invalid Polygon: {polygon!r}.")
+
+        if len(self.holes) != len(set(hole.name for hole in self.holes)):
+            raise ValueError("All holes must have a unique name.")
 
         if probe_points is not None:
             probe_points = np.asarray(probe_points).squeeze()
