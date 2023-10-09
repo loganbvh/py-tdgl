@@ -196,6 +196,12 @@ def compute_voronoi_polygon_areas(
     boundary_edges = edges[boundary_edge_indices]
     areas = np.zeros(len(polygons), dtype=float)
     voronoi_sites = []
+    warning_str = (
+        "Malformed Voronoi cell surrounding boundary site {site}."
+        " Try changing the number of boundary mesh sites using"
+        " Polygon.resample() or Polygon.buffer(eps) where eps"
+        " is 0 or a small positive float."
+    )
     for site, polygon in enumerate(
         tqdm(polygons, desc="Constructing Voronoi polygons")
     ):
@@ -207,7 +213,9 @@ def compute_voronoi_polygon_areas(
         # poly = poly[unique]
         if site not in boundary_set:
             areas[site], is_convex = get_convex_polygon_area(poly)
-            assert is_convex  # All interior Voronoi cells are convex.
+            if not is_convex:
+                # All interior Voronoi cells must be convex.
+                raise ValueError(warning_str.format(site=site))
             voronoi_sites.append(orient_convex_polygon(poly))
             continue
         # For points on the boundary, add vertices at the mesh site and the midpoints
@@ -230,12 +238,7 @@ def compute_voronoi_polygon_areas(
             # list of coordinates, so append the central mesh site to the end.
             if indices[0] != 0:
                 # TODO: Decide whether this should be an exception.
-                logger.warning(
-                    f"Malformed Voronoi cell surrounding boundary site {site}."
-                    " Try changing the number of boundary mesh sites using"
-                    " Polygon.resample() or Polygon.buffer(eps) where eps"
-                    " is 0 or a small positive float."
-                )
+                logger.warning(warning_str.format(site=site))
             coords.append(sites[site])
         poly = np.array(coords)
         areas[site], is_convex = get_convex_polygon_area(poly)
