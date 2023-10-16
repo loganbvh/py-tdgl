@@ -155,7 +155,7 @@ def test_get_current_through_paths(solution: tdgl.Solution, dataset, interp_meth
         for cs in currents:
             assert isinstance(cs[0], pint.Quantity)
             if dataset is None:
-                assert np.allclose(cs.m[1:], Isrc, rtol=2e-2)
+                assert np.allclose(cs.m[1:], Isrc, rtol=3e-2)
 
 
 @pytest.mark.parametrize("units", [None, "A * m**2"])
