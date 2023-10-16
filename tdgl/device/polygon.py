@@ -467,7 +467,7 @@ class Polygon:
                 the polygon is resampled to ``len(self.points)`` points. If
                 ``num_points`` is not None and has a boolean value of False,
                 then an unaltered copy of the polygon is returned.
-            degree: The degree of the spline with which to iterpolate.
+            degree: The degree of the spline with which to interpolate.
                 Defaults to 1 (linear spline).
             smooth: Smoothing condition.
 
@@ -476,9 +476,9 @@ class Polygon:
             num_points = len(self.points)
         if not num_points:
             return self.copy()
-        points = ensure_unique(self.points.copy())
+        points = close_curve(ensure_unique(self.points.copy()))
         tck, _ = interpolate.splprep(points.T, k=degree, s=smooth)
-        x, y = interpolate.splev(np.linspace(0, 1, num_points - 1), tck)
+        x, y = interpolate.splev(np.linspace(0, 1, num_points), tck)
         points = close_curve(np.array([x, y]).T)
         return Polygon(
             name=self.name,
