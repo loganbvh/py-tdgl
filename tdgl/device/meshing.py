@@ -9,7 +9,7 @@ from shapely.geometry.polygon import Polygon
 from ..finite_volume.util import get_max_edge_length
 from ..geometry import ensure_unique
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("tdgl.device")
 
 
 def generate_mesh(
@@ -113,7 +113,7 @@ def generate_mesh(
         max_length = get_max_edge_length(points, triangles)
         logger.info(
             f"Iteration {i}: {len(points)} points, {len(triangles)} triangles,"
-            f" max_edge_length: {max_length:.1e} (target: {max_edge_length:.1e})."
+            f" max_edge_length: {max_length:.2e} (target: {max_edge_length:.2e})."
         )
         if np.isfinite(max_edge_length):
             kwargs["max_volume"] *= min(0.98, np.sqrt(max_edge_length / max_length))
