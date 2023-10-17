@@ -1,5 +1,4 @@
 import dataclasses
-import os
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import h5py
@@ -448,7 +447,7 @@ class DynamicsData:
 
 
 def get_current_through_paths(
-    solution_path: os.PathLike,
+    solution_path: str,
     paths: Union[np.ndarray, List[np.ndarray]],
     dataset: Optional[str] = None,
     interp_method: Literal["linear", "cubic"] = "linear",

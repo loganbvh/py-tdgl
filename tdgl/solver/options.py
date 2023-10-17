@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
@@ -71,7 +70,7 @@ class SolverOptions:
     adaptive_window: int = 10
     max_solve_retries: int = 10
     adaptive_time_step_multiplier: float = 0.25
-    output_file: Union[os.PathLike, None] = None
+    output_file: Union[str, None] = None
     terminal_psi: Union[float, complex, None] = 0.0
     gpu: bool = False
     sparse_solver: Union[SparseSolver, str] = SparseSolver.SUPERLU
