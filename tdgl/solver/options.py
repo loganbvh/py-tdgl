@@ -124,7 +124,7 @@ class SolverOptions:
         if self.gpu:
             try:
                 import cupy  # type: ignore # noqa: F401
-            except ModuleNotFoundError:
+            except ImportError:
                 raise SolverOptionsError(
                     "GPU option requires a GPU and the CuPy Python package."
                 )
@@ -144,7 +144,7 @@ class SolverOptions:
         if self.sparse_solver is SparseSolver.UMFPACK:
             try:
                 from scikits import umfpack  # type: ignore # noqa: F401
-            except ModuleNotFoundError:
+            except ImportError:
                 raise SolverOptionsError(
                     "SparseSolver.UMFPACK requires suitesparse and the"
                     " scikit-umfpack Python package."
@@ -152,7 +152,7 @@ class SolverOptions:
         if self.sparse_solver is SparseSolver.PARDISO:
             try:
                 import pypardiso  # type: ignore # noqa: F401
-            except ModuleNotFoundError:
+            except ImportError:
                 raise SolverOptionsError(
                     "SparseSolver.CUPY requires an Intel CPU"
                     " and the pypardiso Python package."

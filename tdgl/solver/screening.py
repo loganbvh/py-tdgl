@@ -4,7 +4,7 @@ import numpy as np
 try:
     import cupy  # type: ignore
     import cupyx  # type: ignore
-except ModuleNotFoundError:
+except ImportError:
     cupy = None
     cupyx = None
 

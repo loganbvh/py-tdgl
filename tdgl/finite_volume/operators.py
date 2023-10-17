@@ -8,7 +8,7 @@ try:
     import cupy  # type: ignore
     from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
     from cupyx.scipy.sparse.linalg import factorized  # type: ignore
-except ModuleNotFoundError:
+except ImportError:
     cupy = None
 
 from ..solver.options import SparseSolver

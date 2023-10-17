@@ -4,7 +4,7 @@ import pytest
 
 try:
     import cupy  # type: ignore
-except ModuleNotFoundError:
+except ImportError:
     cupy = None
 
 import tdgl

@@ -10,12 +10,12 @@ import scipy.sparse as sp
 
 try:
     import cupy  # type: ignore
-except ModuleNotFoundError:
+except ImportError:
     cupy = None
 
 try:
     import pypardiso  # type: ignore
-except ModuleNotFoundError:
+except ImportError:
     pypardiso = None
 
 from ..device.device import Device, TerminalInfo
