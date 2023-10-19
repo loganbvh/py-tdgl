@@ -68,16 +68,13 @@ def test_bad_input():
 @pytest.mark.parametrize(
     "quantities", [None, "all"] + [name.lower() for name in Quantity.get_keys()]
 )
-@pytest.mark.parametrize("silent", [False, True])
 @pytest.mark.parametrize("verbose", [False, True])
 @pytest.mark.parametrize("dimensionless", [True, False])
-def test_interactive(solution, quantities, verbose, silent, dimensionless):
+def test_interactive(solution, quantities, verbose, dimensionless):
     parser = visualize.make_parser()
     cmd = ["--input", solution.path]
     if verbose:
         cmd.append("--verbose")
-    if silent:
-        cmd.append("--silent")
     if dimensionless:
         cmd.append("--dimensionless")
     cmd.append("--axis-labels")
@@ -123,12 +120,14 @@ def test_animate_cli(solution, quantities, autoscale, dimensionless):
     cmd = ["--input", solution.path]
     if dimensionless:
         cmd.append("--dimensionless")
+    if autoscale:
+        cmd.append("--autoscale")
     cmd.append("--axis-labels")
     cmd.extend(
         [
-            "animate",
             "--output",
             solution.path.replace(".h5", "-cli.gif"),
+            "animate",
             "--min-frame",
             "2",
             "--max-frame",
@@ -139,8 +138,6 @@ def test_animate_cli(solution, quantities, autoscale, dimensionless):
             "200",
         ]
     )
-    if autoscale:
-        cmd.append("--autoscale")
 
     if quantities is not None:
         cmd.extend(["--quantities"] + quantities.split(" "))
@@ -148,3 +145,24 @@ def test_animate_cli(solution, quantities, autoscale, dimensionless):
     with tdgl.non_gui_backend():
         tdgl.visualize.main(args)
         plt.close("all")
+
+
+@pytest.mark.parametrize("output", [None, "auto"])
+def test_convert_cli(solution, output):
+    parser = visualize.make_parser()
+    cmd = ["--input", solution.path]
+    output = solution.path.replace(".h5", "-converted.xdmf")
+    output_h5 = os.path.join(
+        os.getcwd(), os.path.basename(output).replace(".xdmf", ".h5")
+    )
+    if output == "auto":
+        cmd.extend(["--output", output])
+    cmd.extend(["convert", "--format", "xdmf"])
+    args = parser.parse_args(cmd)
+    with tdgl.non_gui_backend():
+        tdgl.visualize.main(args)
+        plt.close("all")
+    if os.path.exists(output):
+        os.remove(output)
+    if os.path.exists(output_h5):
+        os.remove(output_h5)

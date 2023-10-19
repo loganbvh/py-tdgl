@@ -16,7 +16,7 @@ try:
     import cupy  # type: ignore
 
     cupy_version = cupy.__version__
-except ModuleNotFoundError:
+except ImportError:
     cupy_version = None
 
 import tdgl

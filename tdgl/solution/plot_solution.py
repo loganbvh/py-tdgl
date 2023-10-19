@@ -1,4 +1,3 @@
-import os
 from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import matplotlib as mpl
@@ -636,7 +635,7 @@ def plot_scalar_potential(
 
 
 def plot_current_through_paths(
-    solution_path: os.PathLike,
+    solution_path: str,
     paths: Union[np.ndarray, List[np.ndarray]],
     dataset: Optional[str] = None,
     interp_method: Literal["linear", "cubic"] = "linear",

@@ -78,7 +78,7 @@ class Solution:
         *,
         device: Device,
         options: SolverOptions,
-        path: os.PathLike,
+        path: str,
         applied_vector_potential: Parameter,
         terminal_currents: Union[Dict[str, float], Callable],
         disorder_epsilon: Union[float, Callable],
@@ -954,7 +954,7 @@ class Solution:
         self._save_to_hdf5_file(h5path, save_tdgl_data=True, save_mesh=save_mesh)
 
     @staticmethod
-    def from_hdf5(path: os.PathLike, solve_step: int = -1) -> "Solution":
+    def from_hdf5(path: str, solve_step: int = -1) -> "Solution":
         """Loads a :class:`tdgl.Solution` from file.
 
         Args:

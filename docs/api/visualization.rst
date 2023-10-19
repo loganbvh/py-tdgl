@@ -48,8 +48,11 @@ Plot ``Solutions``
 Plotting utilities
 ------------------
 
+.. autofunction:: tdgl.visualization.convert_to_xdmf
+
 .. autofunction:: tdgl.visualization.auto_range_iqr
 
 .. autofunction:: tdgl.visualization.auto_grid
 
 .. autofunction:: tdgl.non_gui_backend
+

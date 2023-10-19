@@ -12,7 +12,7 @@ from .io import get_plot_data
 
 
 def monitor_solution(
-    h5path: os.PathLike,
+    h5path: str,
     quantities: Union[str, Sequence[str]] = DEFAULT_QUANTITIES,
     max_cols: int = 4,
     dimensionless: bool = False,

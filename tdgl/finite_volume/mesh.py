@@ -6,7 +6,7 @@ import numpy as np
 
 try:
     import cupy  # type: ignore
-except ModuleNotFoundError:
+except ImportError:
     cupy = None
 
 from ..geometry import close_curve

@@ -34,7 +34,6 @@ def create_animation(
     title_off: bool = False,
     full_title: bool = True,
     logger: Union[Logger, None] = None,
-    silent: bool = False,
     figure_kwargs: Union[Dict[str, Any], None] = None,
     writer: Union[str, animation.MovieWriter, None] = None,
 ) -> animation.FuncAnimation:
@@ -64,7 +63,6 @@ def create_animation(
         writer: A :class:`matplotlib.animation.MovieWriter` instance to use when
             saving the animation.
         logger: A logger instance to use.
-        silent: Disable logging.
 
     Returns:
         The animation as a :class:`matplotlib.animation.FuncAnimation`.
@@ -213,7 +211,6 @@ def create_animation(
             with tqdm(
                 total=len(range(min_frame, max_frame)),
                 unit="frames",
-                disable=silent,
                 desc=f"Saving to {fname}",
             ) as pbar:
                 anim.save(
