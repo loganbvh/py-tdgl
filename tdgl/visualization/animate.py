@@ -2,7 +2,7 @@ import logging
 import os
 from contextlib import nullcontext
 from logging import Logger
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Literal, Sequence, Union
 
 import h5py
 import numpy as np
@@ -21,6 +21,7 @@ def create_animation(
     *,
     output_file: Union[str, None] = None,
     quantities: Union[str, Sequence[str]] = DEFAULT_QUANTITIES,
+    shading: Literal["flat", "gouraud"] = "gouraud",
     fps: int = 30,
     dpi: float = 100,
     max_cols: int = 4,
@@ -47,6 +48,7 @@ def create_animation(
         output_file: A path to which to save the animation,
             e.g., as a gif or mp4 video.
         quantities: The names of the quantities to animate.
+        shading: Shading method, "flat" or "gouraud". See matplotlib.pyplot.tripcolor.
         fps: Frame rate in frames per second.
         dpi: Resolution in dots per inch.
         max_cols: The maxiumum number of columns in the subplot grid.
@@ -126,7 +128,7 @@ def create_animation(
                     y,
                     temp_value,
                     triangles=mesh.elements,
-                    shading="gouraud",
+                    shading=shading,
                     cmap=opts.cmap,
                     vmin=opts.vmin,
                     vmax=opts.vmax,

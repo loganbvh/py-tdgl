@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Literal, Sequence, Union
 
 import h5py
 import numpy as np
@@ -15,11 +15,13 @@ class InteractivePlot:
     def __init__(
         self,
         input_file: str,
+        shading: Literal["flat", "gouraud"] = "gouraud",
         dimensionless: bool = False,
         axis_labels: bool = False,
         logger: logging.Logger = None,
     ):
         self.input_file = input_file
+        self.shading = shading
         self.dimensionless = dimensionless
         self.axis_labels = axis_labels
         self.frame = 0
@@ -122,7 +124,7 @@ class InteractivePlot:
             fig.subplots_adjust(top=0.8)
             fig.canvas.mpl_connect("key_press_event", on_keypress)
             triplot = ax.tripcolor(
-                x, y, temp_value, triangles=mesh.elements, shading="gouraud"
+                x, y, temp_value, triangles=mesh.elements, shading=self.shading
             )
             cbar = fig.colorbar(triplot)
             ax.set_aspect("equal")
@@ -137,6 +139,7 @@ class MultiInteractivePlot:
     def __init__(
         self,
         input_file: str,
+        shading: Literal["flat", "gouraud"] = "gouraud",
         dimensionless: bool = False,
         axis_labels: bool = False,
         quantities: Sequence[str] = DEFAULT_QUANTITIES,
@@ -145,6 +148,7 @@ class MultiInteractivePlot:
         figure_kwargs: Union[Dict[str, Any], None] = None,
     ):
         self.input_file = input_file
+        self.shading = shading
         self.dimensionless = dimensionless
         self.axis_labels = axis_labels
         self.frame = 0
@@ -245,7 +249,7 @@ class MultiInteractivePlot:
                     y,
                     temp_value,
                     triangles=mesh.elements,
-                    shading="gouraud",
+                    shading=self.shading,
                     cmap=opts.cmap,
                 )
                 cbar = fig.colorbar(collection, ax=ax)

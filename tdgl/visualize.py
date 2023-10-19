@@ -39,6 +39,13 @@ def make_parser() -> argparse.ArgumentParser:
         help="Run in verbose mode.",
     )
     parser.add_argument(
+        "shading",
+        type=str,
+        choices=["flat", "gouraud"],
+        default="gouraud",
+        help="Shading method, see matplotlib.pyplot.tripcolor.",
+    )
+    parser.add_argument(
         "--dimensionless", action="store_true", help="Use dimensionless x-y units."
     )
     parser.add_argument(
@@ -128,6 +135,7 @@ def animate_tdgl(args: argparse.Namespace) -> None:
         input_file=args.input,
         output_file=args.output,
         logger=logger,
+        shading=args.shading,
         dpi=args.dpi,
         fps=args.fps,
         min_frame=args.min_frame,
@@ -150,6 +158,7 @@ def animate_tdgl(args: argparse.Namespace) -> None:
 def visualize_tdgl(args: argparse.Namespace) -> None:
     kwargs = dict(
         input_file=args.input,
+        shading=args.shading,
         dimensionless=args.dimensionless,
         axis_labels=args.axis_labels,
         logger=logger,
@@ -170,6 +179,7 @@ def monitor_tdgl(args: argparse.Namespace) -> None:
     h5path = os.path.join(dirname, fname)
     kwargs = dict(
         h5path=h5path,
+        shading=args.shading,
         autoscale=args.autoscale,
         dimensionless=args.dimensionless,
     )

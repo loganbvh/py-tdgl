@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Literal, Sequence, Union
 
 import h5py
 import matplotlib.pyplot as plt
@@ -14,6 +14,7 @@ from .io import get_plot_data
 def monitor_solution(
     h5path: str,
     quantities: Union[str, Sequence[str]] = DEFAULT_QUANTITIES,
+    shading: Literal["flat", "gouraud"] = "gouraud",
     max_cols: int = 4,
     dimensionless: bool = False,
     autoscale: bool = True,
@@ -25,6 +26,7 @@ def monitor_solution(
         h5path: Path to the temporary HDF5 file generated when running
             the solver with options.monitor=True
         quantities: The names of the quantities to animate
+        shading: Shading method, "flat" or "gouraud". See matplotlib.pyplot.tripcolor.
         dimensionless: Use dimensionless units for axes
         autoscale: Autoscale colorbar limits at each frame
     """
@@ -80,7 +82,7 @@ def monitor_solution(
                 y,
                 temp_value,
                 triangles=mesh.elements,
-                shading="gouraud",
+                shading=shading,
                 cmap=opts.cmap,
                 vmin=opts.vmin,
                 vmax=opts.vmax,
