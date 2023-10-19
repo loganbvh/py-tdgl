@@ -39,7 +39,7 @@ def make_parser() -> argparse.ArgumentParser:
         help="Run in verbose mode.",
     )
     parser.add_argument(
-        "shading",
+        "--shading",
         type=str,
         choices=["flat", "gouraud"],
         default="gouraud",
