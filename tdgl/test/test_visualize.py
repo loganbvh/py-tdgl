@@ -96,6 +96,8 @@ def test_animation(solution, quantities, ext, max_cols):
         full_title=False,
         dpi=200,
         fps=20,
+        axes_off=True,
+        shading="flat",
         max_cols=max_cols,
     )
     if quantities is None:
@@ -127,6 +129,9 @@ def test_animate_cli(solution, quantities, autoscale, dimensionless):
         [
             "--output",
             solution.path.replace(".h5", "-cli.gif"),
+            "--shading",
+            "flat",
+            "--axis-labels",
             "animate",
             "--min-frame",
             "2",

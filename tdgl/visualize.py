@@ -39,7 +39,20 @@ def make_parser() -> argparse.ArgumentParser:
         help="Run in verbose mode.",
     )
     parser.add_argument(
+        "--shading",
+        type=str,
+        choices=["flat", "gouraud"],
+        default="gouraud",
+        help="Shading method, see matplotlib.pyplot.tripcolor.",
+    )
+    parser.add_argument(
         "--dimensionless", action="store_true", help="Use dimensionless x-y units."
+    )
+    parser.add_argument(
+        "--xlim", type=float, nargs=2, default=None, help="x-axis limits"
+    )
+    parser.add_argument(
+        "--ylim", type=float, nargs=2, default=None, help="y-axis limits"
     )
     parser.add_argument(
         "--axis-labels", action="store_true", help="Add x-y axis labels."
@@ -128,12 +141,15 @@ def animate_tdgl(args: argparse.Namespace) -> None:
         input_file=args.input,
         output_file=args.output,
         logger=logger,
+        shading=args.shading,
         dpi=args.dpi,
         fps=args.fps,
         min_frame=args.min_frame,
         max_frame=args.max_frame,
         autoscale=args.autoscale,
         dimensionless=args.dimensionless,
+        xlim=args.xlim,
+        ylim=args.ylim,
         axis_labels=args.axis_labels,
         axes_off=args.axes_off,
         title_off=args.title_off,
@@ -150,7 +166,10 @@ def animate_tdgl(args: argparse.Namespace) -> None:
 def visualize_tdgl(args: argparse.Namespace) -> None:
     kwargs = dict(
         input_file=args.input,
+        shading=args.shading,
         dimensionless=args.dimensionless,
+        xlim=args.xlim,
+        ylim=args.ylim,
         axis_labels=args.axis_labels,
         logger=logger,
     )
@@ -170,6 +189,9 @@ def monitor_tdgl(args: argparse.Namespace) -> None:
     h5path = os.path.join(dirname, fname)
     kwargs = dict(
         h5path=h5path,
+        shading=args.shading,
+        xlim=args.xlim,
+        ylim=args.ylim,
         autoscale=args.autoscale,
         dimensionless=args.dimensionless,
     )

@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
@@ -14,10 +14,13 @@ from .io import get_plot_data
 def monitor_solution(
     h5path: str,
     quantities: Union[str, Sequence[str]] = DEFAULT_QUANTITIES,
+    shading: Literal["flat", "gouraud"] = "gouraud",
     max_cols: int = 4,
     dimensionless: bool = False,
+    xlim: Optional[Tuple[float, float]] = None,
+    ylim: Optional[Tuple[float, float]] = None,
     autoscale: bool = True,
-    figure_kwargs: Union[Dict[str, Any], None] = None,
+    figure_kwargs: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Plots the results of a simulation while it is running.
 
@@ -25,7 +28,10 @@ def monitor_solution(
         h5path: Path to the temporary HDF5 file generated when running
             the solver with options.monitor=True
         quantities: The names of the quantities to animate
+        shading: Shading method, "flat" or "gouraud". See matplotlib.pyplot.tripcolor.
         dimensionless: Use dimensionless units for axes
+        xlim: x-axis limits
+        ylim: y-axis limits
         autoscale: Autoscale colorbar limits at each frame
     """
 
@@ -74,13 +80,14 @@ def monitor_solution(
 
         collections = []
         for quantity, ax in zip(quantities, axes.flat):
+            ax: plt.Axes
             opts = PLOT_DEFAULTS[quantity]
             collection = ax.tripcolor(
                 x,
                 y,
                 temp_value,
                 triangles=mesh.elements,
-                shading="gouraud",
+                shading=shading,
                 cmap=opts.cmap,
                 vmin=opts.vmin,
                 vmax=opts.vmax,
@@ -92,6 +99,8 @@ def monitor_solution(
             ax.set_xlabel(f"$x$ [${units_str}$]")
             ax.set_ylabel(f"$y$ [${units_str}$]")
             collections.append(collection)
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
 
         vmins = [+np.inf for _ in quantities]
         vmaxs = [-np.inf for _ in quantities]
@@ -130,6 +139,9 @@ def monitor_solution(
                     vmax = max(abs(vmins[i]), abs(vmaxs[i]))
                     vmaxs[i] = vmax
                     vmins[i] = -vmax
+                if shading == "flat":
+                    # https://stackoverflow.com/questions/40492511/set-array-in-tripcolor-bug
+                    values = values[mesh.elements].mean(axis=1)
                 collection.set_array(values)
                 collection.set_clim(vmins[i], vmaxs[i])
             fig.canvas.draw_idle()

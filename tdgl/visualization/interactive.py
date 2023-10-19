@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Literal, Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
@@ -15,12 +15,18 @@ class InteractivePlot:
     def __init__(
         self,
         input_file: str,
+        shading: Literal["flat", "gouraud"] = "gouraud",
         dimensionless: bool = False,
+        xlim: Optional[Tuple[float, float]] = None,
+        ylim: Optional[Tuple[float, float]] = None,
         axis_labels: bool = False,
         logger: logging.Logger = None,
     ):
         self.input_file = input_file
+        self.shading = shading
         self.dimensionless = dimensionless
+        self.xlim = xlim
+        self.ylim = ylim
         self.axis_labels = axis_labels
         self.frame = 0
         self.quantity = Quantity.ORDER_PARAMETER
@@ -101,13 +107,16 @@ class InteractivePlot:
                 draw()
 
             def draw():
-                value, direction, limits = get_plot_data(
+                values, direction, limits = get_plot_data(
                     h5file, mesh, self.quantity, self.frame
                 )
                 state = get_state_string(h5file, self.frame, max_frame)
 
                 fig.suptitle(f"{self.quantity.value}\n{state}")
-                triplot.set_array(value)
+                if self.shading == "flat":
+                    # https://stackoverflow.com/questions/40492511/set-array-in-tripcolor-bug
+                    values = values[mesh.elements].mean(axis=1)
+                triplot.set_array(values)
                 triplot.set_clim(*limits)
                 triplot.set_cmap(PLOT_DEFAULTS[self.quantity].cmap)
                 cbar.set_label(PLOT_DEFAULTS[self.quantity].clabel)
@@ -122,10 +131,12 @@ class InteractivePlot:
             fig.subplots_adjust(top=0.8)
             fig.canvas.mpl_connect("key_press_event", on_keypress)
             triplot = ax.tripcolor(
-                x, y, temp_value, triangles=mesh.elements, shading="gouraud"
+                x, y, temp_value, triangles=mesh.elements, shading=self.shading
             )
             cbar = fig.colorbar(triplot)
             ax.set_aspect("equal")
+            ax.set_xlim(self.xlim)
+            ax.set_ylim(self.ylim)
             if self.axis_labels:
                 ax.set_xlabel(f"$x$ [${units_str}$]")
                 ax.set_ylabel(f"$y$ [${units_str}$]")
@@ -137,15 +148,21 @@ class MultiInteractivePlot:
     def __init__(
         self,
         input_file: str,
+        shading: Literal["flat", "gouraud"] = "gouraud",
         dimensionless: bool = False,
+        xlim: Optional[Tuple[float, float]] = None,
+        ylim: Optional[Tuple[float, float]] = None,
         axis_labels: bool = False,
         quantities: Sequence[str] = DEFAULT_QUANTITIES,
         max_cols: int = 4,
         logger: logging.Logger = None,
-        figure_kwargs: Union[Dict[str, Any], None] = None,
+        figure_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self.input_file = input_file
+        self.shading = shading
         self.dimensionless = dimensionless
+        self.xlim = xlim
+        self.ylim = ylim
         self.axis_labels = axis_labels
         self.frame = 0
         if quantities is None:
@@ -218,10 +235,13 @@ class MultiInteractivePlot:
                 for i, (quantity, collection) in enumerate(
                     zip(self.quantities, collections)
                 ):
-                    value, direction, limits = get_plot_data(
+                    values, direction, limits = get_plot_data(
                         h5file, mesh, quantity, self.frame
                     )
-                    collection.set_array(value)
+                    if self.shading == "flat":
+                        # https://stackoverflow.com/questions/40492511/set-array-in-tripcolor-bug
+                        values = values[mesh.elements].mean(axis=1)
+                    collection.set_array(values)
                     vmins[i] = min(vmins[i], limits[0])
                     vmaxs[i] = max(vmaxs[i], limits[1])
                     collection.set_clim(vmins[i], vmaxs[i])
@@ -239,13 +259,14 @@ class MultiInteractivePlot:
 
             collections = []
             for quantity, ax in zip(self.quantities, axes.flat):
+                ax: plt.Axes
                 opts = PLOT_DEFAULTS[quantity]
                 collection = ax.tripcolor(
                     x,
                     y,
                     temp_value,
                     triangles=mesh.elements,
-                    shading="gouraud",
+                    shading=self.shading,
                     cmap=opts.cmap,
                 )
                 cbar = fig.colorbar(collection, ax=ax)
@@ -253,6 +274,8 @@ class MultiInteractivePlot:
                 ax.set_aspect("equal")
                 ax.set_title(quantity.value)
                 collections.append(collection)
+                ax.set_xlim(self.xlim)
+                ax.set_ylim(self.ylim)
                 if self.axis_labels:
                     ax.set_xlabel(f"$x$ [${units_str}$]")
                     ax.set_ylabel(f"$y$ [${units_str}$]")
