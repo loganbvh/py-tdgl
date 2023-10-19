@@ -2,7 +2,7 @@ import logging
 import os
 from contextlib import nullcontext
 from logging import Logger
-from typing import Any, Dict, Literal, Sequence, Union
+from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
 import h5py
 import numpy as np
@@ -19,7 +19,7 @@ from .io import get_plot_data, get_state_string
 def create_animation(
     input_file: Union[str, h5py.File],
     *,
-    output_file: Union[str, None] = None,
+    output_file: Optional[str] = None,
     quantities: Union[str, Sequence[str]] = DEFAULT_QUANTITIES,
     shading: Literal["flat", "gouraud"] = "gouraud",
     fps: int = 30,
@@ -28,14 +28,15 @@ def create_animation(
     min_frame: int = 0,
     max_frame: int = -1,
     autoscale: bool = False,
-    quiver: bool = False,
     dimensionless: bool = False,
+    xlim: Optional[Tuple[float, float]] = None,
+    ylim: Optional[Tuple[float, float]] = None,
     axis_labels: bool = False,
     axes_off: bool = False,
     title_off: bool = False,
     full_title: bool = True,
-    logger: Union[Logger, None] = None,
-    figure_kwargs: Union[Dict[str, Any], None] = None,
+    logger: Optional[Logger] = None,
+    figure_kwargs: Optional[Dict[str, Any]] = None,
     writer: Union[str, animation.MovieWriter, None] = None,
 ) -> animation.FuncAnimation:
     """Generates, and optionally saves, and animation of a TDGL simulation.
@@ -55,8 +56,9 @@ def create_animation(
         min_frame: The first frame of the animation.
         max_frame: The last frame of the animation.
         autoscale: Autoscale colorbar limits at each frame.
-        quiver: Add quiver arrows to the plots.
         dimensionless: Use dimensionless units for axes
+        xlim: x-axis limits
+        ylim: y-axis limits
         axes_off: Turn off the axes for each subplot.
         title_off: Turn off the figure suptitle.
         full_title: Include the full "state" for each frame in the figure suptitle.
@@ -122,6 +124,7 @@ def create_animation(
             fig, axes = auto_grid(num_plots, max_cols=max_cols, **figure_kwargs)
             collections = []
             for quantity, ax in zip(quantities, axes.flat):
+                ax: plt.Axes
                 opts = PLOT_DEFAULTS[quantity]
                 collection = ax.tripcolor(
                     x,
@@ -133,19 +136,12 @@ def create_animation(
                     vmin=opts.vmin,
                     vmax=opts.vmax,
                 )
-                if quiver:
-                    quiver = ax.quiver(
-                        x,
-                        y,
-                        temp_value,
-                        temp_value,
-                        scale=0.05,
-                        units="dots",
-                    )
                 cbar = fig.colorbar(collection, ax=ax)
                 cbar.set_label(opts.clabel)
                 ax.set_aspect("equal")
                 ax.set_title(quantity.value)
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
                 if axes_off:
                     ax.axis("off")
                 if axis_labels:
@@ -189,10 +185,11 @@ def create_animation(
                         vmax = max(abs(vmins[i]), abs(vmaxs[i]))
                         vmaxs[i] = vmax
                         vmins[i] = -vmax
+                    if shading == "flat":
+                        # https://stackoverflow.com/questions/40492511/set-array-in-tripcolor-bug
+                        values = values[mesh.elements].mean(axis=1)
                     collection.set_array(values)
                     collection.set_clim(vmins[i], vmaxs[i])
-                if quiver:
-                    quiver.set_UVC(direction[:, 0], direction[:, 1])
                 fig.canvas.draw()
 
             anim = animation.FuncAnimation(

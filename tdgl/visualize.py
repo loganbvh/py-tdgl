@@ -49,6 +49,12 @@ def make_parser() -> argparse.ArgumentParser:
         "--dimensionless", action="store_true", help="Use dimensionless x-y units."
     )
     parser.add_argument(
+        "--xlim", type=float, nargs=2, default=None, help="x-axis limits"
+    )
+    parser.add_argument(
+        "--ylim", type=float, nargs=2, default=None, help="y-axis limits"
+    )
+    parser.add_argument(
         "--axis-labels", action="store_true", help="Add x-y axis labels."
     )
     parser.add_argument(
@@ -142,6 +148,8 @@ def animate_tdgl(args: argparse.Namespace) -> None:
         max_frame=args.max_frame,
         autoscale=args.autoscale,
         dimensionless=args.dimensionless,
+        xlim=args.xlim,
+        ylim=args.ylim,
         axis_labels=args.axis_labels,
         axes_off=args.axes_off,
         title_off=args.title_off,
@@ -160,6 +168,8 @@ def visualize_tdgl(args: argparse.Namespace) -> None:
         input_file=args.input,
         shading=args.shading,
         dimensionless=args.dimensionless,
+        xlim=args.xlim,
+        ylim=args.ylim,
         axis_labels=args.axis_labels,
         logger=logger,
     )
@@ -180,6 +190,8 @@ def monitor_tdgl(args: argparse.Namespace) -> None:
     kwargs = dict(
         h5path=h5path,
         shading=args.shading,
+        xlim=args.xlim,
+        ylim=args.ylim,
         autoscale=args.autoscale,
         dimensionless=args.dimensionless,
     )
