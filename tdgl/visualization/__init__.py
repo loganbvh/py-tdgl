@@ -10,3 +10,4 @@ from .convert import convert_to_xdmf
 from .interactive import InteractivePlot, MultiInteractivePlot
 from .io import get_plot_data, get_state_string
 from .monitor import monitor_solution
+from .snapshot import generate_snapshots
