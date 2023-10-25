@@ -446,8 +446,17 @@ class DynamicsData:
     def from_solution(
         solution_path: str,
         probe_points: Optional[Sequence[Tuple[float, float]]] = None,
-        progress_bar: bool = True,
     ) -> "DynamicsData":
+        """Load :class:`DynamicsData` from the saved time steps of a :class:`tdgl.Solution`.
+
+        Args:
+            solution_path: Path to the :class:`tdgl.Solution`
+            probe_points: The probe coordinates for which to extract dynamics.
+                If ``None``, defaults to ``solution.device.probe_points``.
+
+        Returns:
+            A new :class:`DynamicsData` instance
+        """
         from .solution import Solution
 
         solution = Solution.from_hdf5(solution_path)
@@ -476,11 +485,7 @@ class DynamicsData:
         thetas = np.zeros((num_probes, num_steps))
 
         with h5py.File(solution_path, "r") as h5file:
-            for i in tqdm(
-                range(step_min, step_max + 1),
-                desc="Time steps",
-                disable=(not progress_bar),
-            ):
+            for i in range(step_min, step_max + 1):
                 grp = h5file[f"data/{i}"]
                 times[i] = float(grp.attrs["time"])
                 mus[:, i] = np.array(grp["mu"])[probe_point_indices]
