@@ -442,6 +442,52 @@ class DynamicsData:
         if self.screening_iterations is not None:
             h5group["screening_iterations"] = self.screening_iterations
 
+    @staticmethod
+    def from_solution(
+        solution_path: str,
+        probe_points: Optional[Sequence[Tuple[float, float]]] = None,
+        progress_bar: bool = True,
+    ) -> "DynamicsData":
+        from .solution import Solution
+
+        solution = Solution.from_hdf5(solution_path)
+        device = solution.device
+        mesh = device.mesh
+        if probe_points is None:
+            probe_points = device.probe_points
+        if probe_points is None:
+            raise ValueError("No probe points were provided.")
+        probe_points = np.asarray(probe_points).squeeze()
+        if probe_points.ndim != 2 or probe_points.shape[1] != 2:
+            raise ValueError(
+                f"Probe points must have shape (n, 2), got {probe_points.shape}."
+            )
+        if not device.contains_points(probe_points).all():
+            raise ValueError("All probe points must lie within the film.")
+
+        xi = device.coherence_length.magnitude
+        probe_point_indices = [mesh.closest_site(xy) for xy in probe_points / xi]
+        step_min, step_max = solution.data_range
+
+        num_probes = len(probe_points)
+        num_steps = step_max - step_min + 1
+        times = np.zeros(num_steps)
+        mus = np.zeros((num_probes, num_steps))
+        thetas = np.zeros((num_probes, num_steps))
+
+        with h5py.File(solution_path, "r") as h5file:
+            for i in tqdm(
+                range(step_min, step_max + 1),
+                desc="Time steps",
+                disable=(not progress_bar),
+            ):
+                grp = h5file[f"data/{i}"]
+                times[i] = float(grp.attrs["time"])
+                mus[:, i] = np.array(grp["mu"])[probe_point_indices]
+                thetas[:, i] = np.angle(np.array(grp["psi"]))[probe_point_indices]
+
+        return DynamicsData(dt=np.diff(times), mu=mus, theta=thetas)
+
     def __eq__(self, other: Any) -> bool:
         return dataclass_equals(self, other)
 
