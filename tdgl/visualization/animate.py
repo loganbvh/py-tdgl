@@ -41,8 +41,6 @@ def create_animation(
 ) -> animation.FuncAnimation:
     """Generates, and optionally saves, and animation of a TDGL simulation.
 
-    The animation will be in dimensionless units.
-
     Args:
         input_file: An open h5py file or a path to an H5 file containing
             the :class:`tdgl.Solution` you would like to animate.
