@@ -132,6 +132,8 @@ def test_animate_cli(solution, quantities, autoscale, dimensionless):
             "--shading",
             "flat",
             "--axis-labels",
+            "--dpi",
+            "200",
             "animate",
             "--min-frame",
             "2",
@@ -139,9 +141,46 @@ def test_animate_cli(solution, quantities, autoscale, dimensionless):
             "-1",
             "--fps",
             "30",
+        ]
+    )
+
+    if quantities is not None:
+        cmd.extend(["--quantities"] + quantities.split(" "))
+    args = parser.parse_args(cmd)
+    with tdgl.non_gui_backend():
+        tdgl.visualize.main(args)
+        plt.close("all")
+
+
+@pytest.mark.parametrize(
+    "quantities",
+    [
+        "all",
+        # None,
+        # "order_parameter phase vorticity supercurrent",
+    ],
+)
+@pytest.mark.parametrize("autoscale", [True, False])
+@pytest.mark.parametrize("dimensionless", [True, False])
+def test_snapshot_cli(solution, quantities, autoscale, dimensionless):
+    parser = visualize.make_parser()
+    cmd = ["--input", solution.path]
+    if dimensionless:
+        cmd.append("--dimensionless")
+    if autoscale:
+        cmd.append("--autoscale")
+    cmd.append("--axis-labels")
+    cmd.extend(
+        [
+            "--shading",
+            "flat",
+            "--axis-labels",
             "--dpi",
             "200",
+            "snapshot",
+            "--times",
         ]
+        + "1 2 5 10".split(" ")
     )
 
     if quantities is not None:

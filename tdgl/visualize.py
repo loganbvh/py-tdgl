@@ -9,6 +9,7 @@ from .visualization import (
     Quantity,
     convert_to_xdmf,
     create_animation,
+    generate_snapshots,
     monitor_solution,
 )
 
@@ -21,10 +22,7 @@ def make_parser() -> argparse.ArgumentParser:
         type=lambda s: str(s).upper(),
         choices=Quantity.get_keys() + ["ALL"],
         nargs="*",
-        help=(
-            "Name(s) of the quantities to show. Because 'quantities' takes a "
-            "variable number of arguments, it must be the last argument provided."
-        ),
+        help="Name(s) of the quantities to show.",
     )
 
     parser = argparse.ArgumentParser(description="Visualize TDGL simulation data.")
@@ -68,11 +66,19 @@ def make_parser() -> argparse.ArgumentParser:
         help="Turn the axes off.",
     )
     parser.add_argument(
+        "--title-off",
+        action="store_true",
+        help="Turn figure title off.",
+    )
+    parser.add_argument(
         "--figsize",
         type=float,
         nargs=2,
         default=None,
         help="Figure size (width, height) in inches.",
+    )
+    parser.add_argument(
+        "-d", "--dpi", type=float, default=200, help="Resolution in dots per inch."
     )
 
     subparsers = parser.add_subparsers()
@@ -92,9 +98,6 @@ def make_parser() -> argparse.ArgumentParser:
         "-f", "--fps", type=int, default=30, help="Frame rate of the animation."
     )
     animate_parser.add_argument(
-        "-d", "--dpi", type=float, default=200, help="Resolution in dots per inch."
-    )
-    animate_parser.add_argument(
         "--min-frame",
         type=int,
         default=0,
@@ -105,11 +108,6 @@ def make_parser() -> argparse.ArgumentParser:
         type=int,
         default=-1,
         help="The last frame to render (-1 indicates the last step in the simulation).",
-    )
-    animate_parser.add_argument(
-        "--title-off",
-        action="store_true",
-        help="Turn figure title off.",
     )
     animate_parser.add_argument(*quantities_args, **quantities_kwargs)
     animate_parser.set_defaults(func=animate_tdgl)
@@ -132,6 +130,20 @@ def make_parser() -> argparse.ArgumentParser:
         help="Data format into which to convert the Solution.",
     )
     convert_parser.set_defaults(func=convert_tdgl)
+
+    # Generate snapshots
+    snap_parser = subparsers.add_parser(
+        "snapshot", help="Generate snapshots of a Solution."
+    )
+    snap_parser.add_argument(
+        "-t",
+        "--times",
+        type=float,
+        nargs="+",
+        help="The time(s) at which to generate a snapshot.",
+    )
+    snap_parser.add_argument(*quantities_args, **quantities_kwargs)
+    snap_parser.set_defaults(func=snapshot_tdgl)
 
     return parser
 
@@ -213,6 +225,38 @@ def convert_tdgl(args: argparse.Namespace) -> None:
         xdmf_path=args.output,
         dimensionless=args.dimensionless,
     )
+
+
+def snapshot_tdgl(args: argparse.Namespace) -> None:
+    if args.output is not None:
+        logger.warning("Argument --output is ignored by the snapshot command.")
+    dirname = os.path.dirname(args.input)
+    basename = os.path.basename(args.input)
+    name, _ = os.path.splitext(basename)
+    output_file = os.path.join(dirname, f"{name}_[t={{time:.0f}}].png")
+
+    kwargs = dict(
+        input_path=args.input,
+        times=args.times,
+        shading=args.shading,
+        autoscale=args.autoscale,
+        dimensionless=args.dimensionless,
+        xlim=args.xlim,
+        ylim=args.ylim,
+        axis_labels=args.axis_labels,
+        axes_off=args.axes_off,
+        title_off=args.title_off,
+    )
+    if args.figsize is not None:
+        kwargs["figure_kwargs"] = dict(figsize=args.figsize)
+    if args.quantities is None or "ALL" in args.quantities:
+        kwargs["quantities"] = DEFAULT_QUANTITIES
+    else:
+        kwargs["quantities"] = args.quantities
+
+    figures = generate_snapshots(**kwargs)
+    for time, (fig, axes) in zip(args.times, figures):
+        fig.savefig(output_file.format(time=time), dpi=args.dpi, bbox_inches="tight")
 
 
 def main(args: argparse.Namespace) -> None:
