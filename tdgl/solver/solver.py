@@ -1,3 +1,4 @@
+import inspect
 import itertools
 import logging
 import math
@@ -67,8 +68,10 @@ class SolverResult(NamedTuple):
     supercurrent: The supercurrent density
     normal_current: The normal current density
     A_induced: The induced vector potential
-    A_applied: The applied vector potential. This will be ``None``
-        in the case of a time-independent vector potential.
+    A_applied: The applied vector potential. This will be ``None`` in the case of
+        a time-independent vector potential.
+    epsilon: The disorder parameter, ``epsilon``. This will be ``None`` in the case of
+        a time-independent ``epsilon``.
     """
 
     dt: float
@@ -78,6 +81,7 @@ class SolverResult(NamedTuple):
     normal_current: np.ndarray
     A_induced: np.ndarray
     A_applied: Optional[np.ndarray] = None
+    epsilon: Optional[np.ndarray] = None
 
 
 class TDGLSolver:
@@ -94,15 +98,16 @@ class TDGLSolver:
             the applied vector potential as a function of position ``(x, y, z)``,
             or of position and time ``(x, y, z, *, t)``. If a float ``B`` is given,
             the applied vector potential will be that of a uniform magnetic field with
-            strength ``B`` ``field_units``.
+            strength ``B`` ``field_units``. If the applied vector potential is time-dependent,
+            this argument must be a :class:`tdgl.Parameter`.
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units`` and ``time`` is the dimensionless time.
-        disorder_epsilon: A float in range [-1, 1], or a callable with signature
-            ``disorder_epsilon(r: Tuple[float, float]) -> epsilon``, where ``epsilon``
-            is a float in range [-1, 1]. Setting
-            :math:`\\epsilon(\\mathbf{r})=T_c(\\mathbf{r})/T_c - 1 < 1` suppresses the
-            critical temperature at position :math:`\\mathbf{r}`, which can be used
+        disorder_epsilon: A float in range [-1, 1], or a function that returns
+            :math:`\\epsilon\\in[-1, 1]` as a function of position ``r=(x, y)`` or
+            position and time ``(x, y, *, t)``.
+            Setting :math:`\\epsilon(\\mathbf{r}, t)=T_c/T - 1 < 1` suppresses the
+            order parameter at position :math:`\\mathbf{r}=(x, y)`, which can be used
             to model inhomogeneity.
         seed_solution: A :class:`tdgl.Solution` instance to use as the initial state
             for the simulation.
@@ -112,16 +117,15 @@ class TDGLSolver:
         self,
         device: Device,
         options: SolverOptions,
-        applied_vector_potential: Union[Callable, float] = 0,
+        applied_vector_potential: Union[Callable, float] = 0.0,
         terminal_currents: Union[Callable, Dict[str, float], None] = None,
-        disorder_epsilon: Union[float, Callable] = 1,
+        disorder_epsilon: Union[Callable, float] = 1.0,
         seed_solution: Optional[Solution] = None,
     ):
         self.device = device
         self.options = options
         self.options.validate()
         self.terminal_currents = terminal_currents
-        self.disorder_epsilon = disorder_epsilon
         self.seed_solution = seed_solution
 
         if self.options.gpu:
@@ -156,7 +160,7 @@ class TDGLSolver:
         self.edge_centers = xi * mesh.edge_mesh.centers
         self.z0 = device.layer.z0 * np.ones(len(self.edge_centers), dtype=float)
 
-        self.time_dependent_vector_potential = (
+        self.dynamic_vector_potential = (
             isinstance(applied_vector_potential, Parameter)
             and applied_vector_potential.time_dependent
         )
@@ -173,7 +177,7 @@ class TDGLSolver:
             .to_base_units()
             .magnitude
         )
-        A_kwargs = dict(t=0) if self.time_dependent_vector_potential else dict()
+        A_kwargs = dict(t=0) if self.dynamic_vector_potential else dict()
         current_A_applied = self.applied_vector_potential(
             self.edge_centers[:, 0], self.edge_centers[:, 1], self.z0, **A_kwargs
         )
@@ -182,6 +186,30 @@ class TDGLSolver:
             raise ValueError(
                 f"Unexpected shape for vector_potential: {current_A_applied.shape}."
             )
+
+        # Create the epsilon parameter, which sets the local critical temperature.
+        if callable(disorder_epsilon):
+            argspec = inspect.getfullargspec(disorder_epsilon)
+            self.dynamic_epsilon = "t" in argspec.kwonlyargs
+            self.vectorized_epsilon = argspec.kwonlydefaults.get("vectorized", False)
+        else:
+            # epsilon constant as a function of both position and time
+            _disorder_epsilon = disorder_epsilon
+
+            def disorder_epsilon(r):
+                return _disorder_epsilon * np.ones(len(r), dtype=float)
+
+            self.vectorized_epsilon = True
+            self.dynamic_epsilon = False
+
+        self.disorder_epsilon = disorder_epsilon
+        kw = dict(t=0) if self.dynamic_epsilon else dict()
+        if self.vectorized_epsilon:
+            epsilon = disorder_epsilon(self.sites, **kw)
+        else:
+            epsilon = np.array([float(disorder_epsilon(r, **kw)) for r in self.sites])
+        if np.any(epsilon < -1) or np.any(epsilon > 1):
+            raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
 
         # Find the current terminal sites.
         self.terminal_info = device.terminal_info()
@@ -249,13 +277,7 @@ class TDGLSolver:
             psi_init[normal_boundary_index] = terminal_psi
         mu_init = np.zeros(len(mesh.sites))
         mu_boundary = np.zeros_like(mesh.edge_mesh.boundary_edge_indices, dtype=float)
-        # Create the epsilon parameter, which sets the local critical temperature.
-        if callable(disorder_epsilon):
-            epsilon = np.array([float(disorder_epsilon(r)) for r in self.sites])
-        else:
-            epsilon = disorder_epsilon * np.ones(len(self.sites), dtype=float)
-        if np.any(epsilon < -1) or np.any(epsilon > 1):
-            raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
+
         if self.use_cupy:
             epsilon = cupy.asarray(epsilon)
             mu_boundary = cupy.asarray(mu_boundary)
@@ -313,7 +335,7 @@ class TDGLSolver:
                 self.mu_boundary[terminal.boundary_edge_indices] = current_density
 
     def update_applied_vector_potential(self, time: float) -> np.ndarray:
-        """Evaluates the time-dependent vector potential and its time-derivative.
+        """Evaluates the time-dependent vector potential.
 
         Args:
             time: The current value of the dimensionless time.
@@ -328,6 +350,23 @@ class TDGLSolver:
         if self.use_cupy:
             A_applied = cupy.asarray(A_applied)
         return A_applied
+
+    def update_epsilon(self, time: float) -> np.ndarray:
+        """Evaluates the time-dependent disorder parameter :math:`\\epsilon`.
+
+        Args:
+            time: The current value of the dimensionless time.
+
+        Returns:
+            The new value of :math:`\\epsilon`
+        """
+        if self.vectorized_epsilon:
+            epsilon = self.disorder_epsilon(self.sites, t=time)
+        else:
+            epsilon = np.array(
+                [float(self.disorder_epsilon(r, t=time)) for r in self.sites]
+            )
+        return epsilon
 
     @staticmethod
     def solve_for_psi_squared(
@@ -393,6 +432,7 @@ class TDGLSolver:
         psi: np.ndarray,
         abs_sq_psi: np.ndarray,
         mu: np.ndarray,
+        epsilon: np.ndarray,
         dt: float,
     ) -> Tuple[np.ndarray, np.ndarray, float]:
         """Updates the order parameter and time step in an adaptive Euler step.
@@ -402,6 +442,7 @@ class TDGLSolver:
             psi: The current value of the order parameter, :math:`\\psi^n`
             abs_sq_psi: The current value of the superfluid density, :math:`|\\psi^n|^2`
             mu: The current value of the electric potential, :math:`\\mu^n`
+            epsilon: The disorder parameter :math:`\\epsilon^n`
             dt: The tentative time step, which will be updated
 
         Returns:
@@ -412,7 +453,7 @@ class TDGLSolver:
             psi=psi,
             abs_sq_psi=abs_sq_psi,
             mu=mu,
-            epsilon=self.epsilon,
+            epsilon=epsilon,
             gamma=self.gamma,
             u=self.u,
             dt=dt,
@@ -536,6 +577,7 @@ class TDGLSolver:
         normal_current: np.ndarray,
         induced_vector_potential: np.ndarray,
         applied_vector_potential: Optional[np.ndarray] = None,
+        epsilon: Optional[np.ndarray] = None,
     ) -> SolverResult:
         """This method is called at each time step to update the state of the system.
 
@@ -550,6 +592,8 @@ class TDGLSolver:
             induced_vector_potential: The induced vector potential
             applied_vector_potential: The applied vector potential. This will be ``None``
                 in the case of a time-independent vector potential.
+            epsilon: The disorder parameter ``epsilon``. This will be ``None``
+                in the case of a time-independent ``epsilon``.
 
         Returns:
             A :class:`tdgl.SolverResult` instance for the solve step.
@@ -569,7 +613,7 @@ class TDGLSolver:
         # Update the applied vector potential.
         dA_dt = 0.0
         current_A_applied = self.current_A_applied
-        if self.time_dependent_vector_potential:
+        if self.dynamic_vector_potential:
             current_A_applied = self.update_applied_vector_potential(time)
             dA_dt = xp.einsum(
                 "ij, ij -> i",
@@ -584,6 +628,11 @@ class TDGLSolver:
             assert A_applied is None
             prev_A_applied = A_applied = current_A_applied
         self.current_A_applied = current_A_applied
+
+        # Update the value of epsilon
+        epsilon = self.epsilon
+        if self.dynamic_epsilon:
+            epsilon = self.epsilon = self.update_epsilon(time)
 
         old_sq_psi = xp.absolute(psi) ** 2
         screening_error = np.inf
@@ -613,7 +662,7 @@ class TDGLSolver:
 
             # Update the order parameter using an adaptive time step
             psi, abs_sq_psi, dt = self.adaptive_euler_step(
-                step, psi, old_sq_psi, mu, dt
+                step, psi, old_sq_psi, mu, epsilon, dt
             )
             # Update the scalar potential, supercurrent density, and normal current density
             mu, supercurrent, normal_current = self.solve_for_observables(psi, dA_dt)
@@ -646,8 +695,10 @@ class TDGLSolver:
                 self.tentative_dt = np.clip(0.5 * (new_dt + dt), 0, self.dt_max)
 
         results = [dt, psi, mu, supercurrent, normal_current, A_induced]
-        if self.time_dependent_vector_potential:
+        if self.dynamic_vector_potential:
             results.append(current_A_applied)
+        if self.dynamic_epsilon:
+            results.append(epsilon)
         return SolverResult(*results)
 
     def solve(self) -> Optional[Solution]:
@@ -688,13 +739,18 @@ class TDGLSolver:
                 "induced_vector_potential": seed_data.induced_vector_potential,
             }
 
-        if self.time_dependent_vector_potential:
+        fixed_values = []
+        fixed_names = []
+        if self.dynamic_vector_potential:
             parameters["applied_vector_potential"] = self.current_A_applied
-            fixed_values = (self.epsilon,)
-            fixed_names = ("epsilon",)
         else:
-            fixed_values = (self.current_A_applied, self.epsilon)
-            fixed_names = ("applied_vector_potential", "epsilon")
+            fixed_values.append(self.current_A_applied)
+            fixed_names.append("applied_vector_potential")
+        if self.dynamic_epsilon:
+            parameters["epsilon"] = self.epsilon
+        else:
+            fixed_values.append(self.epsilon)
+            fixed_names.append("epsilon")
 
         if self.use_cupy:
             # Move arrays to the GPU
@@ -727,8 +783,8 @@ class TDGLSolver:
                 monitor=options.monitor,
                 initial_values=list(parameters.values()),
                 names=list(parameters),
-                fixed_values=fixed_values,
-                fixed_names=fixed_names,
+                fixed_values=tuple(fixed_values),
+                fixed_names=tuple(fixed_names),
                 running_names_and_sizes=running_names_and_sizes,
                 logger=logger,
             )
