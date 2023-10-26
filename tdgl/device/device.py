@@ -71,7 +71,7 @@ class Device:
         film: Polygon,
         holes: Union[List[Polygon], None] = None,
         terminals: Union[List[Polygon], None] = None,
-        probe_points: Sequence[float] = None,
+        probe_points: Optional[Sequence[Tuple[float, float]]] = None,
         length_units: str = "um",
     ):
         self.name = name
