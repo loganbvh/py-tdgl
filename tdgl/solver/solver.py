@@ -191,7 +191,10 @@ class TDGLSolver:
         if callable(disorder_epsilon):
             argspec = inspect.getfullargspec(disorder_epsilon)
             self.dynamic_epsilon = "t" in argspec.kwonlyargs
-            self.vectorized_epsilon = argspec.kwonlydefaults.get("vectorized", False)
+            self.vectorized_epsilon = (
+                argspec.kwonlydefaults is not None
+                and argspec.kwonlydefaults.get("vectorized", False)
+            )
         else:
             # epsilon constant as a function of both position and time
             _disorder_epsilon = disorder_epsilon
