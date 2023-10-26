@@ -121,9 +121,9 @@ def test_dynamics(solution: tdgl.Solution):
     assert len(time) == (solution.data_range[1] + 1)
     assert solution.closest_solve_step(0) == 0
 
-    _ = DynamicsData.from_solution(solution.path, probe_points=None)
+    _ = DynamicsData.from_solution(solution.path, probe_points=None, progress_bar=True)
     _ = DynamicsData.from_solution(
-        solution.path, probe_points=solution.device.probe_points
+        solution.path, probe_points=solution.device.probe_points, progress_bar=False
     )
 
 
