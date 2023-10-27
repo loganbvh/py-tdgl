@@ -369,6 +369,8 @@ class TDGLSolver:
             epsilon = np.array(
                 [float(self.disorder_epsilon(r, t=time)) for r in self.sites]
             )
+        if self.use_cupy:
+            epsilon = cupy.asarray(epsilon)
         return epsilon
 
     @staticmethod
