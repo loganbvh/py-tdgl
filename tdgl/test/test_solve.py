@@ -16,7 +16,7 @@ from tdgl.solver.options import SolverOptionsError
 @pytest.mark.parametrize("field", [0, 1])
 @pytest.mark.parametrize(
     "terminal_psi, time_dependent, gpu, vectorized",
-    [(0, False, True, True), (1, False, False, False), (1, True, True, True)],
+    [(0, True, False, True), (1, False, False, False), (1, True, True, True)],
 )
 def test_source_drain_current(
     transport_device,
