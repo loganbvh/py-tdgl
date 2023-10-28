@@ -120,6 +120,7 @@ def monitor_solution(
             step = np.array(grp["step"])[0]
             nonlocal prev_step
             if step == prev_step:
+                fig.canvas.start_event_loop(update_interval)
                 return
             prev_step = step
             time = np.array(grp["time"])[0]
