@@ -30,6 +30,7 @@ def get_plot_data(
     tdgl_data = TDGLData.from_hdf5(h5file, frame)
     psi = tdgl_data.psi
     mu = tdgl_data.mu
+    epsilon = tdgl_data.epsilon
     a_applied = tdgl_data.applied_vector_potential
     a_induced = tdgl_data.induced_vector_potential
     supercurrent = tdgl_data.supercurrent
@@ -63,10 +64,6 @@ def get_plot_data(
         )
 
     elif quantity is Quantity.EPSILON:
-        if "epsilon" in h5file:
-            epsilon = np.asarray(h5file["epsilon"])
-        else:
-            epsilon = np.ones_like(mu)
         return epsilon, np.zeros((nsites, 2)), [np.min(epsilon), np.max(epsilon)]
 
     elif (
