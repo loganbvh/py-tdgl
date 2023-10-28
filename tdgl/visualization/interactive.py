@@ -178,6 +178,8 @@ class MultiInteractivePlot:
             3 * max(1, self.num_plots // self.max_cols),
         )
         self.figure_kwargs.setdefault("figsize", default_figsize)
+        self.figure_kwargs.setdefault("sharex", True)
+        self.figure_kwargs.setdefault("sharey", True)
 
     def show(self):
         with h5py.File(self.input_file, "r") as h5file:

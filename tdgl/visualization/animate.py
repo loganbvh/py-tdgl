@@ -85,6 +85,8 @@ def create_animation(
         2.5 * max(1, num_plots // max_cols),
     )
     figure_kwargs.setdefault("figsize", default_figsize)
+    figure_kwargs.setdefault("sharex", True)
+    figure_kwargs.setdefault("sharey", True)
 
     logger.info(f"Creating animation for {[obs.name for obs in quantities]!r}.")
 

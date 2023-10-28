@@ -52,6 +52,7 @@ class SolverOptions:
         save_every: Save interval in units of solve steps.
         progress_interval: Minimum number of solve steps between progress bar updates.
         monitor: Plot data in real time as the simulation is running.
+        monitor_update_interval: The monitor update interval in seconds.
         include_screening: Whether to include screening in the simulation.
         max_iterations_per_step: The maximum number of screening iterations per solve
             step.
@@ -78,6 +79,7 @@ class SolverOptions:
     save_every: int = 100
     progress_interval: int = 0
     monitor: bool = False
+    monitor_update_interval: float = 1.0
     field_units: str = "mT"
     current_units: str = "uA"
     include_screening: bool = False
