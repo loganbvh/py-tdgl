@@ -108,7 +108,7 @@ def monitor_solution(
 
         fig.suptitle("Step: 0")
         fig.canvas.draw_idle()
-        fig.canvas.start_event_loop(update_interval)
+        fig.canvas.start_event_loop(1e-3)
 
         vmins = [+np.inf for _ in quantities]
         vmaxs = [-np.inf for _ in quantities]
