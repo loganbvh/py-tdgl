@@ -15,8 +15,8 @@ from tdgl.solver.options import SolverOptionsError
 @pytest.mark.parametrize("current", [5.0, lambda t: 10])
 @pytest.mark.parametrize("field", [0, 1])
 @pytest.mark.parametrize(
-    "terminal_psi, time_dependent, gpu",
-    [(0, False, True), (1, False, False), (1, True, True)],
+    "terminal_psi, time_dependent, gpu, vectorized",
+    [(0, True, False, True), (1, False, False, False), (1, True, True, True)],
 )
 def test_source_drain_current(
     transport_device,
@@ -25,6 +25,7 @@ def test_source_drain_current(
     terminal_psi,
     time_dependent,
     gpu,
+    vectorized,
 ):
     device = transport_device
     total_time = 10
@@ -76,6 +77,17 @@ def test_source_drain_current(
             applied_vector_potential=field,
             terminal_currents=terminal_currents,
         )
+
+    if vectorized:
+
+        def disorder_epsilon(r):
+            return 1.0 * np.ones(len(r))
+
+    else:
+
+        def disorder_epsilon(r):
+            return 1.0
+
     if time_dependent:
         ramp = tdgl.sources.LinearRamp(tmin=1, tmax=8)
         constant_field = tdgl.sources.ConstantField(
@@ -85,10 +97,16 @@ def test_source_drain_current(
         )
         field = ramp * constant_field
         field = constant_field * ramp
+
+        _disorder_epsilon = disorder_epsilon
+
+        def disorder_epsilon(r, *, t, vectorized=vectorized):
+            return _disorder_epsilon(r)
+
     solution = tdgl.solve(
         device,
         options,
-        disorder_epsilon=lambda r: 1,
+        disorder_epsilon=disorder_epsilon,
         applied_vector_potential=field,
         terminal_currents=terminal_currents,
     )
