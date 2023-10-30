@@ -14,6 +14,7 @@ from .io import get_plot_data
 def monitor_solution(
     h5path: str,
     quantities: Union[str, Sequence[str]] = DEFAULT_QUANTITIES,
+    update_interval: float = 1.0,
     shading: Literal["flat", "gouraud"] = "gouraud",
     max_cols: int = 4,
     dimensionless: bool = False,
@@ -28,6 +29,7 @@ def monitor_solution(
         h5path: Path to the temporary HDF5 file generated when running
             the solver with options.monitor=True
         quantities: The names of the quantities to animate
+        update_interval: The update interval in seconds
         shading: Shading method, "flat" or "gouraud". See matplotlib.pyplot.tripcolor.
         dimensionless: Use dimensionless units for axes
         xlim: x-axis limits
@@ -57,6 +59,8 @@ def monitor_solution(
         3.0 * max(1, num_plots // max_cols),
     )
     figure_kwargs.setdefault("figsize", default_figsize)
+    figure_kwargs.setdefault("sharex", True)
+    figure_kwargs.setdefault("sharey", True)
 
     with h5py.File(h5path, "r", swmr=True, libver="latest") as h5file:
         device = Device.from_hdf5(h5file["solution/device"])
@@ -102,6 +106,10 @@ def monitor_solution(
             ax.set_xlim(xlim)
             ax.set_ylim(ylim)
 
+        fig.suptitle("Step: 0")
+        fig.canvas.draw_idle()
+        fig.canvas.start_event_loop(1e-3)
+
         vmins = [+np.inf for _ in quantities]
         vmaxs = [-np.inf for _ in quantities]
 
@@ -112,6 +120,7 @@ def monitor_solution(
             step = np.array(grp["step"])[0]
             nonlocal prev_step
             if step == prev_step:
+                fig.canvas.start_event_loop(update_interval)
                 return
             prev_step = step
             time = np.array(grp["time"])[0]
@@ -145,7 +154,7 @@ def monitor_solution(
                 collection.set_array(values)
                 collection.set_clim(vmins[i], vmaxs[i])
             fig.canvas.draw_idle()
-            fig.canvas.start_event_loop(1e-3)
+            fig.canvas.start_event_loop(update_interval)
 
         try:
             while True:

@@ -786,6 +786,7 @@ class TDGLSolver:
                 options=options,
                 data_handler=data_handler,
                 monitor=options.monitor,
+                monitor_update_interval=options.monitor_update_interval,
                 initial_values=list(parameters.values()),
                 names=list(parameters),
                 fixed_values=tuple(fixed_values),

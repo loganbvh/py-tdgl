@@ -63,6 +63,8 @@ def generate_snapshots(
         2.5 * max(1, num_plots // max_cols),
     )
     figure_kwargs.setdefault("figsize", default_figsize)
+    figure_kwargs.setdefault("sharex", True)
+    figure_kwargs.setdefault("sharey", True)
 
     solution = Solution.from_hdf5(input_path)
     device = solution.device

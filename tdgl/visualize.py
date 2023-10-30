@@ -116,6 +116,9 @@ def make_parser() -> argparse.ArgumentParser:
     monitor_parser = subparsers.add_parser(
         "monitor", help="Visualize the results of a simulation as it is running."
     )
+    monitor_parser.add_argument(
+        "--interval", type=float, default=1, help="Monitor update interval in seconds."
+    )
     monitor_parser.add_argument(*quantities_args, **quantities_kwargs)
     monitor_parser.set_defaults(func=monitor_tdgl)
 
@@ -201,6 +204,7 @@ def monitor_tdgl(args: argparse.Namespace) -> None:
     h5path = os.path.join(dirname, fname)
     kwargs = dict(
         h5path=h5path,
+        update_interval=args.interval,
         shading=args.shading,
         xlim=args.xlim,
         ylim=args.ylim,

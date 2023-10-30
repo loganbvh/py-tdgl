@@ -232,6 +232,7 @@ class Runner:
         names: Names of the parameters.
         data_handler: The data handler used to save to disk.
         monitor: Launch a subprocess to plot results during the simulation.
+        monitor_update_interval: The monitor update interval in seconds.
         fixed_values: Values that do not change over time, but should be added
             to saved data.
         fixed_names: Fixed data variable names.
@@ -248,6 +249,7 @@ class Runner:
         names: Sequence[str],
         data_handler: DataHandler,
         monitor: bool = False,
+        monitor_update_interval: float = 1.0,
         fixed_values: Union[List[Any], None] = None,
         fixed_names: Union[Sequence, None] = None,
         running_names_and_sizes: Union[Dict[str, int], None] = None,
@@ -280,6 +282,7 @@ class Runner:
         self.logger = logger if logger is not None else logging.getLogger()
         self.data_handler = data_handler
         self.monitor = monitor
+        self.monitor_update_interval = monitor_update_interval
 
     def run(self) -> bool:
         """Run the simulation loop.
@@ -378,18 +381,6 @@ class Runner:
                     self.state["step"] = i
                     self.state["time"] = self.time
                     self.state["dt"] = dt
-                    if save and i == 1 and self.data_handler.tmp_file is not None:
-                        self.data_handler.tmp_file.swmr_mode = True
-                        if self.monitor:
-                            cmd = [
-                                sys.executable,
-                                "-m",
-                                "tdgl.visualize",
-                                "--input",
-                                self.data_handler.output_path,
-                                "monitor",
-                            ]
-                            _ = subprocess.Popen(cmd, start_new_session=True)
                     # Print progress if TQDM is disabled.
                     if prog_disabled and (i % self.options.progress_interval) == 0:
                         then, now = now, time.perf_counter()
@@ -405,6 +396,22 @@ class Runner:
                         if save:
                             save_step(i)
                         self.running_state.clear()
+
+                    # Start the monitor subprocess
+                    if save and i == 0 and self.data_handler.tmp_file is not None:
+                        self.data_handler.tmp_file.swmr_mode = True
+                        if self.monitor:
+                            cmd = [
+                                sys.executable,
+                                "-m",
+                                "tdgl.visualize",
+                                "--input",
+                                self.data_handler.output_path,
+                                "monitor",
+                                "--interval",
+                                str(self.monitor_update_interval),
+                            ]
+                            _ = subprocess.Popen(cmd, start_new_session=True)
                     # Run time step.
                     function_result = self.function(
                         self.state,
