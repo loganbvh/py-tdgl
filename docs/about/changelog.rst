@@ -20,6 +20,36 @@ View release history on `PyPI <https://pypi.org/project/tdgl/#history>`_ or `Git
 
 ----
 
+Version 0.8.0
+-------------
+
+Release date: 2023-10-30 | `PyPI <https://pypi.org/project/tdgl/0.8.0/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.8.0>`_
+
+Changes
+=======
+
+* Convert ``Solution`` to XDMF (`#54 <https://github.com/loganbvh/py-tdgl/pull/54>`_)
+* Add ``shading`` option in ``tdgl.visualize`` (`#57 <https://github.com/loganbvh/py-tdgl/pull/57>`_)
+* Add ``tdgl.visualize snapshot`` (`#60 <https://github.com/loganbvh/py-tdgl/pull/60>`_)
+* Create ``DynamicsData`` from ``Solution`` (`#61 <https://github.com/loganbvh/py-tdgl/pull/61>`_, `#62 <https://github.com/loganbvh/py-tdgl/pull/62>`_)
+* Add time-dependent ``disorder_epsilon`` (`#63 <https://github.com/loganbvh/py-tdgl/pull/63>`_)
+* Add ``SolverOptions.monitor_update_intverval`` (`#65 <https://github.com/loganbvh/py-tdgl/pull/65>`_)
+
+----
+
+Version 0.7.1
+-------------
+
+Release date: 2023-10-16 | `PyPI <https://pypi.org/project/tdgl/0.7.1/>`_ | `GitHub <https://github.com/loganbvh/py-tdgl/releases/tag/v0.7.1>`_
+
+Changes
+=======
+
+* Validate hole names (`#49 <https://github.com/loganbvh/py-tdgl/pull/49>`_)
+* Fix bug in ``Polygon.resample()`` by (`#53 <https://github.com/loganbvh/py-tdgl/pull/53>`_)
+
+----
+
 Version 0.7.0
 -------------
 
