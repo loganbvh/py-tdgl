@@ -6,10 +6,11 @@ import scipy.sparse as sp
 
 try:
     import cupy  # type: ignore
-    from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
-    from cupyx.scipy.sparse.linalg import factorized  # type: ignore
 except ImportError:
     cupy = None
+else:
+    from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
+    from cupyx.scipy.sparse.linalg import factorized  # type: ignore
 
 from ..solver.options import SparseSolver
 from .mesh import Mesh
