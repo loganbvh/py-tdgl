@@ -123,9 +123,12 @@ def auto_grid(
 def non_gui_backend():
     """A contextmanager that temporarily uses a non-GUI backend for matplotlib."""
     with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore", category=UserWarning, message="Matplotlib is currently using agg"
-        )
+        ignore_messages = [
+            "Matplotlib is currently using agg",
+            "FigureCanvasAgg is non-interactive",
+        ]
+        for msg in ignore_messages:
+            warnings.filterwarnings("ignore", category=UserWarning, message=msg)
         try:
             old_backend = mpl.get_backend()
             mpl.use("Agg")

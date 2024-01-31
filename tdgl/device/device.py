@@ -151,9 +151,7 @@ class Device:
     @property
     def Bc2(self) -> pint.Quantity:
         """Upper critical field, :math:`B_{c2}=\\Phi_0/(2\\pi\\xi^2)`."""
-        return (
-            ureg("Phi_0") / (2 * np.pi * self.coherence_length**2)
-        ).to_base_units()
+        return (ureg("Phi_0") / (2 * np.pi * self.coherence_length**2)).to_base_units()
 
     @property
     def A0(self) -> pint.Quantity:

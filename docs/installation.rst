@@ -113,6 +113,44 @@ means that essentially all portions of the simulation *except* the sparse linear
 ``cupy`` by setting ``tdgl.SolverOptions.sparse_solver = "cupy"``, however emperically it seems that this is slower than
 performing the sparse linear solve on the CPU.
 
+.. important::
+
+  Using ``cupy`` with an NVIDIA GPU requires the `NVIDIA CUDA Toolkit <https://developer.nvidia.com/cuda-toolkit>`_. You can check whether the CUDA toolkit is
+  installed and on the system path by running 
+
+  .. code-block:: bash
+
+    nvcc --version
+
+  from the command line. The version of ``cupy`` you install must be compatible with the version of the CUDA Toolkit you have installed.
+  
+  You can install the CUDA Toolkit either directly from the `NVIDIA website <https://developer.nvidia.com/cuda-toolkit>`_
+  or from the `NVIDIA conda channel <https://anaconda.org/nvidia>`_. To install the CUDA Toolkit using ``conda``, activate the ``conda`` environment
+  for ``tdgl`` and run
+
+  .. code-block:: bash
+
+    conda install cuda -c nvidia
+
+  If you have installed the CUDA Toolkit but ``nvcc --version`` still fails, you may need to update the ``PATH`` and ``LD_LIBRARY_PATH``
+  environment variables to point to your CUDA installation.
+
+  .. code-block:: bash
+
+    # If you installed CUDA Toolkit directly from the NVIDIA website,
+    # resulting in CUDA being installed in /usr/local/cuda:
+    export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+
+    # If you installed CUDA using conda, activate the appropriate conda environment and run:
+    export PATH=${CONDA_PREFIX}/bin${PATH:+:${PATH}}
+    export LD_LIBRARY_PATH=${CONDA_PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+
+  The exact path to your CUDA installation may vary depending on operating system and configuration. You may want to add the appropriate
+  ``PATH`` and ``LD_LIBRARY_PATH`` modifications to your ``~/.bashrc`` file.
+
+  For more detailed installation instructions, see the `NVIDIA documentation <https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html>`_.
+
 Due to overheads related to transferring data between the CPU and GPU, it is expected that ``cupy`` will provide
 a significant speedup only for models with relatively large meshes and/or models that include `screening <notebooks/screening.ipynb>`_.
 Please open a `GitHub issue <https://github.com/loganbvh/py-tdgl/issues>`_ if you have any problems using ``tdgl`` with ``cupy``.

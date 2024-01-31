@@ -250,7 +250,7 @@ def plot_currents(
         Jx, Jy = Jgrid
         J = np.sqrt(Jx**2 + Jy**2)
         xy = np.array([xgrid.ravel(), ygrid.ravel()]).T
-        ix = np.where(~solution.device.contains_points(xy)[0])
+        ix = np.where(~solution.device.contains_points(xy))[0]
         ix = np.unravel_index(ix, J.shape)
         Jx[ix] = np.nan
         Jy[ix] = np.nan
