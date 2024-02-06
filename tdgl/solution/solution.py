@@ -891,6 +891,7 @@ class Solution:
             save_context = nullcontext(h5file)
 
         with save_context as f:
+            f.require_group("version_info").attrs.update(self.version_info)
             if "mesh" in f:
                 del f["mesh"]
             data_grp = f.require_group("data")
@@ -974,9 +975,7 @@ class Solution:
 
         with h5py.File(path, "r") as f:
             grp = f["solution"]
-            options_kwargs = dict()
-            for k, v in grp["options"].attrs.items():
-                options_kwargs[k] = v
+            options_kwargs = dict(grp["options"].attrs)
             options = SolverOptions(**options_kwargs)
             options.validate()
             time_created = datetime.fromisoformat(grp.attrs["time_created"])
