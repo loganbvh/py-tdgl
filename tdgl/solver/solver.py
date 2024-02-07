@@ -103,8 +103,8 @@ class TDGLSolver:
         terminal_currents: A dict of ``{terminal_name: current}`` or a callable with signature
             ``func(time: float) -> {terminal_name: current}``, where ``current`` is a float
             in units of ``current_units`` and ``time`` is the dimensionless time.
-        disorder_epsilon: A float in range [-1, 1], or a function that returns
-            :math:`\\epsilon\\in[-1, 1]` as a function of position ``r=(x, y)`` or
+        disorder_epsilon: A float <= 1, or a function that returns
+            :math:`\\epsilon\\leq 1` as a function of position ``r=(x, y)`` or
             position and time ``(x, y, *, t)``.
             Setting :math:`\\epsilon(\\mathbf{r}, t)=T_c/T - 1 < 1` suppresses the
             order parameter at position :math:`\\mathbf{r}=(x, y)`, which can be used
@@ -211,8 +211,8 @@ class TDGLSolver:
             epsilon = disorder_epsilon(self.sites, **kw)
         else:
             epsilon = np.array([float(disorder_epsilon(r, **kw)) for r in self.sites])
-        if np.any(epsilon < -1) or np.any(epsilon > 1):
-            raise ValueError("The disorder parameter epsilon must be in range [-1, 1].")
+        if np.any(epsilon > 1):
+            raise ValueError("The disorder parameter epsilon must be <= 1")
 
         # Find the current terminal sites.
         self.terminal_info = device.terminal_info()
