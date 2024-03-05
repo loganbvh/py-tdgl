@@ -298,6 +298,9 @@ class MeshOperators:
             self.mu_laplacian = csc_matrix(self.mu_laplacian)
             self.mu_laplacian_lu = factorized(self.mu_laplacian)
         elif self.sparse_solver is SparseSolver.PARDISO:
+            # https://github.com/loganbvh/py-tdgl/issues/74
+            # https://github.com/haasad/PyPardiso/issues/68
+            self.mu_laplacian = sp.csc_matrix(self.mu_laplacian)
             self.mu_laplacian_lu = None
         else:
             use_umfpack = self.sparse_solver is SparseSolver.UMFPACK
