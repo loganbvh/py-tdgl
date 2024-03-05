@@ -295,11 +295,11 @@ class MeshOperators:
             self.edge_directions = cupy.array(self.edge_directions)
         if self.sparse_solver is SparseSolver.CUPY:
             assert cupy is not None
-            # https://github.com/loganbvh/py-tdgl/issues/74
-            # https://github.com/haasad/PyPardiso/issues/68
             self.mu_laplacian = csc_matrix(self.mu_laplacian)
             self.mu_laplacian_lu = factorized(self.mu_laplacian)
         elif self.sparse_solver is SparseSolver.PARDISO:
+            # https://github.com/loganbvh/py-tdgl/issues/74
+            # https://github.com/haasad/PyPardiso/issues/68
             self.mu_laplacian = sp.csc_matrix(self.mu_laplacian)
             self.mu_laplacian_lu = None
         else:
