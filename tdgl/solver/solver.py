@@ -214,6 +214,12 @@ class TDGLSolver:
         if np.any(epsilon > 1):
             raise ValueError("The disorder parameter epsilon must be <= 1")
 
+        # Clear the Parameter caches
+        if isinstance(self.applied_vector_potential, Parameter):
+            self.applied_vector_potential._cache = {}
+        if isinstance(self.disorder_epsilon, Parameter):
+            self.disorder_epsilon._cache = {}
+
         # Find the current terminal sites.
         self.terminal_info = device.terminal_info()
         self.terminal_names = [term.name for term in self.terminal_info]
@@ -798,6 +804,12 @@ class TDGLSolver:
             end_time = datetime.now()
             logger.info(f"Simulation ended at {end_time}")
             logger.info(f"Simulation took {end_time - start_time}")
+
+            # Clear the Parameter caches
+            if isinstance(self.applied_vector_potential, Parameter):
+                self.applied_vector_potential._cache = {}
+            if isinstance(self.disorder_epsilon, Parameter):
+                self.disorder_epsilon._cache = {}
 
             solution = None
             if data_was_generated:

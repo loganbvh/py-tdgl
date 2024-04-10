@@ -2,7 +2,6 @@ import dataclasses
 import logging
 import operator
 import os
-import pickle
 import shutil
 from contextlib import nullcontext
 from datetime import datetime
@@ -970,7 +969,7 @@ class Solution:
             if name in h5group.attrs:
                 return h5group.attrs[name]
             if f"{name}.pickle" in h5group:
-                return pickle.loads(np.void(grp[f"{name}.pickle"]).tobytes())
+                return cloudpickle.loads(np.void(grp[f"{name}.pickle"]).tobytes())
             raise IOError(f"Unable to load {name}.")
 
         with h5py.File(path, "r") as f:

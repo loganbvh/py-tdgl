@@ -84,9 +84,10 @@ class Parameter:
         kwargs: Keyword arguments for func.
     """
 
-    __slots__ = ("func", "kwargs", "time_dependent", "_cache")
+    __slots__ = ("func", "kwargs", "time_dependent", "_cache", "_use_cache")
 
     def __init__(self, func: Callable, time_dependent: bool = False, **kwargs):
+        self._use_cache = kwargs.pop("use_cache", True)
         argspec = inspect.getfullargspec(func)
         args = argspec.args
         num_args = 2
@@ -152,6 +153,24 @@ class Parameter:
             + hex(hash(t))
         )
 
+    def _evaluate(
+        self,
+        x: Union[int, float, np.ndarray],
+        y: Union[int, float, np.ndarray],
+        z: Optional[Union[int, float, np.ndarray]] = None,
+        t: Optional[float] = None,
+    ) -> Union[int, float, np.ndarray]:
+        kwargs = self.kwargs.copy()
+        if t is not None:
+            kwargs["t"] = t
+        x, y = np.atleast_1d(x, y)
+        if z is not None:
+            kwargs["z"] = np.atleast_1d(z)
+        result = np.asarray(self.func(x, y, **kwargs)).squeeze()
+        if result.ndim == 0:
+            result = result.item()
+        return result
+
     def __call__(
         self,
         x: Union[int, float, np.ndarray],
@@ -159,19 +178,12 @@ class Parameter:
         z: Optional[Union[int, float, np.ndarray]] = None,
         t: Optional[float] = None,
     ) -> Union[int, float, np.ndarray]:
-        cache_key = self._hash_args(x, y, z, t)
-        if cache_key not in self._cache:
-            kwargs = self.kwargs.copy()
-            if t is not None:
-                kwargs["t"] = t
-            x, y = np.atleast_1d(x, y)
-            if z is not None:
-                kwargs["z"] = np.atleast_1d(z)
-            result = np.asarray(self.func(x, y, **kwargs)).squeeze()
-            if result.ndim == 0:
-                result = result.item()
-            self._cache[cache_key] = result
-        return self._cache[cache_key]
+        if self._use_cache:
+            cache_key = self._hash_args(x, y, z, t)
+            if cache_key not in self._cache:
+                self._cache[cache_key] = self._evaluate(x, y, z, t)
+            return self._cache[cache_key]
+        return self._evaluate(x, y, z, t)
 
     def _get_argspec(self) -> _FakeArgSpec:
         if self.kwargs:
