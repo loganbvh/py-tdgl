@@ -87,7 +87,7 @@ class Parameter:
     __slots__ = ("func", "kwargs", "time_dependent", "_cache", "_use_cache")
 
     def __init__(self, func: Callable, time_dependent: bool = False, **kwargs):
-        self._use_cache = kwargs.pop("use_cache", True)
+        self._use_cache = kwargs.pop("use_cache", None)
         argspec = inspect.getfullargspec(func)
         args = argspec.args
         num_args = 2
@@ -335,8 +335,12 @@ class CompositeParameter(Parameter):
         self.time_dependent = False
         if isinstance(self.left, Parameter) and self.left.time_dependent:
             self.time_dependent = True
+            if self.left._use_cache is None:
+                self.left._use_cache = True
         if isinstance(self.right, Parameter) and self.right.time_dependent:
             self.time_dependent = True
+            if self.right._use_cache is None:
+                self.right._use_cache = True
 
     def __call__(
         self,
