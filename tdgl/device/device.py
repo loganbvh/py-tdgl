@@ -88,7 +88,7 @@ class Device:
 
         for polygon in [self.film] + self.holes:
             if not polygon.is_valid:
-                raise ValueError("Invalid Polygon: {polygon!r}.")
+                raise ValueError(f"Invalid Polygon: {polygon!r}.")
 
         if len(self.holes) != len(set(hole.name for hole in self.holes)):
             raise ValueError("All holes must have a unique name.")
