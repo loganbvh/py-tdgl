@@ -1,4 +1,5 @@
 import logging
+import numbers
 import os
 import time
 from contextlib import contextmanager, nullcontext
@@ -416,7 +417,7 @@ class Device:
         if not (
             isinstance(origin, tuple)
             and len(origin) == 2
-            and all(isinstance(val, (int, float)) for val in origin)
+            and all(isinstance(val, numbers.Real) for val in origin)
         ):
             raise TypeError("Origin must be a tuple of floats (x, y).")
         self._warn_if_mesh_exist("scale()")
@@ -447,7 +448,7 @@ class Device:
         if not (
             isinstance(origin, tuple)
             and len(origin) == 2
-            and all(isinstance(val, (int, float)) for val in origin)
+            and all(isinstance(val, numbers.Real) for val in origin)
         ):
             raise TypeError("Origin must be a tuple of floats (x, y).")
         self._warn_if_mesh_exist("rotate()")
@@ -582,7 +583,7 @@ class Device:
             create_submesh=True,
         )
 
-    def mesh_stats_dict(self) -> Dict[str, Union[int, float, str]]:
+    def mesh_stats_dict(self) -> Dict[str, Union[numbers.Real, str]]:
         """Returns a dictionary of information about the mesh."""
         edge_lengths = self.edge_lengths
         areas = self.areas

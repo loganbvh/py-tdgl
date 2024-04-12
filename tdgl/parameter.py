@@ -1,6 +1,7 @@
 import hashlib
 import inspect
 import operator
+from numbers import Number
 from typing import Callable, Optional, Union
 
 import cloudpickle
@@ -67,9 +68,8 @@ class Parameter:
     as a function of position coordinates x, y (and optionally z and time t).
 
     Addition, subtraction, multiplication, and division
-    between multiple Parameters and/or real numbers (ints and floats)
-    is supported. The result of any of these operations is a
-    ``CompositeParameter`` object.
+    between multiple Parameters and/or numbers is supported.
+    The result of any of these operations is a ``CompositeParameter`` object.
 
     Args:
         func: A callable/function that actually calculates the parameter's value.
@@ -155,11 +155,11 @@ class Parameter:
 
     def _evaluate(
         self,
-        x: Union[int, float, np.ndarray],
-        y: Union[int, float, np.ndarray],
-        z: Optional[Union[int, float, np.ndarray]] = None,
+        x: Union[Number, np.ndarray],
+        y: Union[Number, np.ndarray],
+        z: Optional[Union[Number, np.ndarray]] = None,
         t: Optional[float] = None,
-    ) -> Union[int, float, np.ndarray]:
+    ) -> Union[Number, np.ndarray]:
         kwargs = self.kwargs.copy()
         if t is not None:
             kwargs["t"] = t
@@ -173,17 +173,20 @@ class Parameter:
 
     def __call__(
         self,
-        x: Union[int, float, np.ndarray],
-        y: Union[int, float, np.ndarray],
-        z: Optional[Union[int, float, np.ndarray]] = None,
+        x: Union[Number, np.ndarray],
+        y: Union[Number, np.ndarray],
+        z: Optional[Union[Number, np.ndarray]] = None,
         t: Optional[float] = None,
-    ) -> Union[int, float, np.ndarray]:
+    ) -> Union[Number, np.ndarray]:
         if self._use_cache:
             cache_key = self._hash_args(x, y, z, t)
             if cache_key not in self._cache:
                 self._cache[cache_key] = self._evaluate(x, y, z, t)
             return self._cache[cache_key]
         return self._evaluate(x, y, z, t)
+
+    def _clear_cache(self) -> None:
+        self._cache.clear()
 
     def _get_argspec(self) -> _FakeArgSpec:
         if self.kwargs:
@@ -279,12 +282,11 @@ class CompositeParameter(Parameter):
     (i.e. it computes a scalar or vector quantity as a function of
     position coordinates x, y, z). A CompositeParameter object is created as
     a result of mathematical operations between Parameters, CompositeParameters,
-    and/or real numbers.
+    and/or numbers.
 
     Addition, subtraction, multiplication, division, and exponentiation
-    between Parameters, CompositeParameters and real numbers (ints and floats)
-    are supported. The result of any of these operations is a new
-    CompositeParameter object.
+    between ``Parameters``, ``CompositeParameters`` and numbers are supported.
+    The result of any of these operations is a new ``CompositeParameter`` object.
 
     Args:
         left: The object on the left-hand side of the operator.
@@ -302,11 +304,11 @@ class CompositeParameter(Parameter):
 
     def __init__(
         self,
-        left: Union[int, float, Parameter, "CompositeParameter"],
-        right: Union[int, float, Parameter, "CompositeParameter"],
+        left: Union[Number, Parameter, "CompositeParameter"],
+        right: Union[Number, Parameter, "CompositeParameter"],
         operator_: Union[Callable, str],
     ):
-        valid_types = (int, float, complex, Parameter, CompositeParameter)
+        valid_types = (Number, Parameter, CompositeParameter)
         if not isinstance(left, valid_types):
             raise TypeError(
                 f"Left must be a number, Parameter, or CompositeParameter, "
@@ -317,7 +319,7 @@ class CompositeParameter(Parameter):
                 f"Right must be a number, Parameter, or CompositeParameter, "
                 f"not {type(right)!r}."
             )
-        if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        if isinstance(left, Number) and isinstance(right, Number):
             raise TypeError(
                 "Either left or right must be a Parameter or CompositeParameter."
             )
@@ -329,6 +331,7 @@ class CompositeParameter(Parameter):
                 f"Unknown operator, {operator_!r}. "
                 f"Valid operators are {list(self.VALID_OPERATORS)!r}."
             )
+        self._cache = {}
         self.left = left
         self.right = right
         self.operator = operator_
@@ -342,13 +345,20 @@ class CompositeParameter(Parameter):
             if self.right._use_cache is None:
                 self.right._use_cache = True
 
+    def _clear_cache(self) -> None:
+        self._cache.clear()
+        if isinstance(self.right._cache, Parameter):
+            self.right._clear_cache()
+        if isinstance(self.left, Parameter):
+            self.left._clear_cache()
+
     def __call__(
         self,
-        x: Union[int, float, np.ndarray],
-        y: Union[int, float, np.ndarray],
-        z: Optional[Union[int, float, np.ndarray]] = None,
+        x: Union[Number, np.ndarray],
+        y: Union[Number, np.ndarray],
+        z: Union[Number, np.ndarray, None] = None,
         t: Optional[float] = None,
-    ) -> Union[int, float, np.ndarray]:
+    ) -> Union[Number, np.ndarray]:
         kwargs = dict() if t is None else dict(t=t)
         values = []
         for operand in (self.left, self.right):
@@ -413,7 +423,7 @@ class CompositeParameter(Parameter):
 class Constant(Parameter):
     """A Parameter whose value doesn't depend on position or time."""
 
-    def __init__(self, value: Union[int, float, complex], dimensions: int = 2):
+    def __init__(self, value: Number, dimensions: int = 2):
         if dimensions not in (2, 3):
             raise ValueError(f"Dimensions must be 2 or 3, got {dimensions}.")
         if dimensions == 2:

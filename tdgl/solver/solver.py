@@ -2,6 +2,7 @@ import inspect
 import itertools
 import logging
 import math
+import numbers
 import os
 from datetime import datetime
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
@@ -216,9 +217,9 @@ class TDGLSolver:
 
         # Clear the Parameter caches
         if isinstance(self.applied_vector_potential, Parameter):
-            self.applied_vector_potential._cache.clear()
+            self.applied_vector_potential._clear_cache()
         if isinstance(self.disorder_epsilon, Parameter):
-            self.disorder_epsilon._cache.clear()
+            self.disorder_epsilon._clear_cache()
 
         # Find the current terminal sites.
         self.terminal_info = device.terminal_info()
@@ -578,7 +579,7 @@ class TDGLSolver:
 
     def update(
         self,
-        state: Dict[str, Union[int, float]],
+        state: Dict[str, numbers.Real],
         running_state: RunningState,
         dt: float,
         *,
@@ -807,9 +808,9 @@ class TDGLSolver:
 
             # Clear the Parameter caches
             if isinstance(self.applied_vector_potential, Parameter):
-                self.applied_vector_potential._cache.clear()
+                self.applied_vector_potential._clear_cache()
             if isinstance(self.disorder_epsilon, Parameter):
-                self.disorder_epsilon._cache.clear()
+                self.disorder_epsilon._clear_cache()
 
             solution = None
             if data_was_generated:

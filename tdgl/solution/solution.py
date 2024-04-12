@@ -1,5 +1,6 @@
 import dataclasses
 import logging
+import numbers
 import operator
 import os
 import shutil
@@ -720,7 +721,7 @@ class Solution:
                 )
             zs = positions[:, 2]
             positions = positions[:, :2]
-        elif isinstance(zs, (int, float, np.generic)):
+        elif isinstance(zs, numbers.Real):
             # constant zs
             zs = zs * np.ones(len(positions))
         zs = zs.squeeze()
@@ -820,7 +821,7 @@ class Solution:
                 )
             zs = positions[:, 2]
             positions = positions[:, :2]
-        elif isinstance(zs, (int, float, np.generic)):
+        elif isinstance(zs, numbers.Real):
             # constant zs
             zs = zs * np.ones(len(positions))
         if not isinstance(zs, np.ndarray):
