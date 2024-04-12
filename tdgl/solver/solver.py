@@ -216,9 +216,9 @@ class TDGLSolver:
 
         # Clear the Parameter caches
         if isinstance(self.applied_vector_potential, Parameter):
-            self.applied_vector_potential._cache = {}
+            self.applied_vector_potential._cache.clear()
         if isinstance(self.disorder_epsilon, Parameter):
-            self.disorder_epsilon._cache = {}
+            self.disorder_epsilon._cache.clear()
 
         # Find the current terminal sites.
         self.terminal_info = device.terminal_info()
@@ -807,9 +807,9 @@ class TDGLSolver:
 
             # Clear the Parameter caches
             if isinstance(self.applied_vector_potential, Parameter):
-                self.applied_vector_potential._cache = {}
+                self.applied_vector_potential._cache.clear()
             if isinstance(self.disorder_epsilon, Parameter):
-                self.disorder_epsilon._cache = {}
+                self.disorder_epsilon._cache.clear()
 
             solution = None
             if data_was_generated:
