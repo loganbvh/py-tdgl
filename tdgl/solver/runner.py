@@ -1,5 +1,6 @@
 import itertools
 import logging
+import numbers
 import os
 import subprocess
 import sys
@@ -153,7 +154,7 @@ class DataHandler:
 
     def save_time_step(
         self,
-        state: Dict[str, Union[int, float]],
+        state: Dict[str, numbers.Real],
         data: Dict[str, np.ndarray],
         running_state: Union[Dict[str, np.ndarray], None],
     ) -> None:

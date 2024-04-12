@@ -1,3 +1,4 @@
+import numbers
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import h5py
@@ -48,7 +49,7 @@ def generate_snapshots(
     Returns:
         The matplotlib figure and axes for each time in ``times``
     """
-    if isinstance(times, (int, float)):
+    if isinstance(times, numbers.Real):
         times = [times]
     if quantities is None:
         quantities = Quantity.get_keys()
