@@ -249,7 +249,7 @@ class TDGLSolver:
                 return terminal_currents
 
         J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
-        assert "dimensionless" in str(J_scale.units), str(J_scale.units)
+        assert J_scale.dimensionless, str(J_scale)
         J_scale = J_scale.magnitude
         self.current_func = lambda t: {
             key: J_scale * value for key, value in current_func(t).items()
