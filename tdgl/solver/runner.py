@@ -449,6 +449,6 @@ class Runner:
                         self.logger.warning(msg.format("Cancelling"))
                         cancelled = True
                         break
-            if save:
+            if save and (i % self.options.save_every):
                 save_step(i)
             return not cancelled
