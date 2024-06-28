@@ -632,7 +632,7 @@ class TDGLSolver:
                 (current_A_applied - prev_A_applied) / dt,
                 self.normalized_directions,
             )
-            if xp.any(xp.absolute(dA_dt) > 0):
+            if not xp.allclose(current_A_applied, self.current_A_applied):
                 # Update the link exponents only if the applied vector potential
                 # has actually changed.
                 operators.set_link_exponents(current_A_applied)
@@ -642,10 +642,10 @@ class TDGLSolver:
         self.current_A_applied = current_A_applied
 
         # Update the value of epsilon
-        epsilon = self.epsilon
         if self.dynamic_epsilon:
-            epsilon = self.epsilon = self.update_epsilon(time)
+            self.epsilon = self.update_epsilon(time)
 
+        epsilon = self.epsilon
         old_sq_psi = xp.absolute(psi) ** 2
         screening_error = np.inf
         A_induced_vals = [A_induced]
