@@ -74,7 +74,7 @@ AUTHOR = "Logan Bishop-Van Horn"
 AUTHOR_EMAIL = "logan.bvh@gmail.com"
 URL = "https://github.com/loganbvh/py-tdgl"
 LICENSE = "MIT"
-PYTHON_VERSION = ">=3.8, <3.12"
+PYTHON_VERSION = ">=3.8, <3.14"
 
 INSTALL_REQUIRES = [
     "cloudpickle",
@@ -88,7 +88,7 @@ INSTALL_REQUIRES = [
     "pint",
     "pytest",
     "pytest-cov",
-    "scipy<1.11",
+    "scipy",
     "shapely",
     "tqdm",
 ]
@@ -134,6 +134,8 @@ CLASSIFIERS = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Physics",

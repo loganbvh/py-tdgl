@@ -9,6 +9,6 @@ numpy
 pint
 pytest
 pytest-cov
-scipy<1.11
+scipy
 shapely
 tqdm
