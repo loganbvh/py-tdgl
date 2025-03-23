@@ -29,10 +29,10 @@ Click the badge below to try `pyTDGL` interactively online via [Google Colab](ht
 
 ## Install `pyTDGL`
 
-`pyTDGL` requires `python` `3.8`, `3.9`, `3.10`, or `3.11`. We recommend installing `pyTDGL` in a [`conda` environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html), e.g.
+`pyTDGL` requires `python` `3.8`, `3.9`, `3.10`, `3.11`, `3.12`, or `3.13`. We recommend installing `pyTDGL` in a [`conda` environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html), e.g.
 
 ```bash
-conda create --name tdgl python="3.10"
+conda create --name tdgl python="3.12"
 conda activate tdgl
 ```
 
