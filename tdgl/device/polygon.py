@@ -1,17 +1,16 @@
 import logging
-from typing import Iterable, Tuple, Union
+from typing import Iterable, Optional, Tuple, Union
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import path
-from scipy import interpolate
 from shapely import affinity
 from shapely import geometry as geo
 from shapely.validation import explain_validity
 
 from ..finite_volume.mesh import Mesh
-from ..geometry import close_curve, ensure_unique
+from ..geometry import close_curve
 from .meshing import generate_mesh
 
 logger = logging.getLogger(__name__)
@@ -456,9 +455,7 @@ class Polygon:
             return polygon
         return polygon.points
 
-    def resample(
-        self, num_points: Union[int, None] = None, degree: int = 1, smooth: float = 0
-    ) -> "Polygon":
+    def resample(self, num_points: Optional[int] = None) -> "Polygon":
         """Resample vertices so that they are approximately uniformly distributed
         along the polygon boundary.
 
@@ -467,19 +464,15 @@ class Polygon:
                 the polygon is resampled to ``len(self.points)`` points. If
                 ``num_points`` is not None and has a boolean value of False,
                 then an unaltered copy of the polygon is returned.
-            degree: The degree of the spline with which to interpolate.
-                Defaults to 1 (linear spline).
-            smooth: Smoothing condition.
-
         """
         if num_points is None:
             num_points = len(self.points)
         if not num_points:
             return self.copy()
-        points = close_curve(ensure_unique(self.points.copy()))
-        tck, _ = interpolate.splprep(points.T, k=degree, s=smooth)
-        x, y = interpolate.splev(np.linspace(0, 1, num_points), tck)
-        points = close_curve(np.array([x, y]).T)
+        boundary = self.polygon.boundary
+        points = boundary.segmentize(boundary.length / num_points).interpolate(
+            np.linspace(0, 1, num_points), normalized=True
+        )
         return Polygon(
             name=self.name,
             points=points,
