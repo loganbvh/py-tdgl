@@ -10,7 +10,7 @@ Time-dependent Ginzburg-Landau in Python
 [![codecov](https://codecov.io/gh/loganbvh/py-tdgl/branch/main/graph/badge.svg?token=VXdxJKP6Ag)](https://codecov.io/gh/loganbvh/py-tdgl)
 ![GitHub](https://img.shields.io/github/license/loganbvh/py-tdgl)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![DOI](https://zenodo.org/badge/535746543.svg)](https://zenodo.org/badge/latestdoi/535746543)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7613568.svg)](https://doi.org/10.5281/zenodo.7613568)
 
 
 
