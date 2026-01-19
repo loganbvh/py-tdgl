@@ -413,7 +413,7 @@ class Polygon:
         distance: float,
         join_style: Union[str, int] = "mitre",
         mitre_limit: float = 5.0,
-        single_sided: bool = True,
+        single_sided: bool = False,
         as_polygon: bool = True,
     ) -> Union[np.ndarray, "Polygon"]:
         """Returns polygon points or a new Polygon object with vertices offset from
