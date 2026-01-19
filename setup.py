@@ -74,7 +74,7 @@ AUTHOR = "Logan Bishop-Van Horn"
 AUTHOR_EMAIL = "logan.bvh@gmail.com"
 URL = "https://github.com/loganbvh/py-tdgl"
 LICENSE = "MIT"
-PYTHON_VERSION = ">=3.8, <3.14"
+PYTHON_VERSION = ">=3.8, <3.15"
 
 INSTALL_REQUIRES = [
     "cloudpickle",
