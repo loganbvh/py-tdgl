@@ -13,7 +13,7 @@ Installation
 .. role:: python(code)
   :language: python
 
-``pyTDGL`` requires ``python`` ``3.8``,  ``3.9``, ``3.10``, ``3.11``, ``3.12``, or ``3.13``. We recommend creating a new
+``pyTDGL`` requires ``python`` ``3.8``,  ``3.9``, ``3.10``, ``3.11``, ``3.12``, ``3.13``, or ``3.14``. We recommend creating a new
 `conda environment <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html>`_
 for ``pyTDGL`` to avoid dependency conflicts with other packages. To create and activate a ``conda`` environment called
 ``tdgl``, run:
