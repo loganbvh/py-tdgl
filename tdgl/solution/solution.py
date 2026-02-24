@@ -532,7 +532,7 @@ class Solution:
         )[:, :2]
         # Compute the flux part of the fluxoid:
         # \oint_{\\partial poly} \vec{A}\cdot\mathrm{d}\vec{r}
-        int_A = np.trapz((A_poly * dl).sum(axis=1))
+        int_A = np.trapezoid((A_poly * dl).sum(axis=1))
         flux_part = int_A.to(units)
         # Compute the supercurrent part of the fluxoid:
         # \oint_{poly}\Lambda\vec{J}\cdot\mathrm{d}\vec{r}
@@ -540,7 +540,7 @@ class Solution:
         psi_poly = self.interp_order_parameter(points, method=interp_method)
         ns = np.abs(psi_poly) ** 2
         Lambda = Lambda / ns * ureg(device.length_units)
-        int_J = np.trapz((Lambda[:, np.newaxis] * J_poly * dl).sum(axis=1))
+        int_J = np.trapezoid((Lambda[:, np.newaxis] * J_poly * dl).sum(axis=1))
         supercurrent_part = (ureg("mu_0") * int_J).to(units)
         if not with_units:
             flux_part = flux_part.magnitude
@@ -661,7 +661,7 @@ class Solution:
         J_dot_n = (J_edge * unit_normals).sum(axis=1)
         # Exclude points that are not inside the device.
         in_device = self.device.contains_points(edge_positions)
-        total_current = np.trapz((J_dot_n * edge_lengths)[in_device]).to(units)
+        total_current = np.trapezoid((J_dot_n * edge_lengths)[in_device]).to(units)
         if not with_units:
             total_current = total_current.magnitude
         return total_current
