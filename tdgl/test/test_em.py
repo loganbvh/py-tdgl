@@ -49,6 +49,6 @@ def test_current_loop(z_eval, current_units, length_units):
     )
 
     flux_from_B = np.sum(B[:, 2] * pl_areas).to("Phi_0").magnitude
-    flux_from_A = np.trapz((A[:, :2] * pl_edges).sum(axis=1)).to("Phi_0").magnitude
+    flux_from_A = np.trapezoid((A[:, :2] * pl_edges).sum(axis=1)).to("Phi_0").magnitude
 
     assert np.isclose(flux_from_A, flux_from_B, rtol=1e-2)
