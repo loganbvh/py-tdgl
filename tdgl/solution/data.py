@@ -597,7 +597,7 @@ def get_current_through_paths(
                 # Evaluate the sheet current at the edge centers
                 K_edge = (K_path[:-1] + K_path[1:]) / 2
                 K_dot_n = (K_edge * normals).sum(axis=1)
-                raw_currents[j][i] = np.trapz((K_dot_n * lengths)[ix])
+                raw_currents[j][i] = np.trapezoid((K_dot_n * lengths)[ix])
 
     currents = []
     for current in raw_currents:
