@@ -14,7 +14,7 @@ from ..geometry import path_vectors
 def get_data_range(h5file: h5py.File) -> Tuple[int, int]:
     """Returns the minimum and maximum solve steps in the file."""
     keys = np.asarray([int(key) for key in h5file["data"]])
-    return np.min(keys), np.max(keys)
+    return int(np.min(keys)), int(np.max(keys))
 
 
 def load_state_data(h5file: h5py.File, step: int) -> Dict[str, Any]:
