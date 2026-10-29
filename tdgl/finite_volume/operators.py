@@ -230,6 +230,101 @@ def build_neumann_boundary_laplacian(
     return neumann_laplacian.tocsr(copy=False)
 
 
+class PardisoSolve:
+    """MKL PARDISO with the factorization done once and only the solve phase (33) per call.
+
+    pypardiso's ``spsolve`` compares or hashes the matrix and converts the index arrays on every call, which costs
+    about as much as the solve itself for the scalar-potential system.
+    """
+
+    def __init__(self, A: sp.csr_matrix, mtype: int):
+        import pypardiso  # type: ignore
+
+        A = sp.csr_matrix(A, dtype=float)
+        A.sort_indices()
+        self.A = A
+        self.solver = pypardiso.PyPardisoSolver(mtype=mtype)
+        self.solver.factorize(A)
+        self.solver.set_phase(33)
+        self.ia = A.indptr.astype(np.int32) + 1
+        self.ja = A.indices.astype(np.int32) + 1
+
+    def __call__(self, b: np.ndarray) -> np.ndarray:
+        import ctypes
+
+        s = self.solver
+        b = np.asfortranarray(b, dtype=float)
+        x = np.zeros_like(b)
+        err = ctypes.c_int32(0)
+        i32p = ctypes.POINTER(ctypes.c_int32)
+        f64p = ctypes.POINTER(ctypes.c_double)
+        s._mkl_pardiso(
+            s.pt.ctypes.data_as(ctypes.POINTER(s._pt_type[0])),
+            ctypes.byref(ctypes.c_int32(1)),
+            ctypes.byref(ctypes.c_int32(1)),
+            ctypes.byref(ctypes.c_int32(s.mtype)),
+            ctypes.byref(ctypes.c_int32(33)),
+            ctypes.byref(ctypes.c_int32(self.A.shape[0])),
+            self.A.data.ctypes.data_as(f64p),
+            self.ia.ctypes.data_as(i32p),
+            self.ja.ctypes.data_as(i32p),
+            s.perm.ctypes.data_as(i32p),
+            ctypes.byref(ctypes.c_int32(1)),
+            s.iparm.ctypes.data_as(i32p),
+            ctypes.byref(ctypes.c_int32(s.msglvl)),
+            b.ctypes.data_as(f64p),
+            x.ctypes.data_as(f64p),
+            ctypes.byref(err),
+        )
+        if err.value != 0:
+            raise RuntimeError(f"PARDISO error {err.value}")
+        return x
+
+
+def build_symmetric_mu_solve(
+    mesh: Mesh, weights: np.ndarray, sparse_solver: SparseSolver
+) -> Callable:
+    """Solver for the scalar potential through the symmetric form of its Laplacian.
+
+    The ``mu`` Laplacian is ``D^-1 K`` with ``D`` the site areas and ``K`` the weighted graph Laplacian, so
+    ``(D^-1 K) mu = r`` is ``(-K) mu = -D r`` with ``-K`` symmetric positive semidefinite. Its constant null space is
+    removed by pinning ``mu = 0`` at one site, which leaves a positive definite system: an LDL^T-like SuperLU in
+    symmetric mode, or a PARDISO Cholesky (mtype 2).
+    """
+    edges = mesh.edge_mesh.edges
+    n = len(mesh.sites)
+    pin = 0
+    keep = (edges[:, 0] != pin) & (edges[:, 1] != pin)
+    e0, e1, w = edges[keep, 0], edges[keep, 1], weights[keep]
+    diag = np.bincount(edges[:, 0], weights, minlength=n) + np.bincount(
+        edges[:, 1], weights, minlength=n
+    )
+    diag[pin] = 1.0
+    rows = np.concatenate([e0, e1, np.arange(n)])
+    cols = np.concatenate([e1, e0, np.arange(n)])
+    vals = np.concatenate([-w, -w, diag])
+    S = sp.csc_matrix((vals, (rows, cols)), shape=(n, n))
+    areas = mesh.areas
+
+    if sparse_solver is SparseSolver.PARDISO_SYM:
+        inner = PardisoSolve(sp.triu(S, format="csr"), mtype=2)
+    else:
+        lu = sp.linalg.splu(
+            S,
+            permc_spec="MMD_AT_PLUS_A",
+            diag_pivot_thresh=0.0,
+            options=dict(SymmetricMode=True),
+        )
+        inner = lu.solve
+
+    def solve(rhs: np.ndarray) -> np.ndarray:
+        b = -areas * rhs
+        b[pin] = 0.0
+        return inner(b)
+
+    return solve
+
+
 class MeshOperators:
     """A container for the finite volume operators for a given mesh.
 
@@ -264,6 +359,7 @@ class MeshOperators:
         self.mu_laplacian: Union[sp.spmatrix, None] = None
         self.mu_boundary_laplacian: Union[sp.spmatrix, None] = None
         self.mu_laplacian_lu: Union[Callable, None] = None
+        self.mu_solve: Union[Callable, None] = None
         self.psi_gradient: Union[sp.spmatrix, None] = None
         self.psi_laplacian: Union[sp.spmatrix, None] = None
         self.link_exponents: Union[np.ndarray, None] = None
@@ -297,15 +393,24 @@ class MeshOperators:
             assert cupy is not None
             self.mu_laplacian = csc_matrix(self.mu_laplacian)
             self.mu_laplacian_lu = factorized(self.mu_laplacian)
+            self.mu_solve = self.mu_laplacian_lu
         elif self.sparse_solver is SparseSolver.PARDISO:
             # https://github.com/loganbvh/py-tdgl/issues/74
             # https://github.com/haasad/PyPardiso/issues/68
             self.mu_laplacian = sp.csc_matrix(self.mu_laplacian)
             self.mu_laplacian_lu = None
+            self.mu_solve = PardisoSolve(sp.csr_matrix(self.mu_laplacian), mtype=11)
+        elif self.sparse_solver in (SparseSolver.SUPERLU_SYM, SparseSolver.PARDISO_SYM):
+            self.mu_laplacian = sp.csc_matrix(self.mu_laplacian)
+            self.mu_laplacian_lu = None
+            self.mu_solve = build_symmetric_mu_solve(
+                mesh, self.laplacian_weights, self.sparse_solver
+            )
         else:
             use_umfpack = self.sparse_solver is SparseSolver.UMFPACK
             sp.linalg.use_solver(useUmfpack=use_umfpack)
             self.mu_laplacian_lu = sp.linalg.factorized(self.mu_laplacian)
+            self.mu_solve = self.mu_laplacian_lu
 
     def set_link_exponents(self, link_exponents: np.ndarray) -> None:
         """Set the link variables and construct the covarient gradient
