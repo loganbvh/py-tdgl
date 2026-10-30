@@ -329,7 +329,11 @@ class Device:
                 polygon.on_boundary(points[boundary_edges[:, 1]], radius=1e-6),
             )
             boundary_sites = get_oriented_boundary(points, boundary_edges[on_boundary])
-            assert len(boundary_sites) == 1, len(boundary_sites)
+            if len(boundary_sites) != 1:
+                raise ValueError(
+                    "Expected a single closed boundary for polygon"
+                    f" {polygon.name!r}, but found {len(boundary_sites)}."
+                )
             boundary[polygon.name] = boundary_sites[0]
         return boundary
 
