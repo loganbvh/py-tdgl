@@ -30,7 +30,9 @@ def convert_to_xdmf(
         import meshio
     except ImportError as e:
         raise RuntimeError(
-            "convert_to_xdmf() requires the meshio Python package."
+            "convert_to_xdmf() requires the meshio Python package. "
+            "Install it with `pip install tdgl[visualization]` "
+            "(or `pip install meshio`)."
         ) from e
 
     solution = Solution.from_hdf5(path_to_solution)
