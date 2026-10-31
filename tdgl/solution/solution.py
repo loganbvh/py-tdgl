@@ -304,7 +304,9 @@ class Solution:
         areas = mesh.areas * xi**2
         K = self.current_density
         units = units or f"{self.current_units} * {device.length_units}**2"
-        m = np.sum(0.5 * np.cross(sites, K) * areas).to(units)
+        # NumPy 2.5 dropped 2D support in np.cross.
+        cross = sites[:, 0] * K[:, 1] - sites[:, 1] * K[:, 0]
+        m = np.sum(0.5 * cross * areas).to(units)
         if not with_units:
             m = m.magnitude
         return m
