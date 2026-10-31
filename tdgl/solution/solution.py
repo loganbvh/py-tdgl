@@ -112,6 +112,7 @@ class Solution:
         """A container for the raw TDGL data (in dimensionless units)."""
         self.dynamics: Union[DynamicsData, None] = None
         """A container for the time dynamics of the solution (in dimensionless units)."""
+        self._dynamics_data_range: Union[Tuple[int, int], None] = None
         self._solve_step = _solve_step
         self.load_tdgl_data(self._solve_step)
         self._version_info = version_dict()
@@ -127,6 +128,8 @@ class Solution:
         :class:`tdgl.solution.data.TDGLData`.
 
         Setting ``solve_step`` automatically loads data for the specitied step.
+        The time dynamics are cached and are not re-read from file unless the
+        file's data range changes; see :meth:`tdgl.Solution.load_tdgl_data`.
         """
         return self._solve_step
 
@@ -159,13 +162,25 @@ class Solution:
         return np.argmin(np.abs(self.times - time))
 
     def load_tdgl_data(
-        self, solve_step: int = -1, h5file: Union[h5py.File, None] = None
+        self,
+        solve_step: int = -1,
+        h5file: Union[h5py.File, None] = None,
+        reload_dynamics: bool = False,
     ) -> None:
         """Loads the TDGL results from file for a given solve step.
+
+        The time dynamics are expensive to load, so they are cached and only
+        re-read from file if they have not been loaded yet, if the file's data
+        range has changed since they were loaded, or if ``reload_dynamics``
+        is True.
 
         Args:
             solve_step: The step index for which to load data.
                 Defaults to -1, i.e. the final step.
+            h5file: An open HDF5 file to read from. If ``None``, the file at
+                ``self.path`` is opened.
+            reload_dynamics: If True, force a full re-read of the time dynamics
+                from file, even if they are already cached.
         """
         if h5file is None:
             read_context = h5py.File(self.path, "r")
@@ -180,7 +195,13 @@ class Solution:
             else:
                 step = solve_step
             self.tdgl_data = TDGLData.from_hdf5(f, step)
-            self.dynamics = DynamicsData.from_hdf5(f, *self.data_range)
+            if (
+                reload_dynamics
+                or self.dynamics is None
+                or self._dynamics_data_range != self.data_range
+            ):
+                self.dynamics = DynamicsData.from_hdf5(f, *self.data_range)
+                self._dynamics_data_range = self.data_range
         mesh = self.device.mesh
         self._solve_step = step
         supercurrent, sc_direc, _ = get_edge_quantity_data(
