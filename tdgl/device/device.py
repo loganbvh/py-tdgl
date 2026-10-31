@@ -95,7 +95,8 @@ class Device:
             raise ValueError("All holes must have a unique name.")
 
         if probe_points is not None:
-            probe_points = np.asarray(probe_points).squeeze()
+            # squeeze() alone would flatten a single probe point to (2,)
+            probe_points = np.atleast_2d(np.asarray(probe_points).squeeze())
             if probe_points.ndim != 2 or probe_points.shape[1] != 2:
                 raise ValueError(
                     f"Probe points must have shape (n, 2), "

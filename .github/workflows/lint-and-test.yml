@@ -19,17 +19,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: setup-env
-      run: |
-        echo "OPENBLAS_NUM_THREADS=2" >> $GITHUB_OUTPUT
-        echo "OMP_NUM_THREADS=2" >> $GITHUB_OUTPUT
-        echo "NUMBA_NUM_THREADS=2" >> $GITHUB_OUTPUT
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup FFmpeg
-      uses: FedericoCarboni/setup-ffmpeg@v2
+      uses: FedericoCarboni/setup-ffmpeg@v3
     - name: Install pip
       run: |
         python -m pip install --upgrade pip
@@ -46,10 +41,9 @@ jobs:
           ${{ runner.os }}${{ matrix.python-version }}-pip-
     - name: Install dependencies
       run: |
-        python -m pip install flake8 pytest
-        python -m pip install meshio
+        python -m pip install flake8
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        python -m pip install -e .
+        python -m pip install -e ".[test,visualization]"
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -57,10 +51,14 @@ jobs:
         # exit-zero treats all errors as warnings.
         flake8 . --count --exit-zero --select=C,E,F,W,B,B950 --extend-ignore=E203,E501,W503 --max-complexity=18 --max-line-length=88 --statistics
     - name: Test with pytest
+      env:
+        OPENBLAS_NUM_THREADS: "2"
+        OMP_NUM_THREADS: "2"
+        NUMBA_NUM_THREADS: "2"
       run: |
         pytest -v --cov=./ --cov-report=xml
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: coverage.xml

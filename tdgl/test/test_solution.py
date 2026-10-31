@@ -161,6 +161,23 @@ def test_solve_step_change_does_not_reload_dynamics(
 
     solution.solve_step = original_step
     assert len(calls) == 1
+  
+
+def test_single_probe_point_dynamics(solution: tdgl.Solution):
+    dynamics = DynamicsData.from_solution(
+        solution.path, probe_points=[(-10, 0)], progress_bar=False
+    )
+    full_dynamics = DynamicsData.from_solution(
+        solution.path, probe_points=[(-10, 0), (10, 0)], progress_bar=False
+    )
+    assert dynamics.mu.shape[0] == dynamics.theta.shape[0] == 1
+    assert np.allclose(dynamics.mu[0], full_dynamics.mu[0])
+    assert np.allclose(dynamics.theta[0], full_dynamics.theta[0])
+
+    with pytest.raises(ValueError, match="only one probe point"):
+        _ = dynamics.voltage()
+    with pytest.raises(ValueError, match="only one probe point"):
+        _ = dynamics.phase_difference()
 
 
 @pytest.mark.parametrize("dataset", [None, "supercurrent", "normal_current", "invalid"])
