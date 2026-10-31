@@ -6,8 +6,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: psf/black@stable
+      - uses: actions/checkout@v7
+      - uses: psf/black@26.10.1
         with:
           options: "--diff --color --check"
           src: "tdgl"
