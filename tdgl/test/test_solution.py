@@ -161,7 +161,7 @@ def test_solve_step_change_does_not_reload_dynamics(
 
     solution.solve_step = original_step
     assert len(calls) == 1
-  
+
 
 def test_single_probe_point_dynamics(solution: tdgl.Solution):
     dynamics = DynamicsData.from_solution(
