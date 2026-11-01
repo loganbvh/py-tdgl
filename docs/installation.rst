@@ -67,7 +67,8 @@ In particular, ``PARDISO`` is optimized for Intel CPUs and, unlike ``SuperLU`` a
 This means that ``PARDISO`` may perform best when solving models with very large meshes on Intel CPUs.
 
 Your mileage may vary, so we encourage you to try the different solvers if you are looking to optimize the run time of your ``tdgl`` simulations.
-The sparse solver can be specified by setting the ``sparse_solver`` attribute of :class:`tdgl.SolverOptions` to one of ``{"superlu", "umfpack", "pardiso"}``.
+The sparse solver can be specified by setting the ``sparse_solver`` attribute of :class:`tdgl.SolverOptions` to one of ``{"superlu", "umfpack", "pardiso", "cupy", "superlu_sym", "pardiso_sym"}``.
+The ``_sym`` variants solve the scalar potential through the symmetric form of its Laplacian with one site pinned, which removes the constant null space. They are cheaper than the general solvers, and they differ from them by a constant in :math:`\\mu`.
 
 Installing UMFPACK
 ==================

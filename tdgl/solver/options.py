@@ -14,6 +14,8 @@ class SparseSolver(Enum):
     UMFPACK: str = "umfpack"
     PARDISO: str = "pardiso"
     CUPY: str = "cupy"
+    SUPERLU_SYM: str = "superlu_sym"
+    PARDISO_SYM: str = "pardiso_sym"
 
 
 @dataclass
@@ -40,7 +42,10 @@ class SolverOptions:
             to disk.
         gpu: Use the GPU via CuPy. This option requires a GPU and the
             CuPy Python package, which can be installed via pip.
-        sparse_solver: One of ``"superlu"``, ``"umfpack"``, ``"pardiso"``, or ``"cupy"``.
+        sparse_solver: One of ``"superlu"``, ``"umfpack"``, ``"pardiso"``, ``"cupy"``, ``"superlu_sym"``, or
+            ``"pardiso_sym"``. The ``_sym`` solvers factor the symmetric (area-weighted) form of the scalar-potential
+            Laplacian with one site pinned to remove its constant null space, so ``mu`` differs from the other
+            solvers by a constant, which only rotates the global phase of ``psi``.
             ``"umfpack"`` requires suitesparse, which can be installed via conda,
             and scikit-umfpack, which can be installed via pip. ``"pardiso"``
             requires an Intel CPU and the pypardiso package, which can be
@@ -150,12 +155,12 @@ class SolverOptions:
                     "SparseSolver.UMFPACK requires suitesparse and the"
                     " scikit-umfpack Python package."
                 )
-        if self.sparse_solver is SparseSolver.PARDISO:
+        if self.sparse_solver in (SparseSolver.PARDISO, SparseSolver.PARDISO_SYM):
             try:
                 import pypardiso  # type: ignore # noqa: F401
             except ImportError:
                 raise SolverOptionsError(
-                    "SparseSolver.CUPY requires an Intel CPU"
+                    "SparseSolver.PARDISO requires an Intel CPU"
                     " and the pypardiso Python package."
                 )
         if self.sparse_solver is SparseSolver.CUPY:
