@@ -25,7 +25,7 @@ from ..finite_volume.operators import MeshOperators
 from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
-from .options import SolverOptions, SparseSolver
+from .options import SolverOptions, SolverOptionsError, SparseSolver
 from .runner import DataHandler, Runner, RunningState
 from .screening import get_A_induced_cupy, get_A_induced_numba
 
@@ -130,7 +130,13 @@ class TDGLSolver:
         self.seed_solution = seed_solution
 
         if self.options.gpu:
-            assert cupy is not None
+            if cupy is None:
+                raise SolverOptionsError(
+                    "SolverOptions.gpu=True requires the CuPy Python package,"
+                    " which is not installed. Install it with"
+                    " 'pip install cupy-cuda12x' or the wheel matching your"
+                    " CUDA version."
+                )
             self.xp = cupy
             self.use_cupy = True
         else:
@@ -249,7 +255,10 @@ class TDGLSolver:
                 return terminal_currents
 
         J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
-        assert J_scale.dimensionless, str(J_scale)
+        if not J_scale.dimensionless:
+            raise ValueError(
+                f"current_units must be a unit of current (got {current_units!r})."
+            )
         J_scale = J_scale.magnitude
         self.current_func = lambda t: {
             key: J_scale * value for key, value in current_func(t).items()
@@ -278,8 +287,13 @@ class TDGLSolver:
         operators.set_link_exponents(current_A_applied)
         self.operators = operators
         if options.sparse_solver is SparseSolver.PARDISO:
+            # Guaranteed by MeshOperators.build_operators() for the PARDISO solver.
             assert self.operators.mu_laplacian_lu is None
-            assert pypardiso is not None
+            if pypardiso is None:
+                raise SolverOptionsError(
+                    "SparseSolver.PARDISO requires the pypardiso Python package,"
+                    " which is not installed. Install it with 'pip install pypardiso'."
+                )
 
         # Initialize the order parameter and electric potential
         psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
@@ -411,10 +425,12 @@ class TDGLSolver:
         """
         if isinstance(psi, np.ndarray):
             xp = np
-        else:
-            assert cupy is not None
-            assert isinstance(psi, cupy.ndarray)
+        elif cupy is not None and isinstance(psi, cupy.ndarray):
             xp = cupy
+        else:
+            raise TypeError(
+                f"psi must be a numpy or cupy array (got {type(psi).__name__})."
+            )
         U = xp.exp(-1j * mu * dt)
         z = U * gamma**2 / 2 * psi
         with np.errstate(all="raise"):

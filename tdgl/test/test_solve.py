@@ -8,8 +8,9 @@ except ImportError:
     cupy = None
 
 import tdgl
+from tdgl.finite_volume.operators import MeshOperators
 from tdgl.geometry import box, circle
-from tdgl.solver.options import SolverOptionsError
+from tdgl.solver.options import SolverOptionsError, SparseSolver
 
 
 @pytest.mark.parametrize("current", [5.0, lambda t: 10])
@@ -195,3 +196,51 @@ def test_screening(screening_device: tdgl.Device):
         total_fluxoid = sum(fluxoid).magnitude
         error = abs(total_fluxoid / fluxoid.flux_part.magnitude)
         assert error < 5e-2
+
+
+def test_tdgl_solver_invalid_current_units(transport_device):
+    options = tdgl.SolverOptions(solve_time=1, current_units="mT")
+    with pytest.raises(ValueError, match="current_units"):
+        tdgl.TDGLSolver(transport_device, options)
+
+
+def test_solve_for_psi_squared_invalid_psi_type():
+    with pytest.raises(TypeError, match="psi must be a numpy or cupy array"):
+        tdgl.TDGLSolver.solve_for_psi_squared(
+            psi=[1.0],
+            abs_sq_psi=None,
+            mu=None,
+            epsilon=None,
+            gamma=1,
+            u=1,
+            dt=1,
+            psi_laplacian=None,
+        )
+
+
+def test_tdgl_solver_missing_optional_dependencies(monkeypatch, transport_device):
+    # validate() would raise first, so skip it to reach the solver's own checks.
+    monkeypatch.setattr(tdgl.SolverOptions, "validate", lambda self: None)
+
+    monkeypatch.setattr("tdgl.solver.solver.cupy", None)
+    options = tdgl.SolverOptions(solve_time=1, gpu=True)
+    with pytest.raises(SolverOptionsError, match="CuPy"):
+        tdgl.TDGLSolver(transport_device, options)
+
+    monkeypatch.setattr("tdgl.solver.solver.pypardiso", None)
+    options = tdgl.SolverOptions(solve_time=1, sparse_solver=SparseSolver.PARDISO)
+    with pytest.raises(SolverOptionsError, match="pypardiso"):
+        tdgl.TDGLSolver(transport_device, options)
+
+
+def test_mesh_operators_require_cupy(monkeypatch, transport_device):
+    monkeypatch.setattr("tdgl.finite_volume.operators.cupy", None)
+    mesh = transport_device.mesh
+
+    operators = MeshOperators(mesh, SparseSolver.SUPERLU, use_cupy=True)
+    with pytest.raises(SolverOptionsError, match="CuPy"):
+        operators.build_operators()
+
+    operators = MeshOperators(mesh, SparseSolver.CUPY, use_cupy=False)
+    with pytest.raises(SolverOptionsError, match="SparseSolver.CUPY requires"):
+        operators.build_operators()

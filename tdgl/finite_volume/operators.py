@@ -12,7 +12,7 @@ else:
     from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
     from cupyx.scipy.sparse.linalg import factorized  # type: ignore
 
-from ..solver.options import SparseSolver
+from ..solver.options import SolverOptionsError, SparseSolver
 from .mesh import Mesh
 
 
@@ -287,14 +287,24 @@ class MeshOperators:
         self.mu_gradient = build_gradient(mesh, weights=self.gradient_weights)
         self.divergence = build_divergence(mesh)
         if self.use_cupy:
-            assert cupy is not None
+            if cupy is None:
+                raise SolverOptionsError(
+                    "use_cupy=True requires the CuPy Python package, which is"
+                    " not installed. Install it with 'pip install cupy-cuda12x'"
+                    " or the wheel matching your CUDA version."
+                )
             self.mu_boundary_laplacian = csr_matrix(self.mu_boundary_laplacian)
             self.mu_gradient = csr_matrix(self.mu_gradient)
             self.divergence = csr_matrix(self.divergence)
             self.areas = cupy.array(self.areas)
             self.edge_directions = cupy.array(self.edge_directions)
         if self.sparse_solver is SparseSolver.CUPY:
-            assert cupy is not None
+            if cupy is None:
+                raise SolverOptionsError(
+                    "SparseSolver.CUPY requires the CuPy Python package, which"
+                    " is not installed. Install it with 'pip install cupy-cuda12x'"
+                    " or the wheel matching your CUDA version."
+                )
             self.mu_laplacian = csc_matrix(self.mu_laplacian)
             self.mu_laplacian_lu = factorized(self.mu_laplacian)
         elif self.sparse_solver is SparseSolver.PARDISO:
