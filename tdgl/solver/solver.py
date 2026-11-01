@@ -25,6 +25,7 @@ from ..finite_volume.operators import MeshOperators
 from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
+from . import kernels
 from .options import SolverOptions, SparseSolver
 from .runner import DataHandler, Runner, RunningState
 from .screening import get_A_induced_cupy, get_A_induced_numba
@@ -280,6 +281,12 @@ class TDGLSolver:
         if options.sparse_solver is SparseSolver.PARDISO:
             assert self.operators.mu_laplacian_lu is None
             assert pypardiso is not None
+        self.fused = bool(options.fused_kernels) and not self.use_cupy
+        self.implicit = bool(options.implicit_laplacian) and self.fused
+        self.fixed_mask = np.zeros(len(mesh.sites), dtype=np.bool_)
+        if terminal_psi is not None:
+            self.fixed_mask[normal_boundary_index] = True
+        self.implicit_iterations = 0
 
         # Initialize the order parameter and electric potential
         psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
@@ -461,6 +468,8 @@ class TDGLSolver:
             :math:`\\psi^{n+1}`, :math:`|\\psi^{n+1}|^2`, and :math:`\\Delta t^{n}`.
         """
         options = self.options
+        if self.fused:
+            return self._fused_euler_step(step, psi, abs_sq_psi, mu, epsilon, dt)
         kwargs = dict(
             psi=psi,
             abs_sq_psi=abs_sq_psi,
@@ -486,6 +495,89 @@ class TDGLSolver:
         psi, new_sq_psi = result
         return psi, new_sq_psi, dt
 
+    def _fused_euler_step(
+        self,
+        step: int,
+        psi: np.ndarray,
+        abs_sq_psi: np.ndarray,
+        mu: np.ndarray,
+        epsilon: np.ndarray,
+        dt: float,
+    ) -> Tuple[np.ndarray, np.ndarray, float]:
+        """:meth:`adaptive_euler_step` through :func:`kernels.psi_step`."""
+        options = self.options
+        lap = self.operators.psi_laplacian_csr()
+        epsilon = np.broadcast_to(np.asarray(epsilon, dtype=float), psi.shape)
+        new_psi = np.empty_like(psi)
+        new_sq = np.empty(psi.shape, dtype=float)
+
+        def attempt(dt):
+            if not self.implicit:
+                return kernels.psi_step(
+                    psi,
+                    abs_sq_psi,
+                    mu,
+                    epsilon,
+                    float(self.gamma),
+                    float(self.u),
+                    float(dt),
+                    lap.indptr,
+                    lap.indices,
+                    lap.data,
+                    new_psi,
+                    new_sq,
+                )
+            a = dt / self.u
+            s = np.sqrt(1 + self.gamma**2 * abs_sq_psi)
+            rhs = psi + a * s * (epsilon - abs_sq_psi) * psi
+            # Fixed sites are Dirichlet rows in the implicit solve, so hold them at psi.
+            rhs[self.fixed_mask] = psi[self.fixed_mask]
+            psi_star, its, res = kernels.implicit_laplacian_solve(
+                rhs,
+                psi,
+                a,
+                s,
+                self.fixed_mask,
+                lap.indptr,
+                lap.indices,
+                lap.data,
+                float(options.implicit_rtol),
+                int(options.implicit_maxiter),
+            )
+            self.implicit_iterations = its
+            if its < 0 or res > options.implicit_rtol:
+                return False
+            return kernels.psi_finish(
+                psi,
+                abs_sq_psi,
+                mu,
+                epsilon,
+                float(self.gamma),
+                float(self.u),
+                float(dt),
+                psi_star,
+                self.fixed_mask,
+                lap.indptr,
+                lap.indices,
+                lap.data,
+                new_psi,
+                new_sq,
+            )
+
+        ok = attempt(dt)
+        for retries in itertools.count():
+            if ok:
+                break
+            if not options.adaptive or retries > options.max_solve_retries:
+                raise RuntimeError(
+                    f"Solver failed to converge in {options.max_solve_retries}"
+                    f" retries at step {step} with dt = {dt:.2e}."
+                    f" Try using a smaller dt_init."
+                )
+            dt = dt * options.adaptive_time_step_multiplier
+            ok = attempt(dt)
+        return new_psi, new_sq, dt
+
     def solve_for_observables(
         self, psi: np.ndarray, dA_dt: Union[float, np.ndarray]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -504,7 +596,19 @@ class TDGLSolver:
         use_cupy_solver = options.sparse_solver is SparseSolver.CUPY
         operators = self.operators
         # Compute the supercurrent, scalar potential, and normal current
-        supercurrent = operators.get_supercurrent(psi)
+        if self.fused:
+            grad = operators.psi_gradient
+            supercurrent = np.empty(len(operators.edges), dtype=float)
+            kernels.supercurrent(
+                psi,
+                operators.edges[:, 0],
+                grad.indptr,
+                grad.indices,
+                grad.data,
+                supercurrent,
+            )
+        else:
+            supercurrent = operators.get_supercurrent(psi)
         rhs = (operators.divergence @ (supercurrent - dA_dt)) - (
             operators.mu_boundary_laplacian @ self.mu_boundary
         )
@@ -694,6 +798,8 @@ class TDGLSolver:
             running_state.append("theta", xp.angle(psi[self.probe_points]))
         if options.include_screening:
             running_state.append("screening_iterations", screening_iteration)
+        if self.implicit:
+            running_state.append("implicit_iterations", self.implicit_iterations)
 
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
@@ -776,6 +882,8 @@ class TDGLSolver:
             running_names_and_sizes["theta"] = len(probe_points)
         if options.include_screening:
             running_names_and_sizes["screening_iterations"] = 1
+        if self.implicit:
+            running_names_and_sizes["implicit_iterations"] = 1
 
         with DataHandler(output_file=output_file, logger=logger) as data_handler:
             data_handler.save_mesh(self.device.mesh)

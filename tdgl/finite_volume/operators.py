@@ -264,6 +264,7 @@ class MeshOperators:
         self.mu_laplacian: Union[sp.spmatrix, None] = None
         self.mu_boundary_laplacian: Union[sp.spmatrix, None] = None
         self.mu_laplacian_lu: Union[Callable, None] = None
+        self._psi_laplacian_csr: Union[sp.csr_array, None] = None
         self.psi_gradient: Union[sp.spmatrix, None] = None
         self.psi_laplacian: Union[sp.spmatrix, None] = None
         self.link_exponents: Union[np.ndarray, None] = None
@@ -317,6 +318,7 @@ class MeshOperators:
         """
         mesh = self.mesh
         xp = cupy if self.use_cupy else np
+        self._psi_laplacian_csr = None
         self.link_exponents = xp.asarray(link_exponents)
         if self.psi_gradient is None:
             # Build the matrices from scratch
@@ -381,6 +383,14 @@ class MeshOperators:
                 cols = self.laplacian_link_cols
             # self.psi_laplacian[rows, cols] = values
             _spmatrix_set_many(self.psi_laplacian, rows, cols, values)
+
+    def psi_laplacian_csr(self) -> sp.csr_array:
+        """The psi Laplacian as CSR, rebuilt only after the link variables change."""
+        if self._psi_laplacian_csr is None:
+            lap = sp.csr_array(self.psi_laplacian)
+            lap.sort_indices()
+            self._psi_laplacian_csr = lap
+        return self._psi_laplacian_csr
 
     def get_supercurrent(self, psi: np.ndarray):
         """Compute the supercurrent on the edges.

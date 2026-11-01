@@ -111,6 +111,7 @@ The ``pyTDGL`` Python API is adapted from `SuperScreen <https://superscreen.read
 
    notebooks/screening.ipynb
    notebooks/polygons.ipynb
+   notebooks/implicit-solver.ipynb
    notebooks/logo.ipynb
 
 

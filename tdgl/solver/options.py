@@ -61,6 +61,16 @@ class SolverOptions:
             step.
         screening_step_size: Step size :math:`\\alpha` for Polyak's method.
         screening_step_drag: Drag parameter :math:`\\beta` for Polyak's method.
+        fused_kernels: Use the fused numba kernels for the CPU time step instead of NumPy and SciPy products.
+            Ignored with ``gpu=True``.
+        implicit_laplacian: Treat the covariant Laplacian in the psi update implicitly (linearly implicit Euler,
+            solved by Jacobi-preconditioned BiCGSTAB), which removes the explicit stability limit on ``dt``. The
+            scheme stays first order and has the same static states (``mu psi = 0`` everywhere), so with a large
+            ``dt_max`` it is meant for relaxing to such states. In a dynamic state (a finite voltage, moving vortices)
+            the splitting error grows with ``dt``; keep ``dt_max`` near 0.02 there. ``dt_max`` above about 1 is
+            unstable, since ``mu`` stays explicit. Requires ``fused_kernels`` and no GPU.
+        implicit_rtol: Relative residual tolerance of the implicit solve.
+        implicit_maxiter: Iteration limit of the implicit solve.
     """
 
     solve_time: float
@@ -87,6 +97,10 @@ class SolverOptions:
     screening_tolerance: float = 1e-3
     screening_step_size: float = 0.1
     screening_step_drag: float = 0.5
+    fused_kernels: bool = True
+    implicit_laplacian: bool = False
+    implicit_rtol: float = 1e-10
+    implicit_maxiter: int = 1000
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:
@@ -120,6 +134,19 @@ class SolverOptions:
             raise SolverOptionsError(
                 "screening_tolerance must be in > 0"
                 f" (got {self.screening_tolerance})."
+            )
+
+        if self.implicit_laplacian and (self.gpu or not self.fused_kernels):
+            raise SolverOptionsError(
+                "implicit_laplacian requires fused_kernels=True and gpu=False."
+            )
+        if self.implicit_rtol <= 0:
+            raise SolverOptionsError(
+                f"implicit_rtol must be > 0 (got {self.implicit_rtol})."
+            )
+        if self.implicit_maxiter < 1:
+            raise SolverOptionsError(
+                f"implicit_maxiter must be >= 1 (got {self.implicit_maxiter})."
             )
 
         if self.gpu:
