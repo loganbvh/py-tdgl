@@ -61,6 +61,8 @@ class SolverOptions:
             step.
         screening_step_size: Step size :math:`\\alpha` for Polyak's method.
         screening_step_drag: Drag parameter :math:`\\beta` for Polyak's method.
+        fused_kernels: Use the fused numba kernels for the CPU time step instead of NumPy and SciPy products.
+            Ignored with ``gpu=True``.
     """
 
     solve_time: float
@@ -87,6 +89,7 @@ class SolverOptions:
     screening_tolerance: float = 1e-3
     screening_step_size: float = 0.1
     screening_step_drag: float = 0.5
+    fused_kernels: bool = True
 
     def validate(self) -> None:
         if self.dt_init > self.dt_max:

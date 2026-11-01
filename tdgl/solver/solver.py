@@ -25,6 +25,7 @@ from ..finite_volume.operators import MeshOperators
 from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
+from . import kernels
 from .options import SolverOptions, SparseSolver
 from .runner import DataHandler, Runner, RunningState
 from .screening import get_A_induced_cupy, get_A_induced_numba
@@ -280,6 +281,7 @@ class TDGLSolver:
         if options.sparse_solver is SparseSolver.PARDISO:
             assert self.operators.mu_laplacian_lu is None
             assert pypardiso is not None
+        self.fused = bool(options.fused_kernels) and not self.use_cupy
 
         # Initialize the order parameter and electric potential
         psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
@@ -461,6 +463,8 @@ class TDGLSolver:
             :math:`\\psi^{n+1}`, :math:`|\\psi^{n+1}|^2`, and :math:`\\Delta t^{n}`.
         """
         options = self.options
+        if self.fused:
+            return self._fused_euler_step(step, psi, abs_sq_psi, mu, epsilon, dt)
         kwargs = dict(
             psi=psi,
             abs_sq_psi=abs_sq_psi,
@@ -486,6 +490,52 @@ class TDGLSolver:
         psi, new_sq_psi = result
         return psi, new_sq_psi, dt
 
+    def _fused_euler_step(
+        self,
+        step: int,
+        psi: np.ndarray,
+        abs_sq_psi: np.ndarray,
+        mu: np.ndarray,
+        epsilon: np.ndarray,
+        dt: float,
+    ) -> Tuple[np.ndarray, np.ndarray, float]:
+        """:meth:`adaptive_euler_step` through :func:`kernels.psi_step`."""
+        options = self.options
+        lap = self.operators.psi_laplacian_csr()
+        epsilon = np.broadcast_to(np.asarray(epsilon, dtype=float), psi.shape)
+        new_psi = np.empty_like(psi)
+        new_sq = np.empty(psi.shape, dtype=float)
+
+        def attempt(dt):
+            return kernels.psi_step(
+                psi,
+                abs_sq_psi,
+                mu,
+                epsilon,
+                float(self.gamma),
+                float(self.u),
+                float(dt),
+                lap.indptr,
+                lap.indices,
+                lap.data,
+                new_psi,
+                new_sq,
+            )
+
+        ok = attempt(dt)
+        for retries in itertools.count():
+            if ok:
+                break
+            if not options.adaptive or retries > options.max_solve_retries:
+                raise RuntimeError(
+                    f"Solver failed to converge in {options.max_solve_retries}"
+                    f" retries at step {step} with dt = {dt:.2e}."
+                    f" Try using a smaller dt_init."
+                )
+            dt = dt * options.adaptive_time_step_multiplier
+            ok = attempt(dt)
+        return new_psi, new_sq, dt
+
     def solve_for_observables(
         self, psi: np.ndarray, dA_dt: Union[float, np.ndarray]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -504,7 +554,19 @@ class TDGLSolver:
         use_cupy_solver = options.sparse_solver is SparseSolver.CUPY
         operators = self.operators
         # Compute the supercurrent, scalar potential, and normal current
-        supercurrent = operators.get_supercurrent(psi)
+        if self.fused:
+            grad = operators.psi_gradient
+            supercurrent = np.empty(len(operators.edges), dtype=float)
+            kernels.supercurrent(
+                psi,
+                operators.edges[:, 0],
+                grad.indptr,
+                grad.indices,
+                grad.data,
+                supercurrent,
+            )
+        else:
+            supercurrent = operators.get_supercurrent(psi)
         rhs = (operators.divergence @ (supercurrent - dA_dt)) - (
             operators.mu_boundary_laplacian @ self.mu_boundary
         )
