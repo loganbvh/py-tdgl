@@ -91,15 +91,6 @@ def _biot_savart_1d_vector(
     Returns:
         The vector magnetic field in tesla
     """
-    assert eval_positions.ndim == 2
-    assert eval_positions.shape[1] == 3
-    assert current_positions.ndim == 2
-    assert current_positions.shape[1] == 3
-    assert current_vectors.ndim == 2
-    assert current_vectors.shape[1] == 3
-    assert currents.ndim == 1
-    assert current_positions.shape[0] == current_vectors.shape[0] == currents.shape[0]
-
     B_out = np.zeros((len(eval_positions), 3), dtype=float)
     for i in numba.prange(eval_positions.shape[0]):
         for k in range(current_positions.shape[0]):
@@ -140,6 +131,33 @@ def biot_savart(
     current_positions = np.atleast_2d(current_positions)
     current_vectors = np.atleast_2d(current_vectors)
     currents = np.atleast_1d(currents)
+    if eval_positions.ndim != 2 or eval_positions.shape[1] != 3:
+        raise ValueError(
+            "eval_positions must be an array of shape (n, 3)"
+            f" (got shape {eval_positions.shape})."
+        )
+    for name, array in (
+        ("current_positions", current_positions),
+        ("current_vectors", current_vectors),
+    ):
+        if array.ndim != 2 or array.shape[1] != 3:
+            raise ValueError(
+                f"{name} must be an array of shape (m, 3) (got shape {array.shape})."
+            )
+    # The docstring allows currents with shape (m, 1).
+    if currents.ndim == 2 and currents.shape[1] == 1:
+        currents = currents[:, 0]
+    if currents.ndim != 1:
+        raise ValueError(
+            f"currents must be an array of shape (m,) (got shape {currents.shape})."
+        )
+    num_currents = current_positions.shape[0]
+    if current_vectors.shape[0] != num_currents or currents.shape[0] != num_currents:
+        raise ValueError(
+            "current_positions, current_vectors, and currents must all have"
+            f" {num_currents} rows (got {current_vectors.shape[0]} and"
+            f" {currents.shape[0]})."
+        )
     B = _biot_savart_1d_vector(
         eval_positions,
         current_positions,
@@ -168,12 +186,6 @@ def _biot_savart_2d_z(
     Returns:
         The z-component of the magnetic field in tesla
     """
-    assert eval_positions.ndim == 2
-    assert eval_positions.shape[1] == 3
-    assert positions.ndim == 2
-    assert positions.shape[0] == areas.shape[0] == current_densities.shape[0]
-    assert positions.shape[1] == 3
-
     Jx = current_densities[:, 0]
     Jy = current_densities[:, 1]
     Bz_out = np.empty(len(eval_positions), dtype=float)
@@ -215,12 +227,6 @@ def _biot_savart_2d_vector(
     Returns:
         The vector magnetic field in tesla
     """
-    assert eval_positions.ndim == 2
-    assert eval_positions.shape[1] == 3
-    assert positions.ndim == 2
-    assert positions.shape[0] == areas.shape[0] == current_densities.shape[0]
-    assert positions.shape[1] == 3
-
     Jx = current_densities[:, 0]
     Jy = current_densities[:, 1]
     B_out = np.empty((len(eval_positions), 3), dtype=float)
@@ -317,6 +323,16 @@ def biot_savart_2d(
         z = z * np.ones_like(x)
     eval_positions = np.array([x, y, z]).T * to_meter
     positions, current_densities = np.atleast_2d(positions, current_densities)
+    if positions.ndim != 2 or positions.shape[1] != 2:
+        raise ValueError(
+            "positions must be an array of shape (m, 2)"
+            f" (got shape {positions.shape})."
+        )
+    if current_densities.shape != positions.shape:
+        raise ValueError(
+            f"current_densities must be an array of shape {positions.shape}"
+            f" (got shape {current_densities.shape})."
+        )
     current_densities = current_densities * to_amp_per_meter
     positions = positions * to_meter
     z0 = z0 * np.ones(len(positions)) * to_meter
@@ -326,6 +342,12 @@ def biot_savart_2d(
         mesh = Mesh.from_triangulation(positions[:, 0], positions[:, 1], triangles)
         areas = mesh.areas
     else:
+        areas = np.atleast_1d(areas)
+        if areas.shape != (len(positions),):
+            raise ValueError(
+                f"areas must be an array of shape ({len(positions)},)"
+                f" (got shape {areas.shape})."
+            )
         areas = areas * to_meter**2
     positions = np.concatenate([positions, z0[:, np.newaxis]], axis=1)
     # Evaluate the Biot-Savart integral.
@@ -451,9 +473,17 @@ def uniform_Bz_vector_potential(
         Shape (n, 3) array of the vector potential [Ax, Ay, Az] at ``positions``
         in units of Tesla * meter.
     """
-    assert isinstance(Bz, (float, str, pint.Quantity)), type(Bz)
+    if not isinstance(Bz, (float, str, pint.Quantity)):
+        raise TypeError(
+            "Bz must be a float, a string, or a pint.Quantity"
+            f" (got {type(Bz).__name__})."
+        )
     positions = np.atleast_2d(positions)
-    assert positions.shape[1] == 3, positions.shape
+    if positions.ndim != 2 or positions.shape[1] != 3:
+        raise ValueError(
+            "positions must be an array of shape (n, 3)"
+            f" (got shape {positions.shape})."
+        )
     if not isinstance(positions, pint.Quantity):
         positions = positions * ureg("meter")
     if isinstance(Bz, str):
