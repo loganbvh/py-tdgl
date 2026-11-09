@@ -291,8 +291,6 @@ class TDGLSolver:
         if options.sparse_solver is SparseSolver.PARDISO:
             # Guaranteed by MeshOperators.build_operators() for the PARDISO solver.
             assert self.operators.mu_laplacian_lu is None
-            assert pypardiso is not None
-
             if pypardiso is None:
                 raise SolverOptionsError(
                     "SparseSolver.PARDISO requires the pypardiso Python package,"
