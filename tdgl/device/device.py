@@ -95,7 +95,8 @@ class Device:
             raise ValueError("All holes must have a unique name.")
 
         if probe_points is not None:
-            probe_points = np.asarray(probe_points).squeeze()
+            # squeeze() alone would flatten a single probe point to (2,)
+            probe_points = np.atleast_2d(np.asarray(probe_points).squeeze())
             if probe_points.ndim != 2 or probe_points.shape[1] != 2:
                 raise ValueError(
                     f"Probe points must have shape (n, 2), "
@@ -328,7 +329,11 @@ class Device:
                 polygon.on_boundary(points[boundary_edges[:, 1]], radius=1e-6),
             )
             boundary_sites = get_oriented_boundary(points, boundary_edges[on_boundary])
-            assert len(boundary_sites) == 1, len(boundary_sites)
+            if len(boundary_sites) != 1:
+                raise ValueError(
+                    "Expected a single closed boundary for polygon"
+                    f" {polygon.name!r}, but found {len(boundary_sites)}."
+                )
             boundary[polygon.name] = boundary_sites[0]
         return boundary
 

@@ -3,6 +3,7 @@ from typing import Optional
 import h5py
 from tqdm import tqdm
 
+from ..solution.data import load_state_data
 from ..solution.solution import Solution
 from .common import Quantity
 from .io import get_plot_data
@@ -30,7 +31,9 @@ def convert_to_xdmf(
         import meshio
     except ImportError as e:
         raise RuntimeError(
-            "convert_to_xdmf() requires the meshio Python package."
+            "convert_to_xdmf() requires the meshio Python package. "
+            "Install it with `pip install tdgl[visualization]` "
+            "(or `pip install meshio`)."
         ) from e
 
     solution = Solution.from_hdf5(path_to_solution)
@@ -50,8 +53,9 @@ def convert_to_xdmf(
         with meshio.xdmf.TimeSeriesWriter(xdmf_path) as writer:
             writer.write_points_cells(points, cells)
             for step in tqdm(range(first, last + 1), desc="Solve steps"):
-                solution.solve_step = step
-                t = solution.tdgl_data.state["time"]
+                # Read the time directly; the solve_step setter would load the
+                # full TDGLData for the step just to throw it away.
+                t = load_state_data(h5file, step)["time"]
                 point_data = {}
                 for name, quantity in Quantity.__members__.items():
                     data, _, _ = get_plot_data(h5file, mesh, quantity, step)

@@ -79,15 +79,13 @@ PYTHON_VERSION = ">=3.9, <3.15"
 INSTALL_REQUIRES = [
     "cloudpickle",
     "h5py",
+    "ipython",
     "joblib",
-    "jupyter",
     "matplotlib",
     "meshpy",
     "numba",
     "numpy",
     "pint",
-    "pytest",
-    "pytest-cov",
     "scipy",
     "shapely",
     "tqdm",
@@ -98,6 +96,13 @@ EXTRAS_REQUIRE = {
         "black",
         "isort",
         "pre-commit",
+    ],
+    "test": [
+        "pytest",
+        "pytest-cov",
+    ],
+    "visualization": [
+        "meshio",
     ],
     "docs": [
         "IPython",

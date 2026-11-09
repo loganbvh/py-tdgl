@@ -121,6 +121,29 @@ def test_plot_polygon():
     plt.close("all")
 
 
+@pytest.mark.parametrize(
+    "probe_points",
+    [(0, 0), [(0, 0)], np.array([[0, 0]])],
+)
+def test_single_probe_point(probe_points):
+    layer = tdgl.Layer(london_lambda=1, coherence_length=1, thickness=0.1, z0=0)
+    film = tdgl.Polygon("film", points=tdgl.geometry.box(10))
+    device = tdgl.Device(
+        "device",
+        layer=layer,
+        film=film,
+        probe_points=probe_points,
+    )
+    assert device.probe_points.shape == (1, 2)
+    assert np.allclose(device.probe_points, [[0, 0]])
+    translated = device.translate(1, 1)
+    assert translated.probe_points.shape == (1, 2)
+    assert np.allclose(translated.probe_points, [[1, 1]])
+    scaled = device.scale(xfact=2)
+    assert scaled.probe_points.shape == (1, 2)
+    assert np.allclose(scaled.probe_points, [[0, 0]])
+
+
 @pytest.fixture(scope="module")
 def device():
     layer = tdgl.Layer(london_lambda=1, coherence_length=1, thickness=0.1, z0=0)

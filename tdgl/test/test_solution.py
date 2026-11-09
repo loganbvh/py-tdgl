@@ -7,7 +7,7 @@ import pint
 import pytest
 
 import tdgl
-from tdgl.solution.data import DynamicsData
+from tdgl.solution.data import DynamicsData, TDGLData
 
 
 @pytest.fixture(scope="module")
@@ -125,6 +125,59 @@ def test_dynamics(solution: tdgl.Solution):
     _ = DynamicsData.from_solution(
         solution.path, probe_points=solution.device.probe_points, progress_bar=False
     )
+
+
+def test_solve_step_change_does_not_reload_dynamics(
+    solution: tdgl.Solution, monkeypatch
+):
+    original_step = solution.solve_step
+    original_from_hdf5 = DynamicsData.from_hdf5
+    calls = []
+
+    def counting_from_hdf5(h5file, step_min=None, step_max=None):
+        calls.append((step_min, step_max))
+        return original_from_hdf5(h5file, step_min, step_max)
+
+    monkeypatch.setattr(DynamicsData, "from_hdf5", staticmethod(counting_from_hdf5))
+
+    with h5py.File(solution.path, "r") as f:
+        steps = sorted(int(key) for key in f["data"])
+    for step in steps:
+        solution.solve_step = step
+        assert solution.solve_step == step
+        assert solution.tdgl_data.step == step
+    assert len(calls) == 0
+
+    solution.load_tdgl_data(solve_step=-1, reload_dynamics=True)
+    assert len(calls) == 1
+    assert calls[0] == solution.data_range
+
+    first, last = solution.data_range
+    with h5py.File(solution.path, "r") as f:
+        expected_dynamics = original_from_hdf5(f, first, last)
+        expected_data = TDGLData.from_hdf5(f, last)
+    assert solution.dynamics == expected_dynamics
+    assert solution.tdgl_data == expected_data
+
+    solution.solve_step = original_step
+    assert len(calls) == 1
+
+
+def test_single_probe_point_dynamics(solution: tdgl.Solution):
+    dynamics = DynamicsData.from_solution(
+        solution.path, probe_points=[(-10, 0)], progress_bar=False
+    )
+    full_dynamics = DynamicsData.from_solution(
+        solution.path, probe_points=[(-10, 0), (10, 0)], progress_bar=False
+    )
+    assert dynamics.mu.shape[0] == dynamics.theta.shape[0] == 1
+    assert np.allclose(dynamics.mu[0], full_dynamics.mu[0])
+    assert np.allclose(dynamics.theta[0], full_dynamics.theta[0])
+
+    with pytest.raises(ValueError, match="only one probe point"):
+        _ = dynamics.voltage()
+    with pytest.raises(ValueError, match="only one probe point"):
+        _ = dynamics.phase_difference()
 
 
 @pytest.mark.parametrize("dataset", [None, "supercurrent", "normal_current", "invalid"])

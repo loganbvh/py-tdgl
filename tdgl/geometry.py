@@ -22,8 +22,10 @@ def rotate(coords: np.ndarray, angle_degrees: float) -> np.ndarray:
         Shape (n, 2) array of rotated coordinates (x', y')
     """
     coords = np.asarray(coords)
-    assert coords.ndim == 2
-    assert coords.shape[1] == 2
+    if coords.ndim != 2 or coords.shape[1] != 2:
+        raise ValueError(
+            f"coords must be an array of shape (n, 2) (got shape {coords.shape})."
+        )
     R = rotation_matrix(np.radians(angle_degrees))
     return (R @ coords.T).T
 
@@ -179,7 +181,8 @@ def path_vectors(path: np.ndarray) -> Tuple[float, np.ndarray]:
         unit vectors normal to each edge in the path.
     """
     dr = np.diff(path, axis=0)
-    normals = np.cross(dr, [0, 0, 1])
+    # NumPy 2.5 dropped 2D support in np.cross, so build the rotated edge directly.
+    normals = np.stack([dr[:, 1], -dr[:, 0]], axis=-1)
     unit_normals = unit_vector(normals)
     edge_lengths = np.linalg.norm(dr, axis=1)
-    return edge_lengths, unit_normals[:, :2]
+    return edge_lengths, unit_normals
