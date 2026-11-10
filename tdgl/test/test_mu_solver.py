@@ -44,7 +44,7 @@ def test_symmetric_mu_solve_matches_superlu(transport_device, terminal_psi):
     assert np.allclose(psi_new, psi_ref, atol=1e-9)
     assert np.allclose(mu_new, mu_ref, atol=1e-9)
     assert np.allclose(
-        new.dynamics.phase_difference(0, 1),
-        ref.dynamics.phase_difference(0, 1),
-        atol=1e-9,
+        np.unwrap(new.dynamics.phase_difference(0, 1)),
+        np.unwrap(ref.dynamics.phase_difference(0, 1)),
+        atol=1e-12,
     )
