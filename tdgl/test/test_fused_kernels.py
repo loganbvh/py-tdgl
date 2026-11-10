@@ -49,7 +49,7 @@ def test_fused_kernels_match_numpy(transport_device, terminal_psi, time_dependen
     assert np.allclose(psi_new, psi_ref, rtol=0, atol=1e-9)
     assert np.allclose(mu_new, mu_ref, rtol=0, atol=1e-9)
     assert np.allclose(
-        new.dynamics.phase_difference(0, 1),
-        ref.dynamics.phase_difference(0, 1),
-        atol=1e-10,
+        np.unwrap(new.dynamics.phase_difference(0, 1)),
+        np.unwrap(ref.dynamics.phase_difference(0, 1)),
+        atol=1e-12,
     )

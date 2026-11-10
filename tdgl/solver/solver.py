@@ -26,7 +26,7 @@ from ..parameter import Parameter
 from ..solution.solution import Solution
 from ..sources.constant import ConstantField
 from . import kernels
-from .options import SolverOptions, SparseSolver
+from .options import SolverOptions, SolverOptionsError, SparseSolver
 from .runner import DataHandler, Runner, RunningState
 from .screening import get_A_induced_cupy, get_A_induced_numba
 
@@ -131,7 +131,13 @@ class TDGLSolver:
         self.seed_solution = seed_solution
 
         if self.options.gpu:
-            assert cupy is not None
+            if cupy is None:
+                raise SolverOptionsError(
+                    "SolverOptions.gpu=True requires the CuPy Python package,"
+                    " which is not installed. Install it with"
+                    " 'pip install cupy-cuda12x' or the wheel matching your"
+                    " CUDA version."
+                )
             self.xp = cupy
             self.use_cupy = True
         else:
@@ -250,7 +256,10 @@ class TDGLSolver:
                 return terminal_currents
 
         J_scale = 4 * ((ureg(current_units) / length_units) / K0).to_base_units()
-        assert J_scale.dimensionless, str(J_scale)
+        if not J_scale.dimensionless:
+            raise ValueError(
+                f"current_units must be a unit of current (got {current_units!r})."
+            )
         J_scale = J_scale.magnitude
         self.current_func = lambda t: {
             key: J_scale * value for key, value in current_func(t).items()
@@ -278,9 +287,17 @@ class TDGLSolver:
         operators.build_operators()
         operators.set_link_exponents(current_A_applied)
         self.operators = operators
-        if options.sparse_solver is SparseSolver.PARDISO:
+        self._mu_boundary_term = None
+
+        if options.sparse_solver in (SparseSolver.PARDISO, SparseSolver.PARDISO_SYM):
+            # Guaranteed by MeshOperators.build_operators() for the PARDISO solver.
             assert self.operators.mu_laplacian_lu is None
-            assert pypardiso is not None
+            if pypardiso is None:
+                raise SolverOptionsError(
+                    "SparseSolver.PARDISO requires the pypardiso Python package,"
+                    " which is not installed. Install it with 'pip install pypardiso'."
+                )
+
         self.fused = bool(options.fused_kernels) and not self.use_cupy
         self.implicit = bool(options.implicit_laplacian) and self.fused
         self.fixed_mask = np.zeros(len(mesh.sites), dtype=np.bool_)
@@ -350,6 +367,7 @@ class TDGLSolver:
             if current_density != terminal_current_densities[terminal.name]:
                 terminal_current_densities[terminal.name] = current_density
                 self.mu_boundary[terminal.boundary_edge_indices] = current_density
+                self._mu_boundary_term = None
 
     def update_applied_vector_potential(self, time: float) -> np.ndarray:
         """Evaluates the time-dependent vector potential.
@@ -418,10 +436,12 @@ class TDGLSolver:
         """
         if isinstance(psi, np.ndarray):
             xp = np
-        else:
-            assert cupy is not None
-            assert isinstance(psi, cupy.ndarray)
+        elif cupy is not None and isinstance(psi, cupy.ndarray):
             xp = cupy
+        else:
+            raise TypeError(
+                f"psi must be a numpy or cupy array (got {type(psi).__name__})."
+            )
         U = xp.exp(-1j * mu * dt)
         z = U * gamma**2 / 2 * psi
         with np.errstate(all="raise"):
@@ -609,15 +629,12 @@ class TDGLSolver:
             )
         else:
             supercurrent = operators.get_supercurrent(psi)
-        rhs = (operators.divergence @ (supercurrent - dA_dt)) - (
-            operators.mu_boundary_laplacian @ self.mu_boundary
-        )
+        if self._mu_boundary_term is None:
+            self._mu_boundary_term = operators.mu_boundary_laplacian @ self.mu_boundary
+        rhs = (operators.divergence @ (supercurrent - dA_dt)) - self._mu_boundary_term
         if use_cupy and not use_cupy_solver:
             rhs = cupy.asnumpy(rhs)
-        if self.options.sparse_solver is SparseSolver.PARDISO:
-            mu = pypardiso.spsolve(operators.mu_laplacian, rhs)
-        else:
-            mu = operators.mu_laplacian_lu(rhs)
+        mu = operators.mu_solve(rhs)
         if use_cupy and not use_cupy_solver:
             mu = cupy.asarray(mu)
         normal_current = -(operators.mu_gradient @ mu) - dA_dt
