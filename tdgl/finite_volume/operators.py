@@ -12,6 +12,11 @@ else:
     from cupyx.scipy.sparse import csc_matrix, csr_matrix  # type: ignore
     from cupyx.scipy.sparse.linalg import factorized  # type: ignore
 
+try:
+    import pypardiso  # type: ignore
+except ImportError:
+    pypardiso = None
+
 from ..solver.options import SolverOptionsError, SparseSolver
 from .mesh import Mesh
 
@@ -238,7 +243,11 @@ class PardisoSolve:
     """
 
     def __init__(self, A: sp.csr_matrix, mtype: int):
-        import pypardiso  # type: ignore
+        if pypardiso is None:
+            raise SolverOptionsError(
+                "SparseSolver.PARDISO requires the pypardiso Python package,"
+                " which is not installed. Install it with 'pip install pypardiso'."
+            )
 
         A = sp.csr_matrix(A, dtype=float)
         A.sort_indices()
