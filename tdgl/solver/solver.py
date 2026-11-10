@@ -289,7 +289,7 @@ class TDGLSolver:
         self.operators = operators
         self._mu_boundary_term = None
         self.fused = bool(options.fused_kernels) and not self.use_cupy
-        
+
         if options.sparse_solver in (SparseSolver.PARDISO, SparseSolver.PARDISO_SYM):
             # Guaranteed by MeshOperators.build_operators() for the PARDISO solver.
             assert self.operators.mu_laplacian_lu is None
