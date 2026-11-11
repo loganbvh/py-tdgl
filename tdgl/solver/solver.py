@@ -288,7 +288,6 @@ class TDGLSolver:
         operators.set_link_exponents(current_A_applied)
         self.operators = operators
         self._mu_boundary_term = None
-        self.fused = bool(options.fused_kernels) and not self.use_cupy
 
         if options.sparse_solver in (SparseSolver.PARDISO, SparseSolver.PARDISO_SYM):
             # Guaranteed by MeshOperators.build_operators() for the PARDISO solver.
@@ -298,6 +297,13 @@ class TDGLSolver:
                     "SparseSolver.PARDISO requires the pypardiso Python package,"
                     " which is not installed. Install it with 'pip install pypardiso'."
                 )
+
+        self.fused = bool(options.fused_kernels) and not self.use_cupy
+        self.implicit = bool(options.implicit_laplacian) and self.fused
+        self.fixed_mask = np.zeros(len(mesh.sites), dtype=np.bool_)
+        if terminal_psi is not None:
+            self.fixed_mask[normal_boundary_index] = True
+        self.implicit_iterations = 0
 
         # Initialize the order parameter and electric potential
         psi_init = np.ones(len(mesh.sites), dtype=np.complex128)
@@ -526,7 +532,42 @@ class TDGLSolver:
         new_sq = np.empty(psi.shape, dtype=float)
 
         def attempt(dt):
-            return kernels.psi_step(
+            if not self.implicit:
+                return kernels.psi_step(
+                    psi,
+                    abs_sq_psi,
+                    mu,
+                    epsilon,
+                    float(self.gamma),
+                    float(self.u),
+                    float(dt),
+                    lap.indptr,
+                    lap.indices,
+                    lap.data,
+                    new_psi,
+                    new_sq,
+                )
+            a = dt / self.u
+            s = np.sqrt(1 + self.gamma**2 * abs_sq_psi)
+            rhs = psi + a * s * (epsilon - abs_sq_psi) * psi
+            # Fixed sites are Dirichlet rows in the implicit solve, so hold them at psi.
+            rhs[self.fixed_mask] = psi[self.fixed_mask]
+            psi_star, its, res = kernels.implicit_laplacian_solve(
+                rhs,
+                psi,
+                a,
+                s,
+                self.fixed_mask,
+                lap.indptr,
+                lap.indices,
+                lap.data,
+                float(options.implicit_rtol),
+                int(options.implicit_maxiter),
+            )
+            self.implicit_iterations = its
+            if its < 0 or res > options.implicit_rtol:
+                return False
+            return kernels.psi_finish(
                 psi,
                 abs_sq_psi,
                 mu,
@@ -534,6 +575,8 @@ class TDGLSolver:
                 float(self.gamma),
                 float(self.u),
                 float(dt),
+                psi_star,
+                self.fixed_mask,
                 lap.indptr,
                 lap.indices,
                 lap.data,
@@ -772,6 +815,8 @@ class TDGLSolver:
             running_state.append("theta", xp.angle(psi[self.probe_points]))
         if options.include_screening:
             running_state.append("screening_iterations", screening_iteration)
+        if self.implicit:
+            running_state.append("implicit_iterations", self.implicit_iterations)
 
         if options.adaptive:
             # Compute the max abs change in |psi|^2, averaged over the adaptive window,
@@ -854,6 +899,8 @@ class TDGLSolver:
             running_names_and_sizes["theta"] = len(probe_points)
         if options.include_screening:
             running_names_and_sizes["screening_iterations"] = 1
+        if self.implicit:
+            running_names_and_sizes["implicit_iterations"] = 1
 
         with DataHandler(output_file=output_file, logger=logger) as data_handler:
             data_handler.save_mesh(self.device.mesh)
